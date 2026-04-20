@@ -158,9 +158,26 @@ export function MealsView({
   onToggleCook,
 }) {
   const safeRecipes = Array.isArray(recipes) ? recipes : [];
-  const currentMonth = getCurrentAppDate().getMonth() + 1;
+  const today = getCurrentAppDate();
+  const currentMonth = today.getMonth() + 1;
   const mealRows = DAYS.map((day, index) => meals.find((meal) => meal.day === day) || createMealShell(day, index));
 
+  // Compute dates for the current week (Mon–Sun)
+  const monday = (() => {
+    const d = new Date(today);
+    const dow = d.getDay();
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+  const weekDates = DAYS.map((_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+  const todayIdx = (() => { const d = today.getDay(); return d === 0 ? 6 : d - 1; })();
+
+  const [selectedDayIdx, setSelectedDayIdx] = useState(todayIdx);
   const [pickModal, setPickModal] = useState(null);
   const [viewModal, setViewModal] = useState(null);
   const [missingModal, setMissingModal] = useState(null);
@@ -255,7 +272,7 @@ export function MealsView({
   function renderFoodBadge(labelId) {
     const label = FOOD_LABELS.find((item) => item.id === labelId);
     if (!label) return null;
-    return html`<span key=${labelId} className="ttag" style=${{ fontSize: "10px", padding: "2px 6px" }}>${label.icon} ${label.label}</span>`;
+    return html`<span key=${labelId} className="mrd-meals-tag">${label.icon} ${label.label}</span>`;
   }
 
   function renderIngredientLine(item) {
@@ -279,37 +296,41 @@ export function MealsView({
     const recipe = recipeId ? safeRecipes.find((entry) => entry.id === recipeId) : null;
 
     return html`
-      <div className="meal-slot" key=${`${meal.id}-${slot}`}>
-        <div className="meal-slot-head">
-          <span className="mbadge">${isLunch ? "Midi" : "Soir"}</span>
-          <button className=${`dcook ${cooked ? "on" : ""}`} onClick=${() => onToggleCook(meal.day, slot)} title=${cooked ? "Cuisine" : "Marquer comme cuisine"}>
-            ${cooked ? "OK" : "Prep"}
+      <div className="mrd-meals-slot-card" key=${`${meal.id}-${slot}`}>
+        <div className="mrd-meals-slot-head">
+          <div className="mrd-meals-slot-left">
+            <span className="mrd-meals-slot-icon">${isLunch ? "☀️" : "🌙"}</span>
+            <span className="mrd-meals-slot-label">${isLunch ? "DÉJEUNER" : "DÎNER"}</span>
+          </div>
+          <button className=${`mrd-meals-cook-btn ${cooked ? "on" : ""}`} onClick=${() => onToggleCook(meal.day, slot)}>
+            ${cooked ? "✓ Cuisiné" : "Marquer cuisiné"}
           </button>
         </div>
-
-        <div className="meal-slot-body">
+        <div className="mrd-meals-slot-body">
           ${recipe
             ? html`
-                <div className="meal-recipe-selected">
-                  <div className="meal-recipe-name">${recipe.name}</div>
-                  ${Array.isArray(recipe.labels) && recipe.labels.length
-                    ? html`<div className="meal-recipe-badges">${recipe.labels.map(renderFoodBadge)}</div>`
-                    : null}
-                  <div className="meal-recipe-actions">
-                    <button className="clrbtn" style=${{ fontSize: "12px", padding: "5px 10px" }} onClick=${() => setViewModal(recipe)}>Voir</button>
-                    <button className="clrbtn" style=${{ fontSize: "12px", padding: "5px 10px" }} onClick=${() => openPicker(meal.day, slot)}>Modifier</button>
-                    <button className="ghost-btn" style=${{ fontSize: "12px", padding: "5px 10px" }} onClick=${() => clearSlot(meal.day, slot)}>Retirer</button>
-                  </div>
+                <div className="mrd-meals-recipe-name">${recipe.name}</div>
+                <div className="mrd-meals-tags">
+                  <span className="mrd-meals-tag">Recette</span>
+                  <span className="mrd-meals-tag">${recipe.servings || 4} pers.</span>
+                  ${Array.isArray(recipe.labels) ? recipe.labels.map(renderFoodBadge) : null}
+                </div>
+                <div className="mrd-meals-slot-actions">
+                  <button className="mrd-meals-action-link" onClick=${() => setViewModal(recipe)}>Voir la recette</button>
+                  <button className="mrd-meals-action-link" onClick=${() => openPicker(meal.day, slot)}>Modifier</button>
+                  <button className="mrd-meals-action-link danger" onClick=${() => clearSlot(meal.day, slot)}>Retirer</button>
                 </div>
               `
-            : html`<button className="meal-pick-btn" onClick=${() => openPicker(meal.day, slot)}>+ Choisir un repas</button>`}
-          <input
-            className="mtext"
-            style=${{ marginTop: "8px" }}
-            placeholder="Notes libres..."
-            value=${text}
-            onInput=${(event) => onUpdateMeal(meal.day, slot, { text: event.target.value })}
-          />
+            : html`
+                <button className="mrd-meals-pick-btn" onClick=${() => openPicker(meal.day, slot)}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                  </svg>
+                  Choisir un repas
+                </button>
+              `}
+          <input className="mtext" style=${{ marginTop: "8px" }} placeholder="Notes libres…"
+            value=${text} onInput=${(event) => onUpdateMeal(meal.day, slot, { text: event.target.value })} />
         </div>
       </div>
     `;
@@ -513,32 +534,73 @@ export function MealsView({
     `;
   }
 
+  const DAY_ABBR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+  const selectedMeal = mealRows[selectedDayIdx];
+
   return html`
     <section className="rwrap">
-      <div className="sh">
-        <div className="sl">
-          <span className="st">Repas de la semaine</span>
-          <span className="mini">Planifie les repas midi et soir, puis coche ce qui a ete cuisine.</span>
-        </div>
-        <button
-          type="button"
-          className=${`inventory-link-toggle inventory-link-toggle-inline ${linkMealsToInventory ? "on" : ""}`}
-          onClick=${() => onToggleLinkMealsToInventory?.(!linkMealsToInventory)}
-          title=${linkMealsToInventory ? "Ne plus lier les repas a l inventaire" : "Lier les repas a l inventaire"}
-        >
-          <span className="inventory-link-toggle-box">${linkMealsToInventory ? "✓" : ""}</span>
-          <span>Lier mes repas a ma liste et a mon inventaire</span>
-        </button>
+
+      ${/* ── Bande de jours ── */null}
+      <div className="mrd-meals-day-strip">
+        ${DAYS.map((_, idx) => {
+          const date = weekDates[idx];
+          const isToday = idx === todayIdx;
+          const isOn = idx === selectedDayIdx;
+          return html`
+            <button key=${idx}
+              className=${`mrd-meals-day-pill ${isOn ? "on" : ""} ${isToday && !isOn ? "today" : ""}`}
+              onClick=${() => setSelectedDayIdx(idx)}>
+              <span className="mrd-meals-day-abbr">${DAY_ABBR[idx]}</span>
+              <span className="mrd-meals-day-num">${date.getDate()}</span>
+            </button>
+          `;
+        })}
       </div>
 
-      ${mealRows.map((meal) => html`
-        <div className="daymeal" key=${meal.id}>
-          <div className="daymealhead">
-            <div className="daymealtitle">${meal.day}</div>
-          </div>
-          ${["lunch", "dinner"].map((slot) => renderSlot(meal, slot))}
+      ${/* ── Cartes du jour sélectionné ── */null}
+      ${selectedMeal ? html`
+        <div className="mrd-meals-day-slots">
+          ${renderSlot(selectedMeal, "lunch")}
+          ${renderSlot(selectedMeal, "dinner")}
         </div>
-      `)}
+      ` : null}
+
+      ${/* ── Lien inventaire ── */null}
+      <button
+        type="button"
+        className=${`inventory-link-toggle ${linkMealsToInventory ? "on" : ""}`}
+        style=${{ width: "100%", justifyContent: "flex-start", fontSize: "12px", marginBottom: "14px" }}
+        onClick=${() => onToggleLinkMealsToInventory?.(!linkMealsToInventory)}
+      >
+        <span className="inventory-link-toggle-box">${linkMealsToInventory ? "✓" : ""}</span>
+        <span>Lier à l'inventaire</span>
+      </button>
+
+      ${/* ── Aperçu de la semaine ── */null}
+      <div className="mrd-section-head" style=${{ marginBottom: "10px" }}>
+        <span className="mrd-section-title">Aperçu de la semaine</span>
+      </div>
+      ${mealRows.map((meal, idx) => {
+        const date = weekDates[idx];
+        const lr = meal.lunchRecipeId ? safeRecipes.find((r) => r.id === meal.lunchRecipeId) : null;
+        const dr = meal.dinnerRecipeId ? safeRecipes.find((r) => r.id === meal.dinnerRecipeId) : null;
+        const label = [lr?.name, dr?.name].filter(Boolean).join(" · ");
+        const isToday = idx === todayIdx;
+        const isOn = idx === selectedDayIdx;
+        return html`
+          <button key=${meal.id}
+            className=${`mrd-meals-overview-row ${isToday ? "today" : ""} ${isOn ? "selected" : ""}`}
+            onClick=${() => setSelectedDayIdx(idx)}>
+            <div className="mrd-meals-overview-day">
+              <span className="mrd-meals-overview-abbr">${DAY_ABBR[idx]}</span>
+              <span className="mrd-meals-overview-date">${date.getDate()}</span>
+            </div>
+            <span className="mrd-meals-overview-meals">
+              ${label || html`<span style=${{ color: "var(--mrd-fg3)", fontStyle: "italic" }}>Rien de prévu</span>`}
+            </span>
+          </button>
+        `;
+      })}
 
       ${renderPicker()}
       ${renderRecipeDetail()}
