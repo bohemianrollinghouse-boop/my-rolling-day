@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#3E2C1C" />
+    <title>Planning Famille</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=DM+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./src/styles.css?v=2026-04-20-redesign-3" />
+  </head>
+  <body>
+    <div id="root">
+      <div class="ldr">
+        <div class="spin"></div>
+        Chargement...
+      </div>
+    </div>
+    <script>
+      (function () {
+        window.__APP_BOOT_STATE__ = "html-loading";
+        window.__APP_BOOT_LOGS__ = [];
+
+        function pushLog(step, detail) {
+          var entry = {
+            time: new Date().toISOString(),
+            step: step,
+            detail: detail || "",
+          };
+          window.__APP_BOOT_LOGS__.push(entry);
+          try {
+            console.log("[boot]", step, detail || "");
+          } catch (_) {}
+        }
+
+        function renderBootstrapError(message) {
+          var root = document.getElementById("root");
+          if (!root) return;
+          root.innerHTML =
+            '<div style="min-height:100vh;padding:24px;font-family:DM Sans,sans-serif;background:#fff7f7;color:#8f1d1d;display:flex;align-items:center;justify-content:center">' +
+            '<div style="max-width:560px;width:100%;background:#fff;border:1px solid #f0c9cf;border-radius:16px;padding:20px">' +
+            '<h1 style="margin:0 0 10px 0;font-size:24px">Demarrage bloque</h1>' +
+            '<p style="margin:0 0 12px 0;line-height:1.5">L application n a pas termine son chargement. Voici l erreur visible :</p>' +
+            '<pre style="white-space:pre-wrap;background:#fff7f7;border-radius:10px;padding:12px">' + String(message || "Erreur inconnue") + "</pre>" +
+            '<button onclick="window.location.reload()" style="margin-top:14px;border:none;border-radius:10px;padding:10px 14px;background:#C4607A;color:#fff;cursor:pointer">Reessayer</button>' +
+            "</div></div>";
+        }
+
+        window.__renderBootstrapError = renderBootstrapError;
+        window.__pushBootLog = pushLog;
+
+        window.addEventListener("error", function (event) {
+          pushLog("window-error", event.message || "");
+          renderBootstrapError(event.error && event.error.stack ? event.error.stack : event.message);
+        });
+
+        window.addEventListener("unhandledrejection", function (event) {
+          var reason = event.reason && event.reason.stack ? event.reason.stack : event.reason && event.reason.message ? event.reason.message : event.reason;
+          pushLog("unhandled-rejection", reason || "");
+          renderBootstrapError(reason || "Promesse rejetee pendant le demarrage.");
+        });
+
+        pushLog("html-ready", "index.html charge");
+
+        setTimeout(function () {
+          if (window.__APP_BOOT_STATE__ !== "react-mounted") {
+            pushLog("boot-timeout", window.__APP_BOOT_STATE__);
+            renderBootstrapError("Le chargement a depasse le delai prevu. Etat actuel: " + window.__APP_BOOT_STATE__);
+          }
+        }, 8000);
+      })();
+    </script>
+    <script type="module" src="./src/main.js?v=2026-04-20-redesign-2"></script>
+  </body>
+  </html>
