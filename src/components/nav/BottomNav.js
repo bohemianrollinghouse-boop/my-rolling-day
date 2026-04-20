@@ -1,6 +1,5 @@
 import { html } from "../../lib.js";
 
-/* ─── SVG ICONS ─────────────────────────────────────────── */
 function IcoHome({ active }) {
   const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
   const sw = active ? "2.2" : "1.8";
@@ -59,29 +58,25 @@ function IcoList({ active }) {
     </svg>`;
 }
 
-/* ─── BOTTOM NAV ─────────────────────────────────────────── */
 const NAV_TABS = [
-  { id: "home",   label: "Accueil", Icon: IcoHome  },
-  { id: "tasks",  label: "Tâches",  Icon: IcoCheck },
-  { id: "agenda", label: "Agenda",  Icon: IcoCal   },
-  { id: "meals",  label: "Repas",   Icon: IcoFork  },
-  { id: "lists",  label: "Listes",  Icon: IcoList  },
+  { id: "home", label: "Accueil", Icon: IcoHome },
+  { id: "tasks", label: "Tâches", Icon: IcoCheck },
+  { id: "agenda", label: "Agenda", Icon: IcoCal },
+  { id: "meals", label: "Repas", Icon: IcoFork },
+  { id: "lists", label: "Listes", Icon: IcoList },
 ];
 
-/** Map any activeTab value → bottom nav id */
 function getBottomId(tab) {
   if (["mine", "daily", "weekly", "monthly"].includes(tab)) return "tasks";
-  if (tab === "agenda")  return "agenda";
-  if (tab === "meals")   return "meals";
-  if (tab === "lists")   return "lists";
-  if (tab === "home")    return "home";
-  // inventory, recipes, notes, history → no specific bottom tab, show home highlighted
+  if (tab === "agenda") return "agenda";
+  if (tab === "meals") return "meals";
+  if (tab === "lists") return "lists";
+  if (tab === "home") return "home";
   return "home";
 }
 
-/** Map bottom nav id → actual tab id */
 function toTabId(id) {
-  if (id === "tasks")  return "daily";
+  if (id === "tasks") return "daily";
   return id;
 }
 

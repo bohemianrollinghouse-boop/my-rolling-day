@@ -38,12 +38,12 @@ function compareByName(left, right) {
 
 function knownProductMeta(item) {
   if (item?.source === "inventory") {
-    return item.stockState === "empty" ? "Deja vu dans l inventaire" : "Deja dans l inventaire";
+    return item.stockState === "empty" ? "Déjà vu dans l’inventaire" : "Déjà dans l’inventaire";
   }
-  if (item?.source === "list") return "Deja vu dans une liste";
-  if (item?.source === "recipe") return "Deja vu dans une recette";
-  if (item?.source === "recipe-draft") return "Deja ajoute dans cette recette";
-  return "Produit deja connu";
+  if (item?.source === "list") return "Déjà vu dans une liste";
+  if (item?.source === "recipe") return "Déjà vu dans une recette";
+  if (item?.source === "recipe-draft") return "Déjà ajouté dans cette recette";
+  return "Produit déjà connu";
 }
 
 export function InventoryView({
@@ -197,25 +197,24 @@ export function InventoryView({
               ${item.expiryDate ? html`<span className="inventory-pill expiry">DLC ${item.expiryDate}</span>` : null}
             </div>
             <div className="mini inventory-detail-row">
-              ${item.purchaseDate ? `Entre le ${item.purchaseDate}` : "Date d entree non renseignee"}
+              ${item.purchaseDate ? `Entré le ${item.purchaseDate}` : "Date d’entrée non renseignée"}
               ${item.price ? ` · ${item.price} €` : ""}
             </div>
           </div>
-          <span className=${`settings-badge ${finished ? "soon" : ""}`}>${item.stockState === "empty" ? "Fini" : "En stock"}</span>
-        </div>
-
-        <div className="inventory-status-row">
-          <button className=${`pc ${item.stockState === "in_stock" ? "on" : ""}`} onClick=${() => onUpdateInventoryItem(item.id, { stockState: "in_stock", needsRestock: false })}>
-            En stock
-          </button>
-          <button className=${`pc ${item.stockState === "empty" ? "on" : ""}`} onClick=${() => onUpdateInventoryItem(item.id, { stockState: "empty", needsRestock: true })}>
-            Fini
-          </button>
+          <div style=${{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-end", flexShrink: 0 }}>
+            <button
+              className=${item.stockState === "empty" ? "mrd-inv-state-empty" : "mrd-inv-state-ok"}
+              onClick=${() => onUpdateInventoryItem(item.id, item.stockState === "empty"
+                ? { stockState: "in_stock", needsRestock: false }
+                : { stockState: "empty", needsRestock: true })}
+              title="Cliquer pour basculer l'état"
+            >${item.stockState === "empty" ? "Épuisé" : "En stock"}</button>
+          </div>
         </div>
 
         <div className="inventory-actions">
           <button className="clrbtn" onClick=${() => openEditModal(item)}>Modifier</button>
-          <button className="clrbtn" onClick=${() => onSendInventoryToShopping(item.id)}>A racheter</button>
+          <button className="clrbtn" onClick=${() => onSendInventoryToShopping(item.id)}>À racheter</button>
           <button className="ghost-btn" onClick=${() => onDeleteInventoryItem(item.id)}>Supprimer</button>
         </div>
       </div>
@@ -224,13 +223,13 @@ export function InventoryView({
 
   function renderSection(title, items, finished = false) {
     if (!items.length) return null;
+    const dotColor = finished ? "oklch(58% 0.13 28)" : "oklch(54% 0.10 155)";
     return html`
       <section className="inventory-section">
-        <div className="sh">
-          <div className="sl">
-            <span className="st">${title}</span>
-            <span className="mini">${items.length} article${items.length > 1 ? "s" : ""}</span>
-          </div>
+        <div className="inventory-group-label">
+          <span className="mrd-inv-group-dot" style=${{ background: dotColor }}></span>
+          <span>${title}</span>
+          <span className="mini">(${items.length})</span>
         </div>
         <div className="settings-stack">
           ${items.map((item) => renderCard(item, finished))}
@@ -249,7 +248,7 @@ export function InventoryView({
         <div className="settings-inline-actions">
           <button className="ghost-btn" onClick=${onClearFinishedInventory}>Vider les finis</button>
           <button className="ghost-btn" onClick=${onClearAllInventory}>Vider l inventaire</button>
-          <button className="aok" onClick=${openCreateModal}>Ajouter a l inventaire</button>
+          <button className="aok" onClick=${openCreateModal}>Ajouter à l’inventaire</button>
         </div>
       </div>
 
@@ -327,7 +326,7 @@ export function InventoryView({
                               `}
                           <button type="button" className="clrbtn" style=${{ fontSize: "12px", padding: "4px 10px" }}
                             onClick=${() => setBypassSimilar(true)}>
-                            Creer quand meme
+                            Créer quand même
                           </button>
                         </div>
                       </div>

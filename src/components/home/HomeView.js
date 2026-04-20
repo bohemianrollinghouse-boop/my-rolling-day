@@ -183,7 +183,7 @@ export function HomeView({
     ? "Belle journée en perspective"
     : doneCount === totalCount
     ? "Belle journée en perspective"
-    : "Aujourd'hui · tâches quotidiennes";
+    : "Aujourd’hui · tâches quotidiennes";
 
   return html`
     <div className="mrd-home">

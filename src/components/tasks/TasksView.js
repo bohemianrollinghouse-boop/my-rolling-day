@@ -1,11 +1,11 @@
-import { html, useMemo, useState } from "../../lib.js";
+import { html, useMemo, useState, useEffect } from "../../lib.js";
 import { TaskCard as SharedTaskCard } from "./TaskCard.js?v=2026-04-19-time-sim-1";
 import { getCurrentAppDate, getCurrentAppTimestamp, localDateKey } from "../../utils/date.js?v=2026-04-19-time-sim-2";
 
 const URGENCY_META = {
   normal: { label: "Normale", className: "normal", score: 2 },
   urgent: { label: "Urgente", className: "urgent", score: 1 },
-  deadline: { label: "A faire avant...", className: "deadline", score: 0 },
+  deadline: { label: "À faire avant…", className: "deadline", score: 0 },
 };
 
 const EMOJI_CATEGORIES = [
@@ -19,8 +19,8 @@ const EMOJI_CATEGORIES = [
 ];
 
 function blockTitle(tab) {
-  if (tab === "mine") return "Mes taches";
-  if (tab === "daily") return "Aujourd'hui";
+  if (tab === "mine") return "Mes tâches";
+  if (tab === "daily") return "Aujourd’hui";
   if (tab === "weekly") return "Semaine";
   return "Mois";
 }
@@ -51,7 +51,7 @@ function defaultTaskForm(tab) {
 }
 
 function recurrenceLabel(task) {
-  if (task.taskKind !== "recurring") return "Tache unique";
+  if (task.taskKind !== "recurring") return "Tâche unique";
   if (task.recurrenceFrequency === "daily") return "Chaque jour";
   if (task.recurrenceFrequency === "weekly") return "Chaque semaine";
   return "Chaque mois";
@@ -75,21 +75,21 @@ function isPastDue(task) {
 
 function dueLabel(task) {
   const dueDate = getDueDateTime(task);
-  if (!dueDate) return "A faire bientot";
+  if (!dueDate) return "À faire bientôt";
 
   const now = getCurrentAppDate();
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
 
   if (dueDate.toDateString() === now.toDateString()) {
-    return task.dueTime ? `A faire avant ${task.dueTime}` : "A faire aujourd hui";
+    return task.dueTime ? `À faire avant ${task.dueTime}` : "À faire aujourd’hui";
   }
   if (dueDate.toDateString() === tomorrow.toDateString()) {
-    return task.dueTime ? `A faire avant demain ${task.dueTime}` : "A faire avant demain";
+    return task.dueTime ? `À faire avant demain ${task.dueTime}` : "À faire avant demain";
   }
 
   const dateLabel = dueDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-  return task.dueTime ? `A faire avant ${dateLabel} ${task.dueTime}` : `A faire avant ${dateLabel}`;
+  return task.dueTime ? `À faire avant ${dateLabel} ${task.dueTime}` : `À faire avant ${dateLabel}`;
 }
 
 function urgencyBadge(task) {
@@ -145,10 +145,10 @@ function nextRecurringDueDate(task) {
 }
 
 function deadlineGroupLabel(tab) {
-  if (tab === "daily") return "A faire avant...";
-  if (tab === "weekly") return "A faire avant le...";
-  if (tab === "monthly") return "A faire avant le...";
-  return "A faire avant...";
+  if (tab === "daily") return "À faire avant…";
+  if (tab === "weekly") return "À faire avant le…";
+  if (tab === "monthly") return "À faire avant le…";
+  return "À faire avant…";
 }
 
 function getDeadlineTasksForTab(tab, tasks) {
@@ -201,6 +201,7 @@ export function TasksView({
   childProfiles = [],
   planningByTask = {},
   activePersonLabel = "",
+  externalOpenCreate = 0,
   onAddTask,
   onUpdateTask,
   onToggleTask,
@@ -244,6 +245,13 @@ export function TasksView({
     () => sortedTasks.filter((task) => task.taskKind !== "recurring" && task.priority !== "deadline"),
     [sortedTasks],
   );
+
+  // FAB external trigger — open create modal when the FAB is pressed from App.js
+  useEffect(() => {
+    if (externalOpenCreate > 0) {
+      openCreate();
+    }
+  }, [externalOpenCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function resetForm(nextTab = tab) {
     setForm(defaultTaskForm(nextTab));
@@ -370,9 +378,9 @@ export function TasksView({
                           ${task.taskKind === "recurring" ? html`<span className="ttag recTag">${recurrenceLabel(task)}</span>` : null}
                           ${(task.overdue || isPastDue(task)) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
                         </div>
-                        ${assignedPerson ? html`<div className="task-assignee">Attribuee a : ${assignedPerson.label}</div>` : null}
+                        ${assignedPerson ? html`<div className="task-assignee">Attribuée à : ${assignedPerson.label}</div>` : null}
                         ${planning ? html`<div className="task-assignee">${planningLabel}${planningPeople ? ` · ${planningPeople}` : ""}</div>` : null}
-                        ${planningChildren ? html`<div className="task-assignee">Enfants concernes : ${planningChildren}</div>` : null}
+                        ${planningChildren ? html`<div className="task-assignee">Enfants concernés : ${planningChildren}</div>` : null}
                         ${completedPeople.length
                           ? html`<div className="task-completed">Faite par : ${completedPeople.map((person) => person.label).join(", ")}${completedAtLabel ? ` - ${completedAtLabel}` : ""}</div>`
                           : html`<div className="task-completed pending">En attente</div>`}
@@ -391,7 +399,7 @@ export function TasksView({
                                 className=${`task-person-chip ${isSelected ? "on" : ""}`}
                                 style=${isSelected ? { background: person.color, borderColor: person.color, color: "#fff" } : { background: "#fff", borderColor: person.color || "#D8CEBF", color: person.color || "#8A7868" }}
                                 onClick=${() => onToggleTask(task.id, person.id)}
-                                title=${`Marquer ${person.label} comme personne ayant fait la tache`}
+                                title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                               >
                                 <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { background: "#fff", color: person.color || "#8A7868" }}>
                                   ${person.shortId}
@@ -399,7 +407,7 @@ export function TasksView({
                               </button>
                             `;
                           })
-                        : html`<div className="mini">Ajoute une personne du foyer capable de valider les taches.</div>`}
+                        : html`<div className="mini">Ajoute une personne du foyer capable de valider les tâches.</div>`}
                       <div className="task-order-actions">
                         <button className="task-order-btn" disabled=${index === 0} onClick=${() => onMoveTask(task.id, -1, moveGroupKey)} title="Monter">↑</button>
                         <button className="task-order-btn" disabled=${index === list.length - 1} onClick=${() => onMoveTask(task.id, 1, moveGroupKey)} title="Descendre">↓</button>
@@ -513,7 +521,7 @@ export function TasksView({
                   ${task.taskKind === "recurring" ? html`<span className="ttag recTag">${recurrenceLabel(task)}</span>` : null}
                   ${(task.overdue || isPastDue(task)) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
                 </div>
-                ${assignedPerson ? html`<div className="task-assignee">Attribuee a : ${assignedPerson.label}</div>` : null}
+                ${assignedPerson ? html`<div className="task-assignee">Attribuée à : ${assignedPerson.label}</div>` : null}
                 ${completedPeople.length
                   ? html`<div className="task-completed">Faite par : ${completedPeople.map((person) => person.label).join(", ")}${completedAtLabel ? ` - ${completedAtLabel}` : ""}</div>`
                   : html`<div className="task-completed pending">En attente</div>`}
@@ -533,7 +541,7 @@ export function TasksView({
                           ? { background: person.color, borderColor: person.color, color: "#fff" }
                           : { background: "#fff", borderColor: person.color || "#D8CEBF", color: person.color || "#8A7868" }}
                         onClick=${() => onToggleTask(task.id, person.id)}
-                        title=${`Marquer ${person.label} comme personne ayant fait la tache`}
+                        title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                       >
                         <span
                           className="task-person-avatar"
@@ -546,10 +554,10 @@ export function TasksView({
                       </button>
                     `,
                   )
-                : html`<div className="mini">Ajoute une personne du foyer capable de valider les taches.</div>`}
+                : html`<div className="mini">Ajoute une personne du foyer capable de valider les tâches.</div>`}
               <div className="task-order-actions">
-                <button className="task-order-btn" disabled=${index === 0} onClick=${() => onMoveTask(task.id, -1, moveGroupKey)} title="Monter">â†‘</button>
-                <button className="task-order-btn" disabled=${index === list.length - 1} onClick=${() => onMoveTask(task.id, 1, moveGroupKey)} title="Descendre">â†“</button>
+                <button className="task-order-btn" disabled=${index === 0} onClick=${() => onMoveTask(task.id, -1, moveGroupKey)} title="Monter">↑</button>
+                <button className="task-order-btn" disabled=${index === list.length - 1} onClick=${() => onMoveTask(task.id, 1, moveGroupKey)} title="Descendre">↓</button>
               </div>
             </div>
             <button className="delbtn task-delete" onClick=${() => onDeleteTask(task.id)}>X</button>
@@ -573,18 +581,18 @@ export function TasksView({
               ⏰ Échéances (${allDeadlineTasks.length})
             </button>
           ` : null}
-          <button className="aok" onClick=${openCreate}>+ Creer une tache</button>
+          <button className="aok" onClick=${openCreate}>+ Créer une tâche</button>
         </div>
       </div>
 
       <div className="sbar"><div className="sbf" style=${{ width: `${percentDone}%` }}></div></div>
 
       ${tab === "mine" && !sortedTasks.length
-        ? html`<div className="empty">Aucune tache assignee pour le moment${activePersonLabel ? ` pour ${activePersonLabel}` : ""}</div>`
+        ? html`<div className="empty">Aucune tâche assignée pour le moment${activePersonLabel ? ` pour ${activePersonLabel}` : ""}</div>`
         : html`
             ${renderDeadlineTaskList(deadlineTasks, deadlineGroupLabel(tab))}
-            ${renderTaskList(recurringTasks, "Taches recurrentes", "Aucune tache recurrente pour le moment.")}
-            ${renderTaskList(uniqueTasks, "Taches uniques", "Aucune tache unique pour le moment.")}
+            ${renderTaskList(recurringTasks, "Tâches récurrentes", "Aucune tâche récurrente pour le moment.")}
+            ${renderTaskList(uniqueTasks, "Tâches uniques", "Aucune tâche unique pour le moment.")}
           `}
 
       ${showAllDeadlines ? html`
@@ -611,7 +619,7 @@ export function TasksView({
               <div className="modal-card task-modal" onClick=${(event) => event.stopPropagation()}>
                 <div className="task-modal-head">
                   <div>
-                <div className="miniTitle">${editingTaskId ? "Modifier la tache" : "Creer une tache"}</div>
+                <div className="miniTitle">${editingTaskId ? "Modifier la tâche" : "Créer une tâche"}</div>
                 <div className="st">Tableau du foyer</div>
                   </div>
                   <button className="delbtn" onClick=${closeCreate}>X</button>
@@ -625,7 +633,7 @@ export function TasksView({
                       onClick=${() => setShowEmojiPicker((p) => !p)}
                       title="Choisir un emoji"
                     >${form.icon || "🙂"}</button>
-                    <input className="ainp task-name-inline" placeholder="Nom de la tache" value=${form.text} onInput=${(event) => updateForm("text", event.target.value)} />
+                    <input className="ainp task-name-inline" placeholder="Nom de la tâche" value=${form.text} onInput=${(event) => updateForm("text", event.target.value)} />
                   </div>
                   ${showEmojiPicker ? html`
                     <div style=${{ background: "var(--surface2,#f5f5f5)", borderRadius: "10px", padding: "10px", marginBottom: "8px" }}>
@@ -647,19 +655,19 @@ export function TasksView({
                   ` : null}
 
                   <div className="settings-actions">
-                    <div className="miniTitle">Type de tache</div>
+                    <div className="miniTitle">Type de tâche</div>
                     <div className="task-choice-row">
                       <button type="button" className=${`task-choice ${form.taskKind === "single" ? "on" : ""}`} onClick=${() => updateForm("taskKind", "single")}>
-                        Tache unique
+                        Tâche unique
                       </button>
                       <button type="button" className=${`task-choice ${form.taskKind === "recurring" ? "on" : ""}`} onClick=${() => updateForm("taskKind", "recurring")}>
-                        Tache recurrente
+                        Tâche récurrente
                       </button>
                     </div>
                   </div>
 
                   <div className="settings-actions">
-                    <div className="miniTitle">Ou la tache apparait</div>
+                    <div className="miniTitle">Où la tâche apparaît</div>
                     <div className="task-choice-row">
                           <button
                             type="button"
@@ -669,7 +677,7 @@ export function TasksView({
                               if (form.priority === "deadline") updateForm("priority", "normal");
                             }}
                           >
-                        Aujourd hui
+                        Aujourd’hui
                       </button>
                       <button
                         type="button"
@@ -699,7 +707,7 @@ export function TasksView({
                           updateForm("priority", "deadline");
                         }}
                       >
-                        A faire avant
+                        À faire avant
                       </button>
                     </div>
                   </div>
@@ -754,7 +762,7 @@ export function TasksView({
                   ${form.displayPeriod === "deadline"
                     ? html`
                         <div className="settings-actions">
-                          <div className="miniTitle">A faire avant...</div>
+                          <div className="miniTitle">À faire avant…</div>
                           <div className="arow">
                             <input className="ainp" type="date" value=${form.dueDate || ""} onInput=${(event) => updateForm("dueDate", event.target.value)} />
                             <input className="ainp" type="time" value=${form.dueTime || ""} onInput=${(event) => updateForm("dueTime", event.target.value)} />
@@ -781,7 +789,7 @@ export function TasksView({
                           </div>
                         </div>
                       `
-                    : html`<div className="mini">Cette tache unique apparaitra dans la periode choisie.</div>`}
+                    : html`<div className="mini">Cette tâche unique apparaîtra dans la période choisie.</div>`}
 
                   <div className="settings-actions">
                     <div className="miniTitle">Planification</div>
@@ -792,7 +800,7 @@ export function TasksView({
                     >
                       Ajouter au calendrier
                     </button>
-                    <div className="mini">Option facultative pour creer et planifier la tache en une seule fois.</div>
+                    <div className="mini">Option facultative pour créer et planifier la tâche en une seule fois.</div>
                   </div>
 
                   ${form.addToCalendar
@@ -889,7 +897,7 @@ export function TasksView({
 
                   <div className="task-modal-actions">
                     <button type="button" className="acn" onClick=${closeCreate}>Annuler</button>
-                <button type="submit" className="aok">${editingTaskId ? "Enregistrer" : "Creer la tache"}</button>
+                <button type="submit" className="aok">${editingTaskId ? "Enregistrer" : "Créer la tâche"}</button>
               </div>
             </form>
           </div>
@@ -914,7 +922,7 @@ export function TasksView({
                 <div className="modal-card task-modal" onClick=${(event) => event.stopPropagation()}>
                   <div className="task-modal-head">
                     <div>
-                      <div className="miniTitle">Tache</div>
+                      <div className="miniTitle">Tâche</div>
                       <div className="st">${selectedTask.text}</div>
                     </div>
                     <button className="delbtn" onClick=${closeTaskDetails}>X</button>

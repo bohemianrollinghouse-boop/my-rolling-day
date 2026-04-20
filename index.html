@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=DM+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./src/styles.css?v=2026-04-20-redesign-3" />
+    <link rel="stylesheet" href="./src/styles.css?v=2026-04-20-redesign-4" />
   </head>
   <body>
     <div id="root">
@@ -43,10 +43,10 @@
           root.innerHTML =
             '<div style="min-height:100vh;padding:24px;font-family:DM Sans,sans-serif;background:#fff7f7;color:#8f1d1d;display:flex;align-items:center;justify-content:center">' +
             '<div style="max-width:560px;width:100%;background:#fff;border:1px solid #f0c9cf;border-radius:16px;padding:20px">' +
-            '<h1 style="margin:0 0 10px 0;font-size:24px">Demarrage bloque</h1>' +
-            '<p style="margin:0 0 12px 0;line-height:1.5">L application n a pas termine son chargement. Voici l erreur visible :</p>' +
+            '<h1 style="margin:0 0 10px 0;font-size:24px">Démarrage bloqué</h1>' +
+            '<p style="margin:0 0 12px 0;line-height:1.5">L’application n’a pas terminé son chargement. Voici l’erreur visible :</p>' +
             '<pre style="white-space:pre-wrap;background:#fff7f7;border-radius:10px;padding:12px">' + String(message || "Erreur inconnue") + "</pre>" +
-            '<button onclick="window.location.reload()" style="margin-top:14px;border:none;border-radius:10px;padding:10px 14px;background:#C4607A;color:#fff;cursor:pointer">Reessayer</button>' +
+            '<button onclick="window.location.reload()" style="margin-top:14px;border:none;border-radius:10px;padding:10px 14px;background:#C4607A;color:#fff;cursor:pointer">Réessayer</button>' +
             "</div></div>";
         }
 
@@ -61,19 +61,19 @@
         window.addEventListener("unhandledrejection", function (event) {
           var reason = event.reason && event.reason.stack ? event.reason.stack : event.reason && event.reason.message ? event.reason.message : event.reason;
           pushLog("unhandled-rejection", reason || "");
-          renderBootstrapError(reason || "Promesse rejetee pendant le demarrage.");
+          renderBootstrapError(reason || "Promesse rejetée pendant le démarrage.");
         });
 
-        pushLog("html-ready", "index.html charge");
+        pushLog("html-ready", "index.html chargé");
 
         setTimeout(function () {
           if (window.__APP_BOOT_STATE__ !== "react-mounted") {
             pushLog("boot-timeout", window.__APP_BOOT_STATE__);
-            renderBootstrapError("Le chargement a depasse le delai prevu. Etat actuel: " + window.__APP_BOOT_STATE__);
+            renderBootstrapError("Le chargement a dépassé le délai prévu. État actuel : " + window.__APP_BOOT_STATE__);
           }
         }, 8000);
       })();
     </script>
-    <script type="module" src="./src/main.js?v=2026-04-20-redesign-2"></script>
+    <script type="module" src="./src/main.js?v=2026-04-20-redesign-3"></script>
   </body>
-  </html>
+</html>

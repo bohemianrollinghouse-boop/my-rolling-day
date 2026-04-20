@@ -82,7 +82,7 @@ export function NotesView({ notes, activePersonId, people, onAddNote, onDeleteNo
             <div className="mini" style=${{ marginBottom: "6px" }}>Visibilite :</div>
             <div className="segmented" style=${{ marginBottom: "6px" }}>
               <button type="button" className=${`seg-btn ${editVisibility === "household" ? "on" : ""}`} onClick=${() => { setEditVisibility("household"); setEditSharedWith([]); }}>Foyer</button>
-              <button type="button" className=${`seg-btn ${editVisibility === "private" ? "on" : ""}`} onClick=${() => setEditVisibility("private")}>Privee</button>
+              <button type="button" className=${`seg-btn ${editVisibility === "private" ? "on" : ""}`} onClick=${() => setEditVisibility("private")}>Privée</button>
             </div>
             ${editVisibility === "private" ? html`
               <${ShareableMembers} people=${people} activePersonId=${activePersonId} selected=${editSharedWith} onChange=${setEditSharedWith} />
@@ -106,32 +106,33 @@ export function NotesView({ notes, activePersonId, people, onAddNote, onDeleteNo
 
   return html`
     <section>
-      <div className="sh"><span className="st">Notes</span></div>
-      <form className="aform" onSubmit=${submit}>
-        <textarea className="nta" name="noteText" placeholder="Ecris ta note ici..."></textarea>
-        <div className="segmented" style=${{ marginBottom: "8px" }}>
-          <button type="button" className=${`seg-btn ${visibility === "household" ? "on" : ""}`} onClick=${() => { setVisibility("household"); setSharedWith([]); }}>Foyer</button>
-          <button type="button" className=${`seg-btn ${visibility === "private" ? "on" : ""}`} onClick=${() => setVisibility("private")}>Privee</button>
+      <form className="aform mrd-note-add-form" onSubmit=${submit}>
+        <textarea className="nta" name="noteText" placeholder="Écris ta note ici…" rows="3"></textarea>
+        <div style=${{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+          <div className="segmented" style=${{ flex: "1" }}>
+            <button type="button" className=${`seg-btn ${visibility === "household" ? "on" : ""}`} onClick=${() => { setVisibility("household"); setSharedWith([]); }}>Foyer</button>
+            <button type="button" className=${`seg-btn ${visibility === "private" ? "on" : ""}`} onClick=${() => setVisibility("private")}>Privée</button>
+          </div>
+          <button className="aok" type="submit" style=${{ padding: "7px 14px", borderRadius: "99px", fontSize: "13px" }}>Enregistrer</button>
         </div>
         ${visibility === "private" ? html`
-          <div style=${{ marginBottom: "8px" }}>
+          <div style=${{ marginTop: "8px" }}>
             <div className="mini" style=${{ marginBottom: "6px" }}>Partager avec :</div>
             <${ShareableMembers} people=${people} activePersonId=${activePersonId} selected=${sharedWith} onChange=${setSharedWith} />
           </div>
         ` : null}
-        <button className="aok" type="submit">Enregistrer</button>
       </form>
 
       ${privateNotes.length ? html`
-        <div className="sh" style=${{ marginTop: "16px" }}>
-          <span className="st">Mes notes privees</span>
+        <div className="mrd-section-head" style=${{ marginTop: "16px", marginBottom: "8px" }}>
+          <span className="miniTitle">Mes notes privées</span>
           <span className="mini">${privateNotes.length}</span>
         </div>
-        ${privateNotes.map(renderNote)}
+        <div className="mrd-notes-masonry">${privateNotes.map(renderNote)}</div>
       ` : null}
 
-      <div className="sh" style=${{ marginTop: "16px" }}>
-        <span className="st">Notes du foyer</span>
+      <div className="mrd-section-head" style=${{ marginTop: "16px", marginBottom: "8px" }}>
+        <span className="miniTitle">Notes du foyer</span>
         <span className="mini">${filteredSharedNotes.length}</span>
       </div>
       ${authorsInShared.length > 1 ? html`
@@ -142,7 +143,9 @@ export function NotesView({ notes, activePersonId, people, onAddNote, onDeleteNo
           `)}
         </div>
       ` : null}
-      ${filteredSharedNotes.length ? filteredSharedNotes.map(renderNote) : html`<div className="empty">Aucune note du foyer</div>`}
+      ${filteredSharedNotes.length
+        ? html`<div className="mrd-notes-masonry">${filteredSharedNotes.map(renderNote)}</div>`
+        : html`<div className="empty">Aucune note du foyer</div>`}
     </section>
   `;
 }

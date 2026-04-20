@@ -9,7 +9,7 @@ import { MealsView } from "./components/meals/MealsView.js?v=2026-04-19-condimen
 import { NotesView } from "./components/notes/NotesView.js";
 import { RecipesView } from "./components/recipes/RecipesView.js?v=2026-04-19-condiments-2";
 import { SettingsView } from "./components/settings/SettingsView.js?v=2026-04-19-meals-link-1";
-import { TasksView } from "./components/tasks/TasksView.js?v=2026-04-19-time-sim-1";
+import { TasksView } from "./components/tasks/TasksView.js?v=2026-04-20-redesign-1";
 import { createDefaultState } from "./data/defaultState.js";
 import {
   canChangePassword,
@@ -225,6 +225,7 @@ export function App() {
   const [importText, setImportText] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [taskFabTrigger, setTaskFabTrigger] = useState(0);
   const [profilePersonId, setProfilePersonId] = useState("");
   const [activePersonId, setActivePersonId] = useState("");
   const [deviceMode, setDeviceMode] = useState("personal");
@@ -660,7 +661,7 @@ export function App() {
 
     if (Boolean(state.linkMealsToInventory) && computed.nextCooked && computed.recipeId && computed.deductedAny) {
       showToast(
-        "Les ingredients ont bien ete deduits de votre inventaire",
+        "Les ingrédients ont bien été déduits de votre inventaire",
         {
           label: "Annuler",
           onClick: () => {
@@ -686,18 +687,18 @@ export function App() {
 
 
   if (!authReady) {
-    return html`<div className="ldr"><div className="spin"></div>Verification de la session...</div>`;
+    return html`<div className="ldr"><div className="spin"></div>Vérification de la session...</div>`;
   }
 
   if (startupStage === "error" && startupError) {
     return html`
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="hdr-sub">Demarrage</div>
+          <div className="hdr-sub">Démarrage</div>
           <h1 className="auth-title">Chargement impossible</h1>
           <div className="error-box">${startupError}</div>
           <div className="aform">
-            <button className="aok" onClick=${() => window.location.reload()}>Reessayer</button>
+            <button className="aok" onClick=${() => window.location.reload()}>Réessayer</button>
           </div>
         </div>
       </div>
@@ -708,7 +709,7 @@ export function App() {
     return html`
       <${AuthScreen}
         errorMessage=${authError}
-        infoMessage=${`Etat auth: ${authPhase === "checking" ? "verification" : authPhase === "signed_out" ? "non connecte" : "connecte"}`}
+        infoMessage=${`État auth : ${authPhase === "checking" ? "vérification" : authPhase === "signed_out" ? "non connecté" : "connecté"}`}
         loading=${busy}
         onGoogleLogin=${() => runAuth(() => signInWithGoogle())}
         onEmailLogin=${(form) => runAuth(() => signInWithEmail(form.email, form.password))}
@@ -744,6 +745,7 @@ export function App() {
           planningByTask=${taskPlanningById}
           activePersonId=${activePersonId}
           activePersonLabel=${activeHouseholdPerson?.displayName || activeHouseholdPerson?.label || ""}
+          externalOpenCreate=${taskFabTrigger}
           onAddTask=${handleAddTask}
           onUpdateTask=${handleUpdateTask}
           onToggleTask=${handleToggleTask}
@@ -787,7 +789,7 @@ export function App() {
                 unit: item.unit || "",
               }),
             );
-            showToast("Ingredients ajoutes a votre liste de courses.");
+            showToast("Ingrédients ajoutés à votre liste de courses.");
           }}
           onUpdateMeal=${handleUpdateMeal}
           onToggleCook=${handleToggleCookWithInventory}
@@ -911,8 +913,8 @@ export function App() {
           ${needsActivePersonChoice && !showSettings ? html`
             <section className="ncard active-person-card" style=${{ margin: "12px" }}>
               <div className="miniTitle">Cet appareil</div>
-              <div className="st">Qui utilise l application sur cet appareil ?</div>
-              <div className="mini">Choisis une personne du foyer pour activer Mes taches et les usages personnels sur ce telephone.</div>
+              <div className="st">Qui utilise l’application sur cet appareil ?</div>
+              <div className="mini">Choisis une personne du foyer pour activer Mes tâches et les usages personnels sur ce téléphone.</div>
               <div className="tych active-person-choices">
                 ${appPeopleRaw.map(
                   (person) => html`
@@ -1012,7 +1014,7 @@ export function App() {
                     ${["daily", "weekly", "monthly", "mine"].includes(activeTab) ? html`
                       <div className="mrd-subtabs">
                         ${[
-                          { id: "daily",   label: "Aujourd'hui", icon: "☀️" },
+                          { id: "daily",   label: "Aujourd’hui", icon: "☀️" },
                           { id: "weekly",  label: "Semaine",     icon: "🗓" },
                           { id: "monthly", label: "Mois",        icon: "📆" },
                           { id: "mine",    label: "Mes tâches",  icon: "👤" },
@@ -1038,6 +1040,19 @@ export function App() {
             activeTab=${activeTab}
             onChange=${(tab) => { setShowSettings(false); setActiveTab(tab); }}
           />
+        ` : null}
+
+        ${/* FAB — tâches (ouvre la modale de création) */null}
+        ${plannerUnlocked && !showSettings && ["daily","weekly","monthly","mine"].includes(activeTab) ? html`
+          <button
+            className="mrd-fab"
+            onClick=${() => setTaskFabTrigger((n) => n + 1)}
+            title="Nouvelle tâche"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </button>
         ` : null}
 
         ${/* Modals — absolute-positioned within the shell */null}
@@ -1117,4 +1132,3 @@ export function App() {
     </div>
   `;
 }
-

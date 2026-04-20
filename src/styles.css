@@ -768,4 +768,83 @@ html[data-theme="dark"] .history-text { color: #FFF6EE; }
 .mrd-shell .inventory-link-toggle { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg2); box-shadow: none; }
 .mrd-shell .inventory-link-toggle.on { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sage); }
 .mrd-shell .inventory-link-toggle-box { background: var(--mrd-surf2); border-color: var(--mrd-border); color: var(--mrd-fg3); }
+
+/* ── FAB bouton tâches ────────────────────────────────────── */
+.mrd-fab {
+  position: absolute;
+  bottom: 74px;
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--mrd-a);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px oklch(58% 0.13 28 / 0.38);
+  cursor: pointer;
+  z-index: 25;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.mrd-fab:active { transform: scale(0.94); box-shadow: 0 3px 10px oklch(58% 0.13 28 / 0.28); }
+
+/* ── Bottom-sheet modals ──────────────────────────────────── */
+@keyframes mrdSlideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.mrd-shell .modal-backdrop {
+  position: absolute; inset: 0;
+  background: oklch(27% 0.05 48 / 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  z-index: 50;
+}
+.mrd-shell .modal-card {
+  border-radius: 24px 24px 0 0;
+  border-bottom: none;
+  max-height: 92%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: mrdSlideUp 0.22s ease;
+}
+.mrd-shell .modal-card::before {
+  content: '';
+  display: block;
+  width: 36px; height: 4px;
+  background: var(--mrd-border);
+  border-radius: 2px;
+  margin: 10px auto 6px;
+}
+
+/* ── Notes — grille masonry ───────────────────────────────── */
+.mrd-notes-masonry { columns: 2; column-gap: 8px; margin-bottom: 80px; }
+.mrd-notes-masonry .ncard { break-inside: avoid; margin-bottom: 8px; padding: 12px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.mrd-notes-masonry .ncard:hover { transform: scale(1.01); box-shadow: 0 6px 20px oklch(27% 0.05 48 / 0.1); }
+.mrd-notes-masonry .ntxt { font-size: 13px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.mrd-notes-masonry .ndate { font-size: 10px; }
+/* Note colors */
+.mrd-notes-masonry .ncard:nth-child(5n+1) { background: oklch(96% 0.035 60); }
+.mrd-notes-masonry .ncard:nth-child(5n+2) { background: oklch(96% 0.025 150); }
+.mrd-notes-masonry .ncard:nth-child(5n+3) { background: oklch(96% 0.03 22); }
+.mrd-notes-masonry .ncard:nth-child(5n+4) { background: oklch(96% 0.028 270); }
+.mrd-notes-masonry .ncard:nth-child(5n+5) { background: oklch(97% 0.01 70); }
+/* On single-column mobile keep full width */
+@media (max-width: 360px) { .mrd-notes-masonry { columns: 1; } }
+
+/* ── Notes add form ───────────────────────────────────────── */
+.mrd-shell .aform.mrd-note-add-form { border: 1.5px solid var(--mrd-a); box-shadow: 0 4px 20px oklch(58% 0.13 28 / 0.12); animation: mrdSlideUp 0.15s ease; margin-bottom: 12px; }
+
+/* ── Inventaire — state pills ────────────────────────────── */
+.mrd-inv-state-ok    { background: oklch(95% 0.03 152); color: oklch(54% 0.10 155); padding: 4px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+.mrd-inv-state-low   { background: oklch(95% 0.04 60);  color: oklch(58% 0.12 55);  padding: 4px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+.mrd-inv-state-empty { background: oklch(95% 0.04 20);  color: oklch(50% 0.13 22);  padding: 4px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+/* Summary pills for inventory header */
+.mrd-inv-summary { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.mrd-inv-summary-pill { padding: 5px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.mrd-inv-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+/* Inventory group header */
+.mrd-shell .inventory-group-label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--mrd-fg3); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 7px; }
+/* Tâches — hide the old sh "Créer" button, replaced by FAB */
+.mrd-shell section > .sh .aok.mrd-hide-in-shell { display: none; }
 .mrd-shell .inventory-link-toggle.on .inventory-link-toggle-box { background: var(--mrd-sage); border-color: var(--mrd-sage); color: #fff; }
