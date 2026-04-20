@@ -673,12 +673,10 @@ html[data-theme="dark"] .history-text { color: #FFF6EE; }
 .mrd-shell .cdayname { color: var(--mrd-fg); }
 .mrd-shell .calendar-add-btn { background: var(--mrd-a); color: #fff; border-radius: 99px; box-shadow: 0 4px 14px oklch(58% 0.13 28 / 0.28); }
 
-/* ── Repas ────────────────────────────────────────────────── */
+/* ── Repas (héritage) ─────────────────────────────────────── */
 .mrd-shell .meal-slot { border-top-color: var(--mrd-borderSoft); }
 .mrd-shell .meal-recipe-selected { background: var(--mrd-surf2); border-radius: var(--mrd-r); }
 .mrd-shell .meal-recipe-name { color: var(--mrd-fg); }
-.mrd-shell .meal-pick-btn { border-color: var(--mrd-border); color: var(--mrd-fg3); border-radius: 12px; }
-.mrd-shell .meal-pick-btn:hover { background: var(--mrd-surf2); color: var(--mrd-fg2); }
 .mrd-shell .dcook { background: var(--mrd-surf2); border-radius: 50%; border: 1.5px solid var(--mrd-border); color: var(--mrd-fg3); transition: all .18s; }
 .mrd-shell .dcook.on { background: var(--mrd-sage); border-color: var(--mrd-sage); color: #fff; }
 .mrd-shell .meal-picker-card { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); border-radius: var(--mrd-r); }
@@ -687,6 +685,54 @@ html[data-theme="dark"] .history-text { color: #FFF6EE; }
 .mrd-shell .meal-picker-filters .tab { background: var(--mrd-surf); color: var(--mrd-fg2); border-color: var(--mrd-borderSoft); }
 .mrd-shell .meal-picker-filters .tab.on { background: var(--mrd-aLt); color: var(--mrd-a); border-color: var(--mrd-aMd); }
 .mrd-shell .daymeal { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); }
+
+/* ── Repas — nouveau design ───────────────────────────────── */
+.mrd-meals-wrap { display: flex; flex-direction: column; }
+
+/* Day strip */
+.mrd-meals-day-strip { display: flex; gap: 4px; overflow-x: auto; padding: 0 0 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; flex-shrink: 0; }
+.mrd-meals-day-strip::-webkit-scrollbar { display: none; }
+.mrd-meals-day-pill { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 10px; border-radius: 14px; background: var(--mrd-surf); border: 1px solid var(--mrd-borderSoft); cursor: pointer; transition: all 0.15s; min-width: 46px; }
+.mrd-meals-day-abbr { font-size: 11px; font-weight: 600; color: var(--mrd-fg3); }
+.mrd-meals-day-num  { font-size: 15px; font-weight: 700; color: var(--mrd-fg); line-height: 1; }
+.mrd-meals-day-pill.today { border-color: var(--mrd-aMd); background: var(--mrd-aLt); }
+.mrd-meals-day-pill.today .mrd-meals-day-abbr { color: var(--mrd-a); }
+.mrd-meals-day-pill.today .mrd-meals-day-num  { color: var(--mrd-a); }
+.mrd-meals-day-pill.on { background: var(--mrd-a); border-color: var(--mrd-a); box-shadow: 0 4px 14px oklch(58% 0.13 28 / 0.28); }
+.mrd-meals-day-pill.on .mrd-meals-day-abbr,
+.mrd-meals-day-pill.on .mrd-meals-day-num  { color: #fff; }
+
+/* Slot cards */
+.mrd-meals-day-content { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.mrd-meals-slot-card { background: var(--mrd-surf); border-radius: var(--mrd-rLg); border: 1px solid var(--mrd-borderSoft); box-shadow: 0 2px 10px oklch(27% 0.05 48 / 0.05); overflow: hidden; }
+.mrd-meals-slot-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+.mrd-meals-slot-left { display: flex; align-items: center; gap: 7px; }
+.mrd-meals-slot-icon { font-size: 18px; line-height: 1; }
+.mrd-meals-slot-label { font-size: 11px; font-weight: 700; color: var(--mrd-fg3); letter-spacing: 0.08em; text-transform: uppercase; }
+.mrd-meals-cook-btn { padding: 7px 14px; border-radius: 99px; font-size: 12px; font-weight: 600; border: 1.5px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); cursor: pointer; transition: all 0.18s; white-space: nowrap; }
+.mrd-meals-cook-btn.on { background: var(--mrd-sage); border-color: var(--mrd-sage); color: #fff; box-shadow: 0 3px 10px oklch(54% 0.10 155 / 0.25); }
+.mrd-meals-slot-body { padding: 0 14px 14px; }
+.mrd-meals-recipe-name { font-family: var(--mrd-serif); font-weight: 600; font-size: 22px; color: var(--mrd-fg); letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 8px; }
+.mrd-meals-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.mrd-meals-tag { padding: 4px 9px; border-radius: 99px; font-size: 11px; font-weight: 500; background: var(--mrd-surf2); color: var(--mrd-fg2); border: 1px solid var(--mrd-borderSoft); }
+.mrd-meals-slot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.mrd-meals-action-link { font-size: 12px; font-weight: 600; color: var(--mrd-a); background: none; border: none; padding: 0; cursor: pointer; }
+.mrd-meals-action-link.danger { color: var(--mrd-fg3); }
+.mrd-meals-pick-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 13px; border-radius: var(--mrd-r); border: 1.5px dashed var(--mrd-border); background: none; color: var(--mrd-fg3); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.mrd-meals-pick-btn:hover { background: var(--mrd-surf2); color: var(--mrd-fg2); border-color: var(--mrd-border); }
+
+/* Week overview */
+.mrd-meals-overview { margin-top: 4px; }
+.mrd-meals-overview-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--mrd-r); background: var(--mrd-surf); border: 1px solid var(--mrd-borderSoft); margin-bottom: 6px; cursor: pointer; text-align: left; transition: background 0.12s; }
+.mrd-meals-overview-row:hover { background: var(--mrd-surf2); }
+.mrd-meals-overview-row.today { background: var(--mrd-aLt); border-color: var(--mrd-aMd); }
+.mrd-meals-overview-row.selected { background: var(--mrd-surf2); border-color: var(--mrd-border); }
+.mrd-meals-overview-day { display: flex; flex-direction: column; align-items: center; min-width: 32px; flex-shrink: 0; }
+.mrd-meals-overview-abbr { font-size: 10px; font-weight: 700; color: var(--mrd-fg3); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1; }
+.mrd-meals-overview-date { font-size: 14px; font-weight: 700; color: var(--mrd-fg); line-height: 1.2; }
+.mrd-meals-overview-row.today .mrd-meals-overview-abbr,
+.mrd-meals-overview-row.today .mrd-meals-overview-date { color: var(--mrd-a); }
+.mrd-meals-overview-meals { font-size: 13px; color: var(--mrd-fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Listes & courses ─────────────────────────────────────── */
 .mrd-shell .shopping-item { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); border-radius: 12px; transition: background .12s; }
