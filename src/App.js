@@ -5,7 +5,7 @@ import { ListsView } from "./components/lists/ListsView.js?v=2026-04-19-recipe-s
 import { AgendaView } from "./components/agenda/AgendaView.js?v=2026-04-19-time-sim-1";
 import { AuthScreen } from "./components/auth/AuthScreen.js";
 import { HistoryView } from "./components/history/HistoryView.js?v=2026-04-19-user-profile-1";
-import { MealsView } from "./components/meals/MealsView.js?v=2026-04-20-redesign-1";
+import { MealsView } from "./components/meals/MealsView.js?v=2026-04-19-condiments-1";
 import { NotesView } from "./components/notes/NotesView.js";
 import { RecipesView } from "./components/recipes/RecipesView.js?v=2026-04-19-condiments-2";
 import { SettingsView } from "./components/settings/SettingsView.js?v=2026-04-19-meals-link-1";
