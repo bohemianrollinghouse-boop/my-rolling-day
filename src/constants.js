@@ -30,8 +30,8 @@ export const MEMBER_COLORS = [
 export const APP_VERSION = "0.1.0 beta";
 
 export const TABS = [
-  { id: "mine", label: "Mes taches", icon: "👤" },
-  { id: "daily", label: "Aujourd'hui", icon: "☀️" },
+  { id: "mine", label: "Mes tâches", icon: "👤" },
+  { id: "daily", label: "Aujourd’hui", icon: "☀️" },
   { id: "weekly", label: "Semaine", icon: "🗓️" },
   { id: "monthly", label: "Mois", icon: "📆" },
   { id: "agenda", label: "Calendrier", icon: "🗓️" },

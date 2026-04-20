@@ -38,7 +38,7 @@ export function HistoryView({ history = [], users = [], onClearHistory }) {
                               <article className="history-card" key=${entry.id}>
                                 <div className="history-card-top">
                                   <span className="history-icon">${entry.icon || "*"}</span>
-                                  <span className="history-text">${entry.text || "Tache"}</span>
+                                  <span className="history-text">${entry.text || "Tâche"}</span>
                                 </div>
                                 <div className="history-meta">
                                   <span>${entry.date || ""}</span>

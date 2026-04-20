@@ -60,6 +60,38 @@ Alternative simple avec Python :
 python -m http.server 3000
 ```
 
+## Tests
+
+Une base de tests unitaires et E2E smoke est en place.
+
+### Suites disponibles
+
+- `tests/unit`
+- `tests/e2e`
+
+### Lancement rapide sous Windows
+
+```powershell
+.\scripts\run-tests.ps1
+.\scripts\run-tests.ps1 unit
+.\scripts\run-tests.ps1 e2e
+```
+
+### Lancement via Node
+
+Si `node` est disponible dans le `PATH` :
+
+```bash
+node --test --test-isolation=none tests/unit.test.js tests/e2e.test.js
+node --test --test-isolation=none tests/unit.test.js
+node --test --test-isolation=none tests/e2e.test.js
+```
+
+### Portee actuelle
+
+- les tests unitaires couvrent les utilitaires metier critiques
+- les tests E2E sont des smoke tests navigateur pour verifier que l application demarre sans ecran fatal
+
 ## Firebase
 
 La logique Firebase se trouve surtout ici :

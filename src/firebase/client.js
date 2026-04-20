@@ -85,39 +85,39 @@ export function formatAuthError(error) {
     return "Adresse email invalide.";
   }
   if (code === "auth/email-already-in-use") {
-    return "Cette adresse email est deja utilisee.";
+    return "Cette adresse e-mail est déjà utilisée.";
   }
   if (code === "auth/network-request-failed") {
-    return "Erreur reseau. Verifie ta connexion Internet.";
+    return "Erreur réseau. Vérifie ta connexion Internet.";
   }
   if (code === "auth/popup-closed-by-user") {
-    return "La fenetre Google a ete fermee avant la fin.";
+    return "La fenêtre Google a été fermée avant la fin.";
   }
   if (code === "auth/operation-not-allowed") {
-    return "Cette methode de connexion n'est pas activee dans Firebase.";
+    return "Cette méthode de connexion n’est pas activée dans Firebase.";
   }
   if (code === "auth/too-many-requests") {
-    return "Trop de tentatives. Reessaie un peu plus tard.";
+    return "Trop de tentatives. Réessaie un peu plus tard.";
   }
   if (code === "auth/weak-password") {
     return "Le nouveau mot de passe est trop faible.";
   }
   if (code === "auth/requires-recent-login") {
-    return "Pour changer ce mot de passe, reconnecte-toi puis reessaie.";
+    return "Pour changer ce mot de passe, reconnecte-toi puis réessaie.";
   }
   if (code === "auth/no-password-provider") {
     return "Ce compte utilise Google. Le mot de passe ne se change pas ici.";
   }
   if (code === "permission-denied" || code === "firestore/permission-denied") {
-    return "Connexion reussie, mais Firestore refuse l'acces. Verifie les regles Firebase.";
+    return "Connexion réussie, mais Firestore refuse l’accès. Vérifie les règles Firebase.";
   }
-  return error?.message || "Erreur d'authentification inconnue.";
+  return error?.message || "Erreur d’authentification inconnue.";
 }
 
 export function formatFirestoreError(error) {
   const code = error?.code || "";
   if (code === "permission-denied" || code === "firestore/permission-denied") {
-    return "Connexion reussie, mais Firestore refuse l'acces. Verifie les regles Firebase.";
+    return "Connexion réussie, mais Firestore refuse l’accès. Vérifie les règles Firebase.";
   }
   if (code === "unavailable" || code === "firestore/unavailable") {
     return "Firestore est temporairement indisponible.";
@@ -210,7 +210,7 @@ export function canChangePassword() {
 
 export async function changePasswordForCurrentUser(newPassword) {
   if (!auth.currentUser) {
-    throw new Error("Aucun compte connecte.");
+    throw new Error("Aucun compte connecté.");
   }
   if (!canChangePassword()) {
     const error = new Error("Ce compte utilise Google.");
@@ -525,7 +525,7 @@ export async function acceptHouseholdInvitation({ user, inviteCode }) {
   }
   const person = personSnap.data();
   if (person.linkedAccountId && person.linkedAccountId !== user.uid) {
-    throw new Error("Ce membre du foyer est deja rattache a un autre compte.");
+    throw new Error("Ce membre du foyer est déjà rattaché à un autre compte.");
   }
 
   const batch = writeBatch(db);

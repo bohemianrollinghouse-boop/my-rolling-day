@@ -1,4 +1,4 @@
-import { html, useMemo } from "../../lib.js";
+import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { localDateKey } from "../../utils/date.js?v=2026-04-19-time-sim-2";
 
 /* ─── HELPERS ────────────────────────────────────────────── */
@@ -64,6 +64,52 @@ function IcoGear() {
   `;
 }
 
+/* ─── TASK MODES ─────────────────────────────────────────── */
+const TASK_MODES = [
+  { key: "mine", label: "Mes tâches" },
+  { key: "all",  label: "Foyer"      },
+];
+const TASK_MODE_STORAGE_KEY = "mrd-task-card-mode";
+
+function readSavedMode() {
+  try { return localStorage.getItem(TASK_MODE_STORAGE_KEY) || "mine"; } catch (_) { return "mine"; }
+}
+
+/* Returns a sortable datetime string for a task, or null if none */
+function getTaskSortTime(task) {
+  if (task.dueDate) {
+    return task.dueDate + "T" + (task.dueTime || "23:59");
+  }
+  if (task.addToCalendar && task.calendarDateKey && task.calendarStart) {
+    return task.calendarDateKey + "T" + task.calendarStart;
+  }
+  return null;
+}
+
+/* Sort: closest échéance/horaire → urgent (sans date) → reste */
+function smartSortTasks(tasks) {
+  return [...tasks].sort((a, b) => {
+    const ta = getTaskSortTime(a);
+    const tb = getTaskSortTime(b);
+    if (ta && tb) return ta.localeCompare(tb);   // both timed: closest first
+    if (ta && !tb) return -1;                    // only a has time → a first
+    if (!ta && tb) return 1;                     // only b has time → b first
+    // neither has a time: urgent before others
+    const ua = a.priority === "urgent" ? 0 : 1;
+    const ub = b.priority === "urgent" ? 0 : 1;
+    return ua - ub;
+  });
+}
+
+/* Filter tasks by mode */
+function filterTasksByMode(tasks, mode, activePersonId) {
+  if (mode === "all") return tasks;
+  // "mine": seulement les tâches explicitement assignées à cette personne
+  // activePersonId doit être non-vide, et la tâche doit lui être assignée
+  if (!activePersonId) return [];
+  return tasks.filter((t) => t.assignedPersonId === activePersonId);
+}
+
 /* ─── QUICK ACCESS ITEMS ─────────────────────────────────── */
 const QUICK_ITEMS = [
   { label: "Notes",      emoji: "📝", tab: "notes"     },
@@ -81,6 +127,8 @@ export function HomeView({
   people,
   familyName,
   currentDate,
+  activePersonId,
+  onToggleTask,
   onNavigate,
   onOpenSettings,
 }) {
@@ -89,6 +137,24 @@ export function HomeView({
   const safeMeals   = Array.isArray(meals) ? meals : [];
   const safeRecipes = Array.isArray(recipes) ? recipes : [];
   const safePeople  = Array.isArray(people) ? people : [];
+
+  /* Task card mode (persisted) */
+  const [taskMode, setTaskModeRaw] = useState(readSavedMode);
+  function cycleMode() {
+    const idx = TASK_MODES.findIndex((m) => m.key === taskMode);
+    const next = TASK_MODES[(idx + 1) % TASK_MODES.length].key;
+    try { localStorage.setItem(TASK_MODE_STORAGE_KEY, next); } catch (_) {}
+    setTaskModeRaw(next);
+  }
+  const currentModeLabel = TASK_MODES.find((m) => m.key === taskMode)?.label || "Mes tâches";
+
+  /* Toast "Tâche effectuée" */
+  const [toast, setToast] = useState(null); // { taskId, taskText }
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   function getMealName(meal, slot) {
     if (!meal) return null;
@@ -107,17 +173,32 @@ export function HomeView({
   const dateStr  = safeDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
   const todayKey = localDateKey(safeDate);
 
-  /* Tasks for today */
-  const todayTasks = safeTasks.filter((t) => t.type === "daily");
-  const doneTasks  = todayTasks.filter(
+  /* Tasks for today — filtered and sorted (daily + deadline dues today/overdue) */
+  const startOfTomorrow = new Date(safeDate);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  startOfTomorrow.setHours(0, 0, 0, 0);
+
+  const allTodayTasks = safeTasks.filter((t) => {
+    if (t.type === "daily") return true;
+    if (t.priority === "deadline" || t.displayPeriod === "deadline") {
+      if (!t.dueDate) return false;
+      const due = new Date(t.dueDate + "T" + (t.dueTime || "23:59"));
+      return due < startOfTomorrow; // due today or overdue
+    }
+    return false;
+  });
+  const filteredTasks  = filterTasksByMode(allTodayTasks, taskMode, activePersonId || "");
+  const doneTasks      = filteredTasks.filter(
     (t) => (Array.isArray(t.doneBy) && t.doneBy.length > 0) || Boolean(t.completedByPersonId),
   );
-  const todoTasks  = todayTasks.filter(
+  const rawTodoTasks   = filteredTasks.filter(
     (t) => !(Array.isArray(t.doneBy) && t.doneBy.length > 0) && !t.completedByPersonId,
   );
-  const doneCount  = doneTasks.length;
-  const totalCount = todayTasks.length;
-  const pct        = totalCount ? doneCount / totalCount : 0;
+  const todoTasks      = smartSortTasks(rawTodoTasks);
+  const doneCount      = doneTasks.length;
+  const totalCount     = filteredTasks.length;
+  const remainingCount = todoTasks.length;
+  const pct            = totalCount ? doneCount / totalCount : 0;
 
   /* Today's meals */
   const todayMeal = safeMeals.find((m) => m.day === todayKey) || null;
@@ -137,15 +218,80 @@ export function HomeView({
     ? `Bonjour, ${firstPerson.displayName || firstPerson.label} 🌿`
     : "Bonjour 🌿";
 
+  /* ── Progress texts ── */
+  const progressTitle = "Aujourd'hui ☀️";
+
+  const progressSub = totalCount === 0
+    ? "Aucune tâche"
+    : doneCount === totalCount
+    ? "Tout est fait ! 🎉"
+    : `${remainingCount} tâche${remainingCount > 1 ? "s" : ""} restante${remainingCount > 1 ? "s" : ""}`;
+
   /* ── Render helpers ── */
   function renderMiniTask(task) {
-    const icon = task.icon || "✅";
     const isUrgent = task.priority === "urgent";
+    const isDeadl  = task.priority === "deadline" || task.displayPeriod === "deadline";
+
+    /* ── Repère gauche : emoji ou point ── */
+    const emoji = task.icon || null;
+
+    /* ── Badge deadline : "avant HHhMM" (jaune) ou "retard HHhMM" (rouge) ── */
+    let dlBadge = null;
+    if (isDeadl) {
+      const dueDateTime = task.dueDate
+        ? new Date(task.dueDate + "T" + (task.dueTime || "23:59"))
+        : null;
+      const isOverdue = dueDateTime ? dueDateTime < safeDate : false;
+      const timeStr   = task.dueTime ? task.dueTime.replace(":", "h") : null;
+      dlBadge = {
+        text: isOverdue
+          ? (timeStr ? `retard ${timeStr}` : "retard")
+          : (timeStr ? `avant ${timeStr}` : "échéance"),
+        overdue: isOverdue,
+      };
+    }
+
+    /* ── Heure programmée (non-deadline) ── */
+    const rawTime  = !isDeadl
+      ? (task.dueTime || (task.addToCalendar && task.calendarStart ? task.calendarStart : null))
+      : null;
+    const schedTime = rawTime ? rawTime.replace(":", "h") : null;
+
+    /* ── Badge personne (mode Foyer) — indépendant de l'urgence ── */
+    const assignedPerson = taskMode === "all" && task.assignedPersonId
+      ? safePeople.find((p) => p.id === task.assignedPersonId) || null
+      : null;
+    const personInitial = assignedPerson
+      ? (assignedPerson.displayName || assignedPerson.label || "?")[0].toUpperCase()
+      : null;
+    const personColor = assignedPerson?.color || "#8B7355";
+
+    function handleCheck(e) {
+      e.stopPropagation();
+      if (onToggleTask) {
+        onToggleTask(task.id, activePersonId || "");
+        setToast({ taskId: task.id, taskText: task.text || "Tâche" });
+      }
+    }
+
     return html`
-      <div key=${task.id} className="mrd-mini-task">
-        <span className="mrd-mini-task-icon">${icon}</span>
+      <div key=${task.id}
+        className=${`mrd-mini-task${isUrgent ? " is-urgent" : ""}`}
+        onClick=${handleCheck}>
+        ${emoji
+          ? html`<span className="mrd-mini-task-icon">${emoji}</span>`
+          : html`<span className="mrd-mini-task-dot"></span>`}
         <span className="mrd-mini-task-name">${task.text || ""}</span>
-        ${isUrgent ? html`<span style=${{ width: 7, height: 7, borderRadius: "50%", background: "oklch(60% 0.18 15)", display: "inline-block", flexShrink: 0 }}></span>` : null}
+        ${dlBadge ? html`
+          <span className=${`mrd-mini-task-dl-badge${dlBadge.overdue ? " is-overdue" : ""}`}>
+            ${dlBadge.text}
+          </span>` : null}
+        ${schedTime ? html`<span className="mrd-mini-task-time">${schedTime}</span>` : null}
+        ${personInitial ? html`
+          <span className="mrd-mini-task-person"
+            style=${{ background: personColor + "22", color: personColor, border: "1px solid " + personColor + "44" }}>
+            ${personInitial}
+          </span>` : null}
       </div>
     `;
   }
@@ -171,19 +317,6 @@ export function HomeView({
       </div>
     `;
   }
-
-  /* ── Progress title ── */
-  const progressTitle = totalCount === 0
-    ? "Aucune tâche aujourd'hui"
-    : doneCount === totalCount
-    ? "Tout est fait ! 🎉"
-    : `${totalCount - doneCount} tâche${totalCount - doneCount > 1 ? "s" : ""} restante${totalCount - doneCount > 1 ? "s" : ""}`;
-
-  const progressSub = totalCount === 0
-    ? "Belle journée en perspective"
-    : doneCount === totalCount
-    ? "Belle journée en perspective"
-    : "Aujourd’hui · tâches quotidiennes";
 
   return html`
     <div className="mrd-home">
@@ -217,6 +350,18 @@ export function HomeView({
 
       ${/* ── Progress card ── */null}
       <div className="mrd-progress-card">
+
+        ${/* Mode picker row */null}
+        <div className="mrd-task-mode-row">
+          <button className="mrd-task-mode-btn" onClick=${cycleMode} title="Changer le filtre de tâches">
+            ${currentModeLabel}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style=${{ marginLeft: 2 }}>
+              <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
         <div className="mrd-progress-inner">
           <div className="mrd-progress-ring-wrap">
             <${ProgressRing} value=${pct} size=${60} stroke=${5} />
@@ -225,7 +370,7 @@ export function HomeView({
               <div className="mrd-progress-total">/${totalCount}</div>
             </div>
           </div>
-          <div style=${{ flex: 1 }}>
+          <div style=${{ flex: 1, minWidth: 0 }}>
             <div className="mrd-progress-title">${progressTitle}</div>
             <div className="mrd-progress-sub">${progressSub}</div>
           </div>
@@ -298,5 +443,17 @@ export function HomeView({
       </div>
 
     </div>
+
+    ${/* ── Toast ── */null}
+    ${toast ? html`
+      <div className="mrd-home-toast">
+        <span className="mrd-home-toast-msg">✓ Tâche effectuée</span>
+        <button className="mrd-home-toast-undo" onClick=${() => {
+          if (onToggleTask) onToggleTask(toast.taskId, activePersonId || "");
+          setToast(null);
+        }}>Annuler</button>
+      </div>
+    ` : null}
+
   `;
 }

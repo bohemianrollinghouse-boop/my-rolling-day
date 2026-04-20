@@ -6,16 +6,16 @@ const ESSENTIAL_ID_SET = new Set(CONDIMENT_ESSENTIALS.map((e) => e.id));
 
 const SEASONS = [
   { id: "spring", label: "Printemps", months: [3, 4, 5] },
-  { id: "summer", label: "Ete", months: [6, 7, 8] },
+  { id: "summer", label: "Été", months: [6, 7, 8] },
   { id: "autumn", label: "Automne", months: [9, 10, 11] },
   { id: "winter", label: "Hiver", months: [12, 1, 2] },
 ];
 
 const MONTHS = [
-  { id: 1, label: "Janvier" }, { id: 2, label: "Fevrier" }, { id: 3, label: "Mars" },
+  { id: 1, label: "Janvier" }, { id: 2, label: "Février" }, { id: 3, label: "Mars" },
   { id: 4, label: "Avril" }, { id: 5, label: "Mai" }, { id: 6, label: "Juin" },
-  { id: 7, label: "Juillet" }, { id: 8, label: "Aout" }, { id: 9, label: "Septembre" },
-  { id: 10, label: "Octobre" }, { id: 11, label: "Novembre" }, { id: 12, label: "Decembre" },
+  { id: 7, label: "Juillet" }, { id: 8, label: "Août" }, { id: 9, label: "Septembre" },
+  { id: 10, label: "Octobre" }, { id: 11, label: "Novembre" }, { id: 12, label: "Décembre" },
 ];
 
 const FOOD_LABELS = [
@@ -418,11 +418,11 @@ export function RecipesView({
       <div className="sh">
         <div className="sl">
           <span className="st">Recettes</span>
-          <span className="mini">Base de recettes du foyer, classee par disponibilite et facile a retrouver.</span>
+          <span className="mini">Base de recettes du foyer, classée par disponibilité et facile à retrouver.</span>
         </div>
         <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           ${onLoadDemoRecipes
-            ? html`<button className="clrbtn" style=${{ fontSize: "13px" }} onClick=${onLoadDemoRecipes}>Demo</button>`
+            ? html`<button className="clrbtn" style=${{ fontSize: "13px" }} onClick=${onLoadDemoRecipes}>Démo</button>`
             : null}
           <button className="aok" onClick=${openCreateModal}>Ajouter une recette</button>
         </div>
@@ -436,7 +436,7 @@ export function RecipesView({
 
         <div className="arow" style=${{ gap: "12px", flexWrap: "wrap", alignItems: "flex-start" }}>
           <div className="fstack" style=${{ flex: "1 1 180px", minWidth: "160px" }}>
-            <span className="miniTitle">Disponibilite</span>
+            <span className="miniTitle">Disponibilité</span>
             <select className="asel" value=${availabilityFilter} onChange=${(event) => setAvailabilityFilter(event.target.value)}>
               <option value="all">Toutes les recettes</option>
               <option value="all_year">Toutes saisons</option>
@@ -462,7 +462,7 @@ export function RecipesView({
                 </button>
               `)}
             </div>
-            <div className="mini">Si plusieurs badges sont coches, la recette doit correspondre a tous les badges selectionnes.</div>
+            <div className="mini">Si plusieurs badges sont cochés, la recette doit correspondre à tous les badges sélectionnés.</div>
           </div>
         </div>
       </div>
@@ -489,7 +489,7 @@ export function RecipesView({
                 <div className="miniTitle">Ingredients</div>
                 ${Array.isArray(recipe.ingredients) && recipe.ingredients.length
                   ? html`<div className="recipe-ingredient-chip-list">${recipe.ingredients.map(renderIngredientLine)}</div>`
-                  : html`<div className="rbody">${recipe.ingredientsLegacy || "Aucun ingredient renseigne."}</div>`}
+                  : html`<div className="rbody">${recipe.ingredientsLegacy || "Aucun ingrédient renseigné."}</div>`}
 
                 ${Array.isArray(recipe.condiments) && recipe.condiments.length
                   ? html`
@@ -500,8 +500,8 @@ export function RecipesView({
                     `
                   : null}
 
-                <div className="miniTitle" style=${{ marginTop: "10px" }}>Preparation</div>
-                <div className="rbody">${recipe.method || "Aucune preparation renseignee."}</div>
+                <div className="miniTitle" style=${{ marginTop: "10px" }}>Préparation</div>
+                <div className="rbody">${recipe.method || "Aucune préparation renseignée."}</div>
               </article>
             `)
           : html`<div className="empty">Aucune recette ne correspond a ce filtre.</div>`}
@@ -535,11 +535,11 @@ export function RecipesView({
                   </div>
 
                   <div className="fstack">
-                    <span className="miniTitle">Disponibilite</span>
+                    <span className="miniTitle">Disponibilité</span>
                     <div className="task-choice-row">
                       <button type="button" className=${`task-choice ${form.availabilityMode === "all_year" ? "on" : ""}`} onClick=${() => setForm({ ...form, availabilityMode: "all_year" })}>Toute saison</button>
                       <button type="button" className=${`task-choice ${form.availabilityMode === "season" ? "on" : ""}`} onClick=${() => setForm({ ...form, availabilityMode: "season" })}>Saison</button>
-                      <button type="button" className=${`task-choice ${form.availabilityMode === "months" ? "on" : ""}`} onClick=${() => setForm({ ...form, availabilityMode: "months" })}>Mois precis</button>
+                      <button type="button" className=${`task-choice ${form.availabilityMode === "months" ? "on" : ""}`} onClick=${() => setForm({ ...form, availabilityMode: "months" })}>Mois précis</button>
                     </div>
                   </div>
 
@@ -571,7 +571,7 @@ export function RecipesView({
                         </div>
 
                         <div className="fstack">
-                          <span className="miniTitle">Etendue de la saison</span>
+                          <span className="miniTitle">Étendue de la saison</span>
                           <div className="task-choice-row">
                             <button type="button" className=${`task-choice ${form.seasonScope === "full" ? "on" : ""}`} onClick=${() => setForm({ ...form, seasonScope: "full", months: [] })}>Toute la saison</button>
                           <button
@@ -608,7 +608,7 @@ export function RecipesView({
                   ${form.availabilityMode === "months"
                     ? html`
                         <div className="fstack">
-                          <span className="miniTitle">Mois precis</span>
+                          <span className="miniTitle">Mois précis</span>
                           <div className="task-choice-row">
                             ${MONTHS.map((month) => html`
                               <button type="button" key=${month.id} className=${`task-choice ${form.months.includes(month.id) ? "on" : ""}`}
@@ -638,7 +638,7 @@ export function RecipesView({
                       <input
                         className="ainp"
                         style=${compactInputStyle}
-                        placeholder="Nom de l ingredient"
+                        placeholder="Nom de l’ingrédient"
                         value=${ingredientDraft.name}
                         onInput=${(event) => handleIngredientNameInput(event.target.value)}
                         onBlur=${() => { setTimeout(() => setIngredientSuggestions([]), 150); }}
@@ -648,7 +648,7 @@ export function RecipesView({
                         : null}
                     </div>
                     <div className="quantity-unit-row" style=${{ gap: "6px", alignItems: "stretch" }}>
-                      <input className="ainp" style=${{ ...compactInputStyle, flex: "0 0 92px" }} placeholder="Quantite" value=${ingredientDraft.quantity} onInput=${(event) => setIngredientDraft({ ...ingredientDraft, quantity: event.target.value })} />
+                      <input className="ainp" style=${{ ...compactInputStyle, flex: "0 0 92px" }} placeholder="Quantité" value=${ingredientDraft.quantity} onInput=${(event) => setIngredientDraft({ ...ingredientDraft, quantity: event.target.value })} />
                       <select className="asel" style=${{ ...compactInputStyle, flex: "0 0 98px" }} value=${ingredientDraft.unit} onChange=${(event) => setIngredientDraft({ ...ingredientDraft, unit: event.target.value })}>
                         ${UNITS.map((unit) => html`<option key=${unit.value} value=${unit.value}>${unit.label}</option>`)}
                       </select>
@@ -658,10 +658,10 @@ export function RecipesView({
                     ${ingredientWarning && !allowDuplicateIngredient
                       ? html`
                           <div className="ncard" style=${{ padding: "8px 10px" }}>
-                            <div className="mini">Un produit similaire existe deja : <strong>${ingredientWarning.name}</strong></div>
+                            <div className="mini">Un produit similaire existe déjà : <strong>${ingredientWarning.name}</strong></div>
                             <div className="task-choice-row" style=${{ marginTop: "6px", gap: "6px" }}>
                               <button type="button" className="task-choice on" style=${compactChoiceStyle} onClick=${() => useIngredientSuggestion(ingredientWarning)}>Utiliser le produit existant</button>
-                              <button type="button" className="task-choice" style=${compactChoiceStyle} onClick=${() => setAllowDuplicateIngredient(true)}>Creer quand meme</button>
+                              <button type="button" className="task-choice" style=${compactChoiceStyle} onClick=${() => setAllowDuplicateIngredient(true)}>Créer quand même</button>
                             </div>
                           </div>
                         `
@@ -669,11 +669,11 @@ export function RecipesView({
 
                     ${form.ingredients.length
                       ? html`<div className="recipe-ingredient-chip-list">${form.ingredients.map(renderIngredientChipEditable)}</div>`
-                      : html`<div className="mini">Ajoute les ingredients ligne par ligne.</div>`}
+                      : html`<div className="mini">Ajoute les ingrédients ligne par ligne.</div>`}
                   </div>
 
                   <div className="condiment-section-box">
-                    <div className="condiment-section-box-title">Condiments / epices</div>
+                    <div className="condiment-section-box-title">Condiments / épices</div>
                     <div className="condiment-grid">
                       ${CONDIMENT_ESSENTIALS.map(renderEssentialToggle)}
                     </div>
@@ -710,8 +710,8 @@ export function RecipesView({
                   </div>
 
                   <div className="fstack">
-                    <span className="miniTitle">Preparation</span>
-                    <textarea className="nta" placeholder="Etapes de preparation" value=${form.method} onInput=${(event) => setForm({ ...form, method: event.target.value })}></textarea>
+                    <span className="miniTitle">Préparation</span>
+                    <textarea className="nta" placeholder="Étapes de préparation" value=${form.method} onInput=${(event) => setForm({ ...form, method: event.target.value })}></textarea>
                   </div>
 
                   <div className="task-modal-actions">

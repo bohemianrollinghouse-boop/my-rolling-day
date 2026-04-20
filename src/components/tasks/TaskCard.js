@@ -4,11 +4,11 @@ import { getCurrentAppDate, getCurrentAppTimestamp } from "../../utils/date.js?v
 const URGENCY_META = {
   normal: { label: "Normale", className: "normal", score: 2 },
   urgent: { label: "Urgente", className: "urgent", score: 1 },
-  deadline: { label: "A faire avant...", className: "deadline", score: 0 },
+  deadline: { label: "À faire avant...", className: "deadline", score: 0 },
 };
 
 export function recurrenceLabel(task) {
-  if (task.taskKind !== "recurring") return "Tache unique";
+  if (task.taskKind !== "recurring") return "Tâche unique";
   if (task.recurrenceFrequency === "daily") return "Chaque jour";
   if (task.recurrenceFrequency === "weekly") return "Chaque semaine";
   return "Chaque mois";
@@ -37,21 +37,21 @@ export function isPastDue(task) {
 
 function dueLabel(task) {
   const dueDate = getDueDateTime(task);
-  if (!dueDate) return "A faire bientot";
+  if (!dueDate) return "À faire bientôt";
 
   const now = getCurrentAppDate();
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
 
   if (dueDate.toDateString() === now.toDateString()) {
-    return task.dueTime ? `A faire avant ${task.dueTime}` : "A faire aujourd hui";
+    return task.dueTime ? `À faire avant ${task.dueTime}` : "À faire aujourd'hui";
   }
   if (dueDate.toDateString() === tomorrow.toDateString()) {
-    return task.dueTime ? `A faire avant demain ${task.dueTime}` : "A faire avant demain";
+    return task.dueTime ? `À faire avant demain ${task.dueTime}` : "À faire avant demain";
   }
 
   const dateLabel = dueDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-  return task.dueTime ? `A faire avant ${dateLabel} ${task.dueTime}` : `A faire avant ${dateLabel}`;
+  return task.dueTime ? `À faire avant ${dateLabel} ${task.dueTime}` : `À faire avant ${dateLabel}`;
 }
 
 export function urgencyBadge(task) {
@@ -91,8 +91,8 @@ export function TaskCard({
   const planningChildren = Array.isArray(planning?.childLabels) ? planning.childLabels.filter(Boolean).join(", ") : "";
   const planningLabel = planning
     ? planning.allDay
-      ? `Planifiee : ${planning.dateKey || ""} · toute la journee`.trim()
-      : `Planifiee : ${planning.dateKey || ""} ${planning.start || "09:00"} · ${planning.durationLabel || ""}`.trim()
+      ? `Planifiée : ${planning.dateKey || ""} · toute la journée`.trim()
+      : `Planifiée : ${planning.dateKey || ""} ${planning.start || "09:00"} · ${planning.durationLabel || ""}`.trim()
     : "";
   const completedAtLabel = task.completedAt
     ? new Date(task.completedAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -113,9 +113,9 @@ export function TaskCard({
                 ${task.taskKind === "recurring" ? html`<span className="ttag recTag">${recurrenceLabel(task)}</span>` : null}
                 ${(task.overdue || isPastDue(task)) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
               </div>
-              ${assignedPerson ? html`<div className="task-assignee">Attribuee a : ${assignedPerson.label}</div>` : null}
+              ${assignedPerson ? html`<div className="task-assignee">Attribuée à : ${assignedPerson.label}</div>` : null}
               ${planning ? html`<div className="task-assignee">${planningLabel}${planningPeople ? ` · ${planningPeople}` : ""}</div>` : null}
-              ${planningChildren ? html`<div className="task-assignee">Enfants concernes : ${planningChildren}</div>` : null}
+              ${planningChildren ? html`<div className="task-assignee">Enfants concernés : ${planningChildren}</div>` : null}
               ${completedPeople.length
                 ? html`<div className="task-completed">Faite par : ${completedPeople.map((person) => person.label).join(", ")}${completedAtLabel ? ` - ${completedAtLabel}` : ""}</div>`
                 : html`<div className="task-completed pending">En attente</div>`}
@@ -134,7 +134,7 @@ export function TaskCard({
                       className=${`task-person-chip ${isSelected ? "on" : ""}`}
                       style=${isSelected ? { background: person.color, borderColor: person.color, color: "#fff" } : { background: "#fff", borderColor: person.color || "#D8CEBF", color: person.color || "#8A7868" }}
                       onClick=${() => onToggleTask(task.id, person.id)}
-                      title=${`Marquer ${person.label} comme personne ayant fait la tache`}
+                      title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                     >
                       <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { background: "#fff", color: person.color || "#8A7868" }}>
                         ${person.shortId}
@@ -142,7 +142,7 @@ export function TaskCard({
                     </button>
                   `;
                 })
-              : html`<div className="mini">Ajoute une personne du foyer capable de valider les taches.</div>`}
+              : html`<div className="mini">Ajoute une personne du foyer capable de valider les tâches.</div>`}
             ${showOrder
               ? html`
                   <div className="task-order-actions">

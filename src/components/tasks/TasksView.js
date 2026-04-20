@@ -155,17 +155,28 @@ function getDeadlineTasksForTab(tab, tasks) {
   if (tab === "mine") {
     return tasks.filter((task) => task.displayPeriod === "deadline" || task.priority === "deadline");
   }
-  const horizonByTab = { daily: 1, weekly: 7, monthly: 30 };
-  const horizon = horizonByTab[tab] || 0;
+
   const now = getCurrentAppDate();
-  const limit = new Date(now);
-  limit.setDate(limit.getDate() + horizon);
+
+  // Boundary 1 : début de demain (sépare "aujourd'hui" du reste)
+  const startOfTomorrow = new Date(now);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  startOfTomorrow.setHours(0, 0, 0, 0);
+
+  // Boundary 2 : fin du 7e jour (sépare "semaine" du reste)
+  const endOfSeventhDay = new Date(now);
+  endOfSeventhDay.setDate(endOfSeventhDay.getDate() + 7);
+  endOfSeventhDay.setHours(23, 59, 59, 999);
 
   return tasks.filter((task) => {
     if (task.displayPeriod !== "deadline" && task.priority !== "deadline") return false;
     const due = nextRecurringDueDate(task);
     if (!due) return false;
-    return due <= limit;
+
+    if (tab === "daily")   return due < startOfTomorrow;           // aujourd'hui ou en retard
+    if (tab === "weekly")  return due >= startOfTomorrow && due <= endOfSeventhDay;  // J+1 à J+7
+    if (tab === "monthly") return due > endOfSeventhDay;            // au-delà de J+7
+    return false;
   });
 }
 

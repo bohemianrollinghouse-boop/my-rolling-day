@@ -29,12 +29,12 @@ export function AuthScreen({ errorMessage, infoMessage, loading, onEmailLogin, o
       <div className="auth-card">
         <div className="hdr-sub">My Rolling Day</div>
         <h1 className="auth-title">Connexion</h1>
-        <p className="mini">Connecte-toi pour retrouver ton planning, ta famille et tes donnees.</p>
+        <p className="mini">Connecte-toi pour retrouver ton planning, ta famille et tes données.</p>
         ${infoMessage ? html`<div className="ncard"><div className="mini">${infoMessage}</div></div>` : null}
 
         <div className="segmented">
           <button className=${`seg-btn ${mode === "login" ? "on" : ""}`} onClick=${() => setMode("login")}>Se connecter</button>
-          <button className=${`seg-btn ${mode === "signup" ? "on" : ""}`} onClick=${() => setMode("signup")}>Creer un compte</button>
+          <button className=${`seg-btn ${mode === "signup" ? "on" : ""}`} onClick=${() => setMode("signup")}>Créer un compte</button>
           <button className=${`seg-btn ${isJoinMode ? "on" : ""}`} onClick=${() => setMode("join")}>Rejoindre un foyer</button>
         </div>
 
@@ -43,19 +43,19 @@ export function AuthScreen({ errorMessage, infoMessage, loading, onEmailLogin, o
             ? html`
                 <input
                   className="ainp"
-                  placeholder="Code d invitation (ex: AB12CD34)"
+                  placeholder="Code d’invitation (ex. : AB12CD34)"
                   value=${form.code}
                   onInput=${(event) => setForm({ ...form, code: event.target.value.toUpperCase() })}
                   style=${{ letterSpacing: "2px", fontWeight: "bold" }}
                 />
                 <div className="segmented" style=${{ marginBottom: "8px" }}>
-                  <button type="button" className=${`seg-btn ${mode === "join" ? "on" : ""}`} onClick=${() => setMode("join")}>J ai deja un compte</button>
-                  <button type="button" className=${`seg-btn ${mode === "join-signup" ? "on" : ""}`} onClick=${() => setMode("join-signup")}>Creer un compte</button>
+                  <button type="button" className=${`seg-btn ${mode === "join" ? "on" : ""}`} onClick=${() => setMode("join")}>J’ai déjà un compte</button>
+                  <button type="button" className=${`seg-btn ${mode === "join-signup" ? "on" : ""}`} onClick=${() => setMode("join-signup")}>Créer un compte</button>
                 </div>
                 ${mode === "join-signup"
                   ? html`<input
                       className="ainp"
-                      placeholder="Ton prenom ou pseudo"
+                      placeholder="Ton prénom ou pseudo"
                       value=${form.displayName}
                       onInput=${(event) => setForm({ ...form, displayName: event.target.value })}
                     />`
@@ -65,7 +65,7 @@ export function AuthScreen({ errorMessage, infoMessage, loading, onEmailLogin, o
               ? html`
                   <input
                     className="ainp"
-                    placeholder="Ton prenom ou pseudo"
+                    placeholder="Ton prénom ou pseudo"
                     value=${form.displayName}
                     onInput=${(event) => setForm({ ...form, displayName: event.target.value })}
                   />
@@ -97,7 +97,7 @@ export function AuthScreen({ errorMessage, infoMessage, loading, onEmailLogin, o
               : isJoinMode
                 ? "Se connecter et rejoindre"
                 : mode === "signup"
-                  ? "Creer mon compte"
+                  ? "Créer mon compte"
                   : "Se connecter"}
           </button>
           ${mode === "login"
@@ -106,7 +106,7 @@ export function AuthScreen({ errorMessage, infoMessage, loading, onEmailLogin, o
                 style=${{ marginTop: "6px", fontSize: "13px", color: "var(--accent, #666)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
                 onClick=${() => onForgotPassword && onForgotPassword(form.email)}
                 disabled=${loading}
-              >Mot de passe oublie ?</button>`
+              >Mot de passe oublié ?</button>`
             : null}
         </form>
 

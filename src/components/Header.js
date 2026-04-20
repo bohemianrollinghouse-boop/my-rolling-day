@@ -8,7 +8,7 @@ export function Header({ title, users, percentDone, remaining, syncLabel, onOpen
         <div className="hdr-sub">Planning</div>
         <div className="hdr-actions">
           ${onOpenOwnProfile ? html`<button className="hdr-settings" onClick=${onOpenOwnProfile}>Mon profil</button>` : null}
-          ${onOpenSettings ? html`<button className="hdr-settings" onClick=${onOpenSettings}>${settingsOpen ? "Retour" : "Reglages"}</button>` : null}
+          ${onOpenSettings ? html`<button className="hdr-settings" onClick=${onOpenSettings}>${settingsOpen ? "Retour" : "Réglages"}</button>` : null}
         </div>
       </div>
       <div className="hdr-title">${title}</div>

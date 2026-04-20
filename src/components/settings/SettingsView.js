@@ -19,7 +19,7 @@ function SectionCard({ id, title, subtitle, status = "", open, onToggle, childre
           <div className="mini">${subtitle}</div>
         </div>
         <div className="settings-meta">
-          ${status ? html`<span className=${`settings-badge ${status === "Bientot disponible" ? "soon" : ""}`}>${status}</span>` : null}
+          ${status ? html`<span className=${`settings-badge ${status === "Bientôt disponible" ? "soon" : ""}`}>${status}</span>` : null}
           <span className="settings-chevron">${open ? "Masquer" : "Ouvrir"}</span>
         </div>
       </button>
@@ -35,7 +35,7 @@ function PlaceholderList({ items }) {
         (item) => html`
           <div className="placeholder-row" key=${item}>
             <span>${item}</span>
-            <span className="settings-badge soon">Bientot disponible</span>
+            <span className="settings-badge soon">Bientôt disponible</span>
           </div>
         `,
       )}
@@ -262,12 +262,12 @@ export function SettingsView({
   return html`
     <section className="settings-page">
       <div className="settings-intro ncard">
-        <div className="miniTitle">${isOnboarding ? "Bienvenue" : "Reglages"}</div>
+          <div className="miniTitle">${isOnboarding ? "Bienvenue" : "Réglages"}</div>
         <div className="family-name">${currentFamily?.name || "Mon foyer"}</div>
         <div className="mini">
           ${isOnboarding
-            ? "On se connecte avec son compte personnel. Les invitations servent ensuite a rattacher le compte au bon membre du foyer."
-            : "Compte personnel, foyer partage et profils du foyer pour organiser la vie de famille."}
+            ? "On se connecte avec son compte personnel. Les invitations servent ensuite à rattacher le compte au bon membre du foyer."
+            : "Compte personnel, foyer partagé et profils du foyer pour organiser la vie de famille."}
         </div>
       </div>
 
@@ -302,7 +302,7 @@ export function SettingsView({
             <button className="settings-subhead" onClick=${() => setSecurityOpen((value) => !value)}>
               <div>
                 <div className="miniTitle">Securite du compte</div>
-                <div className="mini">Email, mot de passe, methode de connexion et deconnexion.</div>
+                <div className="mini">E-mail, mot de passe, méthode de connexion et déconnexion.</div>
               </div>
               <span className="settings-chevron">${securityOpen ? "Masquer" : "Ouvrir"}</span>
             </button>
@@ -311,7 +311,7 @@ export function SettingsView({
               ? html`
                   <div className="settings-subbody">
                     <div className="settings-row">
-                      <span>Methode de connexion</span>
+                      <span>Méthode de connexion</span>
                       <strong>${loginMethodLabel}</strong>
                     </div>
 
@@ -333,16 +333,16 @@ export function SettingsView({
                               <button className="aok" onClick=${submitPassword}>Changer</button>
                             </div>
                           `
-                        : html`<div className="mini">Ce compte passe par Google. Le mot de passe se gere en dehors de l'application.</div>`}
+                        : html`<div className="mini">Ce compte passe par Google. Le mot de passe se gère en dehors de l’application.</div>`}
                       ${passwordMessage ? html`<div className="mini">${passwordMessage}</div>` : null}
                     </div>
 
                     ${accountMessage ? html`<div className="mini">${accountMessage}</div>` : null}
 
                     <div className="settings-inline-actions">
-                      <button className="clrbtn" onClick=${onLogout}>Deconnexion</button>
+                      <button className="clrbtn" onClick=${onLogout}>Déconnexion</button>
                       <button className="ghost-btn" disabled>Supprimer le compte</button>
-                      <span className="settings-badge soon">Bientot disponible</span>
+                      <span className="settings-badge soon">Bientôt disponible</span>
                     </div>
                   </div>
                 `
@@ -353,7 +353,7 @@ export function SettingsView({
         <${SectionCard}
           id="foyer"
           title="Foyer"
-          subtitle="Creation du foyer, changement de foyer et invitation liee a un membre."
+          subtitle="Création du foyer, changement de foyer et invitation liée à un membre."
           status="Actif"
           open=${openSections.includes("foyer")}
           onToggle=${toggleSection}
@@ -407,10 +407,10 @@ export function SettingsView({
               `
             : html`
                 <div className="settings-actions">
-                  <div className="miniTitle">Creer un foyer</div>
+                  <div className="miniTitle">Créer un foyer</div>
                   <div className="arow">
                     <input className="ainp" placeholder="Nom du foyer" value=${createName} onInput=${(event) => setCreateName(event.target.value)} />
-                    <button className="aok" onClick=${() => onCreateFamily(createName)}>Creer</button>
+                    <button className="aok" onClick=${() => onCreateFamily(createName)}>Créer</button>
                   </div>
                 </div>
                 <div className="settings-actions">
@@ -419,7 +419,7 @@ export function SettingsView({
                     <input className="ainp" placeholder="Code d'invitation" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
                     <button className="aok" onClick=${() => onJoinFamily(joinCode)}>Accepter</button>
                   </div>
-                  <div className="mini">Le code rattache ton compte au membre precis qui a ete invite.</div>
+                  <div className="mini">Le code rattache ton compte au membre précis qui a été invité.</div>
                 </div>
               `}
         <//>
@@ -427,7 +427,7 @@ export function SettingsView({
         <${SectionCard}
           id="people"
           title="Personnes du foyer"
-          subtitle="Ajoute ici les personnes qui utilisent l application, ainsi que les enfants et animaux du foyer."
+          subtitle="Ajoute ici les personnes qui utilisent l’application, ainsi que les enfants et animaux du foyer."
           status="Actif"
           open=${openSections.includes("people")}
           onToggle=${toggleSection}
@@ -440,7 +440,7 @@ export function SettingsView({
                     ? html`
                         <div className="settings-inline-actions">
                           <button className=${`task-choice ${personForm.profileMode === "app_user" ? "on" : ""}`} onClick=${() => startAddFlow("app-user")}>
-                            Ajouter une personne utilisatrice de l application
+                            Ajouter une personne utilisatrice de l’application
                           </button>
                           <button className=${`task-choice ${personForm.profileMode === "context" && personForm.type === "child" ? "on" : ""}`} onClick=${() => startAddFlow("context-child")}>
                             Ajouter un enfant au foyer
@@ -453,15 +453,15 @@ export function SettingsView({
                     : null}
                   <div className="mini">
                     ${personForm.profileMode === "app_user"
-                      ? "Profil utilisateur de l application : peut recevoir des taches, les valider et etre invite avec un compte."
+                      ? "Profil utilisateur de l’application : peut recevoir des tâches, les valider et être invité avec un compte."
                       : personForm.type === "animal"
-                        ? "Profil animal du foyer : visible seulement dans le calendrier et les evenements."
-                        : "Profil enfant du foyer : visible seulement dans le calendrier et les evenements."}
+                        ? "Profil animal du foyer : visible seulement dans le calendrier et les événements."
+                        : "Profil enfant du foyer : visible seulement dans le calendrier et les événements."}
                   </div>
                   <div className="arow">
                     <input className="ainp" placeholder="Nom affiche" value=${personForm.displayName} onInput=${(event) => setPersonForm({ ...personForm, displayName: event.target.value })} />
                     <span className=${`settings-badge ${personForm.profileMode === "context" ? "soon" : ""}`}>
-                      ${personForm.profileMode === "app_user" ? "Utilisateur de l application" : personForm.type === "animal" ? "Animal du foyer" : "Enfant du foyer"}
+                      ${personForm.profileMode === "app_user" ? "Utilisateur de l’application" : personForm.type === "animal" ? "Animal du foyer" : "Enfant du foyer"}
                     </span>
                   </div>
                   ${personForm.profileMode === "app_user"
@@ -469,7 +469,7 @@ export function SettingsView({
                         <div className="arow">
                           <label className="help">
                             <input type="checkbox" checked=${personForm.canCompleteTasks} onChange=${(event) => setPersonForm({ ...personForm, canCompleteTasks: event.target.checked })} />
-                            Peut valider les taches
+                            Peut valider les tâches
                           </label>
                           <label className="help">
                             <input type="checkbox" checked=${personForm.active} onChange=${(event) => setPersonForm({ ...personForm, active: event.target.checked })} />
@@ -547,15 +547,15 @@ export function SettingsView({
         <${SectionCard}
           id="notifications"
           title="Notifications"
-          subtitle="Rappels, heures calmes et preferences de notification."
-          status="Bientot disponible"
+          subtitle="Rappels, heures calmes et préférences de notification."
+          status="Bientôt disponible"
           open=${openSections.includes("notifications")}
           onToggle=${toggleSection}
         >
           <${PlaceholderList}
             items=${[
               "Activer ou desactiver les notifications",
-              "Rappels de taches",
+              "Rappels de tâches",
               "Rappels agenda",
               "Rappels liste de courses",
               "Rappels repas",
@@ -567,7 +567,7 @@ export function SettingsView({
         <${SectionCard}
           id="appearance"
           title="Apparence"
-          subtitle="Theme de l application et langue."
+          subtitle="Thème de l’application et langue."
           status="Actif"
           open=${openSections.includes("appearance")}
           onToggle=${toggleSection}
@@ -583,7 +583,7 @@ export function SettingsView({
           <div className="settings-actions">
             <div className="miniTitle">Langue</div>
             <select className="asel" value=${language} onChange=${(event) => setLanguage(event.target.value)}>
-              <option value="fr">Francais</option>
+              <option value="fr">Français</option>
               <option value="en">English</option>
             </select>
           </div>
@@ -591,8 +591,8 @@ export function SettingsView({
 
         <${SectionCard}
           id="time"
-          title="Date de l application"
-          subtitle="Mode normal ou mode simulation pour tester les echeances et les resets."
+          title="Date de l’application"
+          subtitle="Mode normal ou mode simulation pour tester les échéances et les resets."
           status="Actif"
           open=${openSections.includes("time")}
           onToggle=${toggleSection}
@@ -601,10 +601,10 @@ export function SettingsView({
             <div className="miniTitle">Mode de temps</div>
             <div className="task-choice-row">
               <button type="button" className=${`task-choice ${appTimeMode === "real" ? "on" : ""}`} onClick=${onUseRealDate}>
-                Utiliser date reelle
+                Utiliser la date réelle
               </button>
               <button type="button" className=${`task-choice ${appTimeMode === "simulated" ? "on" : ""}`} onClick=${onUseSimulatedDate}>
-                Utiliser date simulee
+                Utiliser la date simulée
               </button>
             </div>
             <div className="mini">Actuellement : ${currentAppDateLabel || "Date indisponible"}</div>
@@ -613,7 +613,7 @@ export function SettingsView({
           ${appTimeMode === "simulated"
             ? html`
                 <div className="settings-actions">
-                  <div className="miniTitle">Date et heure simulees</div>
+                  <div className="miniTitle">Date et heure simulées</div>
                   <div className="arow">
                     <input
                       className="ainp"
@@ -636,7 +636,7 @@ export function SettingsView({
                     <button type="button" className="task-choice" onClick=${() => onShiftSimulatedDate(1)}>+1 jour</button>
                     <button type="button" className="task-choice" onClick=${() => onShiftSimulatedDate(7)}>+7 jours</button>
                     <button type="button" className="task-choice" onClick=${() => onShiftSimulatedDate(30)}>+30 jours</button>
-                    <button type="button" className="task-choice" onClick=${onResetSimulatedDate}>Retour a aujourd hui</button>
+                    <button type="button" className="task-choice" onClick=${onResetSimulatedDate}>Retour à aujourd’hui</button>
                   </div>
                 </div>
               `
@@ -646,8 +646,8 @@ export function SettingsView({
         <${SectionCard}
           id="planner"
           title="Planner / Organisation"
-          subtitle="Preferences de navigation et d organisation du planner."
-          status="Bientot disponible"
+          subtitle="Préférences de navigation et d’organisation du planner."
+          status="Bientôt disponible"
           open=${openSections.includes("planner")}
           onToggle=${toggleSection}
         >
@@ -657,7 +657,7 @@ export function SettingsView({
               "Semaine lundi / dimanche",
               "Ordre des onglets",
               "Ordre d affichage des personnes",
-              "Tri par defaut des taches",
+              "Tri par défaut des tâches",
             ]}
           />
         <//>
@@ -665,7 +665,7 @@ export function SettingsView({
         <${SectionCard}
           id="data"
           title="Donnees"
-          subtitle="Synchronisation, import, export et entretien des donnees."
+          subtitle="Synchronisation, import, export et entretien des données."
           status="Actif"
           open=${openSections.includes("data")}
           onToggle=${toggleSection}
@@ -678,10 +678,10 @@ export function SettingsView({
           </div>
 
           <div className="settings-inline-actions">
-            <button className="abtn" onClick=${onExportData}>Exporter les donnees</button>
-            <button className="abtn" onClick=${onToggleImport}>${showImport ? "Fermer l import" : "Importer des donnees"}</button>
-            <button className="clrbtn" onClick=${onClearHistory}>Effacer l historique</button>
-            <button className="clrbtn" onClick=${onResetPlanner}>Reinitialiser le planner</button>
+            <button className="abtn" onClick=${onExportData}>Exporter les données</button>
+            <button className="abtn" onClick=${onToggleImport}>${showImport ? "Fermer l’import" : "Importer des données"}</button>
+            <button className="clrbtn" onClick=${onClearHistory}>Effacer l’historique</button>
+            <button className="clrbtn" onClick=${onResetPlanner}>Réinitialiser le planner</button>
           </div>
 
           ${showImport
@@ -700,33 +700,33 @@ export function SettingsView({
         <${SectionCard}
           id="support"
           title="Aide / Support"
-          subtitle="Contact, suivi produit et informations legales."
+          subtitle="Contact, suivi produit et informations légales."
           status="Mixte"
           open=${openSections.includes("support")}
           onToggle=${toggleSection}
         >
           <div className="placeholder-row">
             <span>Signaler un bug</span>
-            <span className="settings-badge soon">Bientot disponible</span>
+            <span className="settings-badge soon">Bientôt disponible</span>
           </div>
           <div className="placeholder-row">
             <span>Contacter le support</span>
-            <span className="settings-badge soon">Bientot disponible</span>
+            <span className="settings-badge soon">Bientôt disponible</span>
           </div>
           <div className="placeholder-row">
-            <span>Suggerer une fonctionnalite</span>
-            <span className="settings-badge soon">Bientot disponible</span>
+            <span>Suggérer une fonctionnalité</span>
+            <span className="settings-badge soon">Bientôt disponible</span>
           </div>
           <div className="placeholder-row">
-            <span>Politique de confidentialite</span>
-            <span className="settings-badge soon">Bientot disponible</span>
+            <span>Politique de confidentialité</span>
+            <span className="settings-badge soon">Bientôt disponible</span>
           </div>
           <div className="placeholder-row">
-            <span>Conditions d utilisation</span>
-            <span className="settings-badge soon">Bientot disponible</span>
+            <span>Conditions d’utilisation</span>
+            <span className="settings-badge soon">Bientôt disponible</span>
           </div>
           <div className="settings-row">
-            <span>Version de l application</span>
+            <span>Version de l’application</span>
             <strong>${APP_VERSION}</strong>
           </div>
         <//>

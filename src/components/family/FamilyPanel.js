@@ -94,7 +94,7 @@ export function FamilyPanel({
       <div className="family-grid">
         <div className="ncard">
           <div className="miniTitle">Compte connecte</div>
-          <div className="mini">Ce compte sert uniquement a te connecter a l'application.</div>
+          <div className="mini">Ce compte sert uniquement à te connecter à l’application.</div>
           <div className="arow" style=${{ marginTop: "8px" }}>
             <input className="ainp" value=${profileName} onInput=${(event) => setProfileName(event.target.value)} />
             <button className="abtn" onClick=${() => onSaveProfile(profileName)}>Enregistrer</button>
@@ -120,17 +120,17 @@ export function FamilyPanel({
         ? html`
             <div className="family-grid">
               <div className="ncard">
-                <div className="miniTitle">Creer une famille</div>
+                <div className="miniTitle">Créer une famille</div>
                 <div className="mini">On demande seulement le nom du foyer.</div>
                 <div className="arow" style=${{ marginTop: "8px" }}>
                   <input className="ainp" placeholder="Nom de la famille" value=${createName} onInput=${(event) => setCreateName(event.target.value)} />
-                  <button className="aok" onClick=${() => onCreateFamily(createName)}>Creer</button>
+                  <button className="aok" onClick=${() => onCreateFamily(createName)}>Créer</button>
                 </div>
               </div>
               <div className="ncard">
                 <div className="miniTitle">Rejoindre une famille</div>
                 <div className="arow" style=${{ marginTop: "8px" }}>
-                  <input className="ainp" placeholder="Code invitation" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
+                  <input className="ainp" placeholder="Code d’invitation" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
                   <button className="aok" onClick=${() => onJoinFamily(joinCode)}>Rejoindre</button>
                 </div>
               </div>
@@ -141,8 +141,8 @@ export function FamilyPanel({
               <div className="ncard">
                 <div className="miniTitle">Famille active</div>
                 <div className="family-name">${safeCurrentFamily.name || "Famille"}</div>
-                <div className="mini">Code invitation : <strong>${safeCurrentFamily.inviteCode || "..."}</strong></div>
-                <div className="mini">Mon role d acces : <strong>${currentRole || "membre"}</strong></div>
+                <div className="mini">Code d’invitation : <strong>${safeCurrentFamily.inviteCode || "..."}</strong></div>
+                <div className="mini">Mon rôle d’accès : <strong>${currentRole || "membre"}</strong></div>
                 ${currentRole === "admin"
                   ? html`
                       <div className="arow" style=${{ marginTop: "10px" }}>
@@ -157,8 +157,8 @@ export function FamilyPanel({
                 <div className="miniTitle">${safePeopleRequired ? "Configuration du foyer" : "Profils du foyer"}</div>
                 <div className="mini">
                   ${safePeopleRequired
-                    ? "Ajoute d abord les vraies personnes du foyer. Les comptes de connexion et les profils du foyer sont separes."
-                    : "Ces profils servent aux taches, au calendrier, a l historique et a toute l organisation du foyer."}
+                    ? "Ajoute d’abord les vraies personnes du foyer. Les comptes de connexion et les profils du foyer sont séparés."
+                    : "Ces profils servent aux tâches, au calendrier, à l’historique et à toute l’organisation du foyer."}
                 </div>
 
                 <div className="aform" style=${{ marginTop: "10px" }}>
@@ -184,7 +184,7 @@ export function FamilyPanel({
                         checked=${personForm.canCompleteTasks}
                         onChange=${(event) => setPersonForm({ ...personForm, canCompleteTasks: event.target.checked })}
                       />
-                      Peut valider les taches
+                      Peut valider les tâches
                     </label>
                     <label className="help">
                       <input type="checkbox" checked=${personForm.active} onChange=${(event) => setPersonForm({ ...personForm, active: event.target.checked })} />
@@ -192,7 +192,7 @@ export function FamilyPanel({
                     </label>
                   </div>
                   <div className="arow">
-                    <button className="aok" onClick=${submitPerson}>${editId ? "Mettre a jour" : "Ajouter la personne"}</button>
+                    <button className="aok" onClick=${submitPerson}>${editId ? "Mettre à jour" : "Ajouter la personne"}</button>
                     ${editId ? html`<button className="acn" onClick=${resetPersonForm}>Annuler</button>` : null}
                   </div>
                 </div>
@@ -215,7 +215,7 @@ export function FamilyPanel({
                               ${person.type === "child" ? "Enfant" : "Adulte"} - ${person.active === false ? "Inactif" : "Actif"} -
                               ${person.canCompleteTasks ? "Peut valider" : "Ne valide pas"}
                             </div>
-                            ${person.linkedAccountId ? html`<div className="mini">Compte lie : ${person.linkedAccountId}</div>` : null}
+                            ${person.linkedAccountId ? html`<div className="mini">Compte lié : ${person.linkedAccountId}</div>` : null}
                           </div>
                         </div>
                         <div className="member-actions">

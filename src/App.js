@@ -1,5 +1,5 @@
 import { BottomNav } from "./components/nav/BottomNav.js?v=2026-04-20-redesign-1";
-import { HomeView } from "./components/home/HomeView.js?v=2026-04-20-redesign-1";
+import { HomeView } from "./components/home/HomeView.js?v=2026-04-21-redesign-13";
 import { InventoryView } from "./components/inventory/InventoryView.js?v=2026-04-19-inventory-clear-1";
 import { ListsView } from "./components/lists/ListsView.js?v=2026-04-19-recipe-structure-1";
 import { AgendaView } from "./components/agenda/AgendaView.js?v=2026-04-19-time-sim-1";
@@ -995,6 +995,8 @@ export function App() {
                   people=${householdPeople}
                   familyName=${currentFamily?.name || ""}
                   currentDate=${getCurrentAppDate()}
+                  activePersonId=${activePersonId}
+                  onToggleTask=${handleToggleTask}
                   onNavigate=${(tab) => { setShowSettings(false); setActiveTab(tab); }}
                   onOpenSettings=${() => setShowSettings(true)}
                 />

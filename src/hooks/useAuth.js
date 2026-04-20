@@ -91,7 +91,7 @@ export function useAuth() {
     label: member.displayName || member.email || "Compte",
   }));
   const linkedAccountLabels = safeMembers.reduce((acc, member) => {
-    acc[member.uid] = member.displayName || member.email || "Compte lie";
+    acc[member.uid] = member.displayName || member.email || "Compte lié";
     return acc;
   }, {});
   const memberDirectory = safeMembers.reduce((acc, member) => {
@@ -274,14 +274,14 @@ export function useAuth() {
 
   async function handleForgotPassword(email) {
     if (!email?.trim()) {
-      setAuthError("Entre ton adresse email pour recevoir le lien de reinitialisation.");
+      setAuthError("Entre ton adresse e-mail pour recevoir le lien de réinitialisation.");
       return;
     }
     try {
       setBusy(true);
       setAuthError("");
       await resetPassword(email);
-      setAuthError("Email envoye ! Verifie ta boite mail pour reinitialiser ton mot de passe.");
+      setAuthError("E-mail envoyé ! Vérifie ta boîte mail pour réinitialiser ton mot de passe.");
     } catch (error) {
       setAuthError(formatAuthError(error));
     } finally {
@@ -295,7 +295,7 @@ export function useAuth() {
       setEmailMessage("");
       await updateEmailForCurrentUser(newEmail);
       await saveUserEmail(user.uid, newEmail, userProfile?.familyIds || []);
-      setEmailMessage("Email mis a jour.");
+      setEmailMessage("E-mail mis à jour.");
     } catch (error) {
       setEmailMessage(formatAuthError(error));
     } finally {
@@ -308,7 +308,7 @@ export function useAuth() {
       setBusy(true);
       setPasswordMessage("");
       await changePasswordForCurrentUser(newPassword);
-      setPasswordMessage("Mot de passe mis a jour.");
+      setPasswordMessage("Mot de passe mis à jour.");
     } catch (error) {
       setPasswordMessage(formatAuthError(error));
     } finally {
@@ -319,13 +319,13 @@ export function useAuth() {
   async function handleCreateFamily(name) {
     if (!name.trim()) throw new Error("Donne un nom au foyer.");
     await createFamily({ user, familyName: name });
-    setAccountMessage("Ton compte personnel a ete lie automatiquement a ton profil du foyer.");
+    setAccountMessage("Ton compte personnel a été lié automatiquement à ton profil du foyer.");
   }
 
   async function handleJoinFamily(code) {
-    if (!code.trim()) throw new Error("Entre un code d invitation.");
+    if (!code.trim()) throw new Error("Entre un code d’invitation.");
     await joinFamily({ user, inviteCode: code });
-    setAccountMessage("Invitation acceptee. Ton compte a ete rattache au bon membre du foyer.");
+    setAccountMessage("Invitation acceptée. Ton compte a été rattaché au bon membre du foyer.");
   }
 
   async function handleCreateInvitation(personId, email) {
@@ -336,7 +336,7 @@ export function useAuth() {
       createdBy: user.uid,
       targetEmail: email,
     });
-    setAccountMessage(`Invitation creee pour ${invitation.memberName} : ${invitation.code}`);
+    setAccountMessage(`Invitation créée pour ${invitation.memberName} : ${invitation.code}`);
   }
 
   async function handleAddPerson(person) {

@@ -76,7 +76,7 @@ function createEmptyForm(tasks, people) {
 }
 
 function buildTaskLabel(task) {
-  const periodLabel = task.type === "weekly" ? "Semaine" : task.type === "monthly" ? "Mois" : "Aujourd'hui";
+  const periodLabel = task.type === "weekly" ? "Semaine" : task.type === "monthly" ? "Mois" : "Aujourd’hui";
   return `${task.icon ? `${task.icon} ` : ""}${task.text} · ${periodLabel}`;
 }
 
@@ -157,7 +157,7 @@ function taskPeriodLabel(type) {
   if (type === "weekly") return "Semaine";
   if (type === "monthly") return "Mois";
   if (type === "deadline") return "Échéance";
-  return "Aujourd'hui";
+  return "Aujourd’hui";
 }
 
 function viewLabel(mode, date, days) {
@@ -422,7 +422,7 @@ function renderEntryCard(entry) {
             <div className="cblksub">${isDeadline
               ? (entry.allDay ? "À faire dans la journée" : `Avant ${entry.start}`)
               : dateTimeLabel(entry)}</div>
-            ${assignedPerson ? html`<div className="mini">Attribuee a : ${assignedPerson.label}</div>` : null}
+            ${assignedPerson ? html`<div className="mini">Attribuée à : ${assignedPerson.label}</div>` : null}
           </div>
         </div>
       </div>
@@ -432,7 +432,7 @@ function renderEntryCard(entry) {
           : taskIsDone
             ? html`<span className="calendar-tag" style=${{ background: "#d1fae5", color: "#065f46", fontWeight: "600" }}>✓ Terminée</span>`
             : html`
-                ${linkedTask ? html`<span className="calendar-tag">${linkedTask.priority === "urgent" ? "Urgente" : linkedTask.priority === "deadline" ? "A faire avant" : "Normale"}</span>` : null}
+                ${linkedTask ? html`<span className="calendar-tag">${linkedTask.priority === "urgent" ? "Urgente" : linkedTask.priority === "deadline" ? "À faire avant" : "Normale"}</span>` : null}
                 ${entry.entryKind === "recurring" ? html`<span className="calendar-tag">Chaque semaine</span>` : null}
               `}
       </div>
@@ -449,7 +449,7 @@ function renderEntryCard(entry) {
                       ? { background: person.color, borderColor: person.color, color: "#fff" }
                       : { background: "#fff", borderColor: person.color || "#D8CEBF", color: person.color || "#8A7868" }}
                     onClick=${() => onToggleTask(linkedTask.id, person.id)}
-                    title=${`Marquer ${person.label} comme personne ayant fait la tache`}
+                    title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                   >
                     <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { background: "#fff", color: person.color || "#8A7868" }}>
                       ${person.shortId}
@@ -507,7 +507,7 @@ function renderEntryCard(entry) {
           <div className="modal-card task-modal" onClick=${(e) => e.stopPropagation()}>
             <div className="task-modal-head">
               <div>
-                <div className="miniTitle">${isDeadline ? "Echeance" : `Tache · ${taskPeriodLabel(linkedTask.type)}`}</div>
+                <div className="miniTitle">${isDeadline ? "Échéance" : `Tâche · ${taskPeriodLabel(linkedTask.type)}`}</div>
               </div>
               <button className="delbtn" onClick=${() => setViewEntry(null)}>X</button>
             </div>
@@ -539,7 +539,7 @@ function renderEntryCard(entry) {
             <div style=${{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
               ${!isDeadline ? html`<button className="clrbtn" onClick=${() => { setViewEntry(null); openEditModal(entry, entry.entryKind); }}>Modifier le bloc</button>` : null}
               ${!isDeadline ? html`<button className="ghost-btn" onClick=${calendarOnlyDelete}>Retirer du calendrier</button>` : null}
-              <button className="ghost-btn" onClick=${deleteTaskEverywhere}>Supprimer la tache complete</button>
+              <button className="ghost-btn" onClick=${deleteTaskEverywhere}>Supprimer la tâche complète</button>
               <button className="aok" style=${{ background: "var(--surface2,#f0f0f0)", color: "var(--text,#333)" }} onClick=${() => setViewEntry(null)}>Fermer</button>
             </div>
           </div>
@@ -929,7 +929,7 @@ function renderEntryCard(entry) {
                   ${childPeople.length
                     ? html`
                         <div className="fstack">
-                          <span className="miniTitle">Enfants et animaux concernes</span>
+                          <span className="miniTitle">Enfants et animaux concernés</span>
                           <div className="mini">Champ optionnel : aucun, un ou plusieurs profils contextuels du foyer.</div>
                           <div className="calendar-choice-row">
                             ${childPeople.map(

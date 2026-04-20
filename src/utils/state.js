@@ -32,7 +32,7 @@ function normalizeTask(task, index) {
   const taskKind = task.taskKind || (task.recur && task.recur !== "none" ? "recurring" : "single");
   return {
     id: task.id || `task-${Date.now()}-${index}`,
-    text: task.text || "Tache",
+    text: task.text || "Tâche",
     type: task.type || "daily",
     icon: task.icon || "",
     doneBy: Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean) : task.completedByPersonId ? [task.completedByPersonId] : [],

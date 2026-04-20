@@ -1,4 +1,4 @@
-import { App } from "./App.js?v=2026-04-20-redesign-5";
+import { App } from "./App.js?v=2026-04-21-redesign-13";
 import { createRoot, html } from "./lib.js";
 
 if (window.__pushBootLog) {

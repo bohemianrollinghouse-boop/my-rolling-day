@@ -12,7 +12,7 @@ const UNITS = [
 ];
 
 function listBadgeLabel(list) {
-  return list.addToInventory ? "Les achats sont ajoutes a l inventaire" : "Les achats restent dans cette liste";
+  return list.addToInventory ? "Les achats sont ajoutés à l’inventaire" : "Les achats restent dans cette liste";
 }
 
 export function ListsView({
@@ -159,7 +159,7 @@ export function ListsView({
               ${UNITS.map((u) => html`<option key=${u.value} value=${u.value}>${u.label}</option>`)}
             </select>
           </div>
-          ${item.done && item.purchasedAt ? html`<span className="mini">Achete le ${item.purchasedAt}</span>` : null}
+          ${item.done && item.purchasedAt ? html`<span className="mini">Acheté le ${item.purchasedAt}</span>` : null}
         </div>
         <button className="delbtn" onClick=${() => onDeleteListItem(selectedList.id, item.id)}>X</button>
       </div>
@@ -173,7 +173,7 @@ export function ListsView({
             <section className="inventory-section">
               <div className="sh">
                 <div className="sl">
-                  <span className="st">A acheter</span>
+                  <span className="st">À acheter</span>
                   <span className="mini">${pendingItems.length} article${pendingItems.length > 1 ? "s" : ""}</span>
                 </div>
               </div>
@@ -189,7 +189,7 @@ export function ListsView({
             <section className="inventory-section">
               <div className="sh">
                 <div className="sl">
-                  <span className="st">Achetes</span>
+                  <span className="st">Achetés</span>
                   <span className="mini">${purchasedItems.length} article${purchasedItems.length > 1 ? "s" : ""}</span>
                 </div>
               </div>
@@ -209,7 +209,7 @@ export function ListsView({
       <div className="sh">
         <div className="sl">
           <span className="st">Listes du foyer</span>
-          <span className="mini">Cree autant de listes que necessaire. La Liste de courses reste la liste speciale liee a l inventaire.</span>
+          <span className="mini">Crée autant de listes que nécessaire. La liste de courses reste la liste spéciale liée à l’inventaire.</span>
         </div>
         <button className="aok" onClick=${openCreateList}>Nouvelle liste</button>
       </div>
@@ -251,11 +251,11 @@ export function ListsView({
                     ${selectedList.isShoppingList ? html`<button className="ghost-btn" onClick=${onClearShoppingList}>Vider la liste de courses</button>` : null}
                   </div>
                 </div>
-                ${selectedList.isShoppingList ? html`<div className="mini">Cette liste recoit aussi les articles envoyes depuis l inventaire avec "A racheter".</div>` : null}
+                ${selectedList.isShoppingList ? html`<div className="mini">Cette liste reçoit aussi les articles envoyés depuis l’inventaire avec « À racheter ».</div>` : null}
                 ${selectedList.visibility === "shared" && (selectedList.sharedWith || []).length
                   ? html`<div className="mini" style=${{ color: "var(--accent)", marginBottom: "4px" }}>Partage avec : ${(selectedList.sharedWith || []).map((id) => { const p = people.find((x) => x.id === id); return p?.label || p?.displayName || id; }).join(", ")}</div>`
                   : selectedList.visibility === "private"
-                    ? html`<div className="mini" style=${{ marginBottom: "4px" }}>Liste privee</div>`
+                    ? html`<div className="mini" style=${{ marginBottom: "4px" }}>Liste privée</div>`
                     : null}
 
                 ${selectedList.isShoppingList
@@ -275,7 +275,7 @@ export function ListsView({
                 <div className="task-modal-head">
                   <div>
                     <div className="miniTitle">Listes</div>
-                    <div className="st">${editingList ? "Modifier la liste" : "Creer une liste"}</div>
+                    <div className="st">${editingList ? "Modifier la liste" : "Créer une liste"}</div>
                   </div>
                   <button className="delbtn" onClick=${() => setShowListModal(false)}>X</button>
                 </div>
@@ -285,7 +285,7 @@ export function ListsView({
                     ? html`
                         <div className="segmented" style=${{ marginBottom: "4px" }}>
                           <button type="button" className=${`seg-btn ${listForm.visibility === "household" ? "on" : ""}`} onClick=${() => setListForm((prev) => ({ ...prev, visibility: "household", sharedWith: [] }))}>Foyer</button>
-                          <button type="button" className=${`seg-btn ${listForm.visibility !== "household" ? "on" : ""}`} onClick=${() => setListForm((prev) => ({ ...prev, visibility: "private" }))}>Privee</button>
+                          <button type="button" className=${`seg-btn ${listForm.visibility !== "household" ? "on" : ""}`} onClick=${() => setListForm((prev) => ({ ...prev, visibility: "private" }))}>Privée</button>
                         </div>
                         ${listForm.visibility !== "household" && people.filter((p) => p.id !== activePersonId && (p.label || p.displayName)?.trim() && p.type !== "animal" && p.type !== "child").length
                           ? html`
@@ -305,7 +305,7 @@ export function ListsView({
                     ? html`
                         <div className="segmented" style=${{ marginBottom: "4px" }}>
                           <button type="button" className=${`seg-btn ${listForm.visibility === "household" ? "on" : ""}`} onClick=${() => setListForm((prev) => ({ ...prev, visibility: "household", sharedWith: [] }))}>Foyer</button>
-                          <button type="button" className=${`seg-btn ${listForm.visibility === "private" ? "on" : ""}`} onClick=${() => setListForm((prev) => ({ ...prev, visibility: "private" }))}>Privee</button>
+                          <button type="button" className=${`seg-btn ${listForm.visibility === "private" ? "on" : ""}`} onClick=${() => setListForm((prev) => ({ ...prev, visibility: "private" }))}>Privée</button>
                         </div>
                         ${listForm.visibility === "private" && people.filter((p) => p.id !== activePersonId && (p.label || p.displayName)?.trim() && p.type !== "animal" && p.type !== "child").length
                           ? html`
@@ -326,7 +326,7 @@ export function ListsView({
                     : html`<div className="mini">Le mode inventaire se change directement sur la carte de liste.</div>`}
                   <div className="task-modal-actions">
                     <button type="button" className="clrbtn" onClick=${() => setShowListModal(false)}>Annuler</button>
-                    <button className="aok" type="submit" disabled=${!listForm.name.trim()}>${editingList ? "Enregistrer" : "Creer la liste"}</button>
+                    <button className="aok" type="submit" disabled=${!listForm.name.trim()}>${editingList ? "Enregistrer" : "Créer la liste"}</button>
                   </div>
                 </form>
               </div>
