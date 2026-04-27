@@ -15,6 +15,8 @@ export function createDefaultState() {
       },
     ],
     inventory: [],
+    storageLocations: [],
+    productLocationMemory: {},
     notes: [],
     history: [],
     agenda: [],

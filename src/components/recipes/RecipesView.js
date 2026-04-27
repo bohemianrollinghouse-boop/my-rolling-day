@@ -19,15 +19,15 @@ const MONTHS = [
 ];
 
 const FOOD_LABELS = [
-  { id: "vegetarian", label: "vegetarien", icon: "\uD83E\uDD55" },
-  { id: "vegan", label: "vegan", icon: "\uD83C\uDF31" },
-  { id: "omnivore", label: "omnivore", icon: "\uD83C\uDF7D\uFE0F" },
-  { id: "pescetarian", label: "pescetarien", icon: "\uD83D\uDC1F" },
-  { id: "flexitarian", label: "flexitarien", icon: "\uD83C\uDF3F" },
-  { id: "lactose_free", label: "sans lactose", icon: "\uD83E\uDD5B" },
-  { id: "gluten_free", label: "sans gluten", icon: "\uD83C\uDF3E" },
-  { id: "halal", label: "halal", icon: "\uD83D\uDD4C" },
-  { id: "kosher", label: "casher", icon: "\u2721\uFE0F" },
+  { id: "vegetarian", label: "V\u00E9g\u00E9tarien", icon: "\uD83E\uDD55" },
+  { id: "vegan", label: "Vegan", icon: "\uD83C\uDF31" },
+  { id: "omnivore", label: "Omnivore", icon: "\uD83C\uDF56" },
+  { id: "pescetarian", label: "Pesc\u00E9tarien", icon: "\uD83D\uDC1F" },
+  { id: "flexitarian", label: "Flexitarien", icon: "\uD83C\uDF3F" },
+  { id: "lactose_free", label: "Sans lactose", icon: "\uD83E\uDD5B" },
+  { id: "gluten_free", label: "Sans gluten", icon: "\uD83C\uDF3E" },
+  { id: "halal", label: "Halal", icon: "\uD83D\uDD4C" },
+  { id: "kosher", label: "Casher", icon: "\u2721\uFE0F" },
 ];
 
 const UNITS = [
@@ -170,7 +170,6 @@ export function RecipesView({
   const [search, setSearch] = useState("");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [activeLabelFilters, setActiveLabelFilters] = useState([]);
-  const [sortOrder, setSortOrder] = useState("az");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRecipeId, setEditingRecipeId] = useState("");
   const [form, setForm] = useState(defaultRecipeForm());
@@ -204,10 +203,9 @@ export function RecipesView({
       return activeLabelFilters.every((labelId) => recipeLabels.includes(labelId));
     });
     return base.slice().sort((left, right) => {
-      const compare = String(left.name || "").localeCompare(String(right.name || ""), "fr", { sensitivity: "base" });
-      return sortOrder === "za" ? compare * -1 : compare;
+      return String(left.name || "").localeCompare(String(right.name || ""), "fr", { sensitivity: "base" });
     });
-  }, [recipes, search, availabilityFilter, activeLabelFilters, sortOrder]);
+  }, [recipes, search, availabilityFilter, activeLabelFilters]);
 
   function setServings(nextValue) {
     setForm((previous) => ({ ...previous, servings: Math.max(1, Math.min(24, Number(nextValue) || 1)) }));
@@ -414,51 +412,50 @@ export function RecipesView({
   const savedCustomCondiments = (Array.isArray(customCondiments) ? customCondiments : []).filter((name) => !ESSENTIAL_ID_SET.has(name));
 
   return html`
-    <section className="rwrap">
-      <div className="sh">
-        <div className="sl">
+    <section className="rwrap recipes-page">
+      <div className="recipes-page-top">
+        <div className="recipes-page-header">
           <span className="st">Recettes</span>
           <span className="mini">Base de recettes du foyer, classée par disponibilité et facile à retrouver.</span>
         </div>
-        <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <div className="recipes-page-top-actions">
           ${onLoadDemoRecipes
             ? html`<button className="clrbtn" style=${{ fontSize: "13px" }} onClick=${onLoadDemoRecipes}>Démo</button>`
             : null}
-          <button className="aok" onClick=${openCreateModal}>Ajouter une recette</button>
+          <button type="button" className="recipes-page-add-btn" onClick=${openCreateModal} title="Ajouter une recette">+</button>
         </div>
       </div>
 
-      <div className="aform">
-        <div className="fstack">
+      <div className="recipes-page-controls">
+        <div className="fstack recipes-page-search-stack">
           <span className="miniTitle">Recherche</span>
-          <input className="ainp" placeholder="Rechercher une recette..." value=${search} onInput=${(event) => setSearch(event.target.value)} />
+          <input className="ainp recipes-page-search-input" placeholder="Rechercher une recette..." value=${search} onInput=${(event) => setSearch(event.target.value)} />
         </div>
 
-        <div className="arow" style=${{ gap: "12px", flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div className="fstack" style=${{ flex: "1 1 180px", minWidth: "160px" }}>
+        <div className="arow recipes-page-filter-stack" style=${{ gap: "12px", flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div className="fstack recipes-page-season-block" style=${{ flex: "1 1 180px", minWidth: "160px" }}>
             <span className="miniTitle">Disponibilité</span>
             <select className="asel" value=${availabilityFilter} onChange=${(event) => setAvailabilityFilter(event.target.value)}>
-              <option value="all">Toutes les recettes</option>
-              <option value="all_year">Toutes saisons</option>
+              <option value="all">Toutes saisons</option>
               ${SEASONS.map((season) => html`<option value=${`season:${season.id}`} key=${season.id}>${season.label}</option>`)}
-              ${MONTHS.map((month) => html`<option value=${`month:${month.id}`} key=${month.id}>${month.label}</option>`)}
             </select>
           </div>
 
-          <div className="fstack" style=${{ flex: "0 1 140px", minWidth: "130px" }}>
+          <div className="fstack recipes-page-sort-block" style=${{ flex: "0 1 140px", minWidth: "130px" }}>
             <span className="miniTitle">Tri</span>
-            <select className="asel" value=${sortOrder} onChange=${(event) => setSortOrder(event.target.value)}>
+            <select className="asel" value="az" disabled>
               <option value="az">A a Z</option>
               <option value="za">Z a A</option>
             </select>
           </div>
 
-          <div className="fstack" style=${{ flex: "2 1 360px", minWidth: "220px" }}>
+          <div className="fstack recipes-page-badges-block" style=${{ flex: "2 1 360px", minWidth: "220px" }}>
             <span className="miniTitle">Badges alimentaires</span>
-            <div className="task-choice-row" style=${{ gap: "6px" }}>
+            <div className="recipes-page-label-row">
               ${FOOD_LABELS.map((label) => html`
-                <button type="button" key=${label.id} className=${`task-choice ${activeLabelFilters.includes(label.id) ? "on" : ""}`} style=${compactChoiceStyle} onClick=${() => toggleFilterLabel(label.id)}>
-                  ${label.icon} ${label.label}
+                <button type="button" key=${label.id} className=${`recipes-filter-chip ${activeLabelFilters.includes(label.id) ? "on" : ""}`} onClick=${() => toggleFilterLabel(label.id)}>
+                  <span className="recipes-filter-chip-icon">${label.icon}</span>
+                  <span>${label.label}</span>
                 </button>
               `)}
             </div>

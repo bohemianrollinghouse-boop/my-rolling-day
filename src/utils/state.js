@@ -39,9 +39,16 @@ function normalizeTask(task, index) {
     recur: task.recur || "none",
     priority: task.priority || legacyPriority || "normal",
     critical: Boolean(task.critical),
-    overdue: Boolean(task.overdue),
+    overdue: taskKind === "recurring" ? false : Boolean(task.overdue),
     order: typeof task.order === "number" ? task.order : index,
     assignedPersonId: task.assignedPersonId || task.assigneeId || "",
+    assignedPersonIds: Array.isArray(task.assignedPersonIds) && task.assignedPersonIds.length
+      ? task.assignedPersonIds.filter(Boolean)
+      : (task.assignedPersonId || task.assigneeId)
+        ? [(task.assignedPersonId || task.assigneeId)].filter(Boolean)
+        : [],
+    assignedWholeFamily: Boolean(task.assignedWholeFamily),
+    concernedPersonIds: Array.isArray(task.concernedPersonIds) ? task.concernedPersonIds.filter(Boolean) : [],
     taskKind,
     recurrenceFrequency,
     recurrenceTime: task.recurrenceTime || "00:00",
@@ -310,12 +317,22 @@ function dedupeListItems(items) {
   }, []);
 }
 
+function compareNormalizedLists(left, right) {
+  if (left.isShoppingList && !right.isShoppingList) return -1;
+  if (!left.isShoppingList && right.isShoppingList) return 1;
+  const leftOrder = typeof left.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
+  const rightOrder = typeof right.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
+  if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+  return String(left.name || "").localeCompare(String(right.name || ""), "fr", { sensitivity: "base" });
+}
+
 function normalizeList(list, index) {
   const rawName = String(list?.name || "").trim();
   const isShopping = Boolean(list?.isShoppingList) || rawName.toLowerCase() === "liste de courses";
   return {
     id: list?.id || (isShopping ? "shopping-default" : `list-${Date.now()}-${index}`),
     name: rawName || (isShopping ? "Liste de courses" : `Liste ${index + 1}`),
+    order: isShopping ? -1 : (typeof list?.order === "number" ? list.order : index),
     addToInventory: Boolean(list?.addToInventory ?? isShopping),
     isShoppingList: isShopping,
     items: dedupeListItems(list?.items),
@@ -335,8 +352,20 @@ function normalizeInventoryItem(item, index) {
     purchaseDate: item?.purchaseDate || "",
     expiryDate: item?.expiryDate || "",
     price: item?.price || "",
+    note: String(item?.note || "").trim(),
     stockState: normalizedStockState,
     needsRestock: normalizedStockState === "empty" ? true : Boolean(item?.needsRestock),
+    storageLocationId: String(item?.storageLocationId || "").trim(),
+    order: typeof item?.order === "number" ? item.order : index,
+  };
+}
+
+function normalizeStorageLocation(location, index) {
+  const rawName = String(location?.name || "").trim();
+  return {
+    id: String(location?.id || makeNormalizedId("loc", index)).trim(),
+    name: rawName || `Rangement ${index + 1}`,
+    emoji: String(location?.emoji || "").trim(),
   };
 }
 
@@ -356,6 +385,9 @@ function normalizeAgendaItem(item, index) {
     personId: personIds[0] || "",
     wholeFamily: Boolean(item?.wholeFamily),
     childIds: Array.isArray(item?.childIds) ? item.childIds : oldChildIds,
+    concernedPersonIds: Array.isArray(item?.concernedPersonIds)
+      ? item.concernedPersonIds.filter(Boolean)
+      : (Array.isArray(item?.childIds) ? item.childIds.filter(Boolean) : oldChildIds.filter(Boolean)),
     sourceType: item?.sourceType || item?.mode || "custom",
   };
 }
@@ -369,6 +401,10 @@ function normalizeRecurringItem(item, index) {
     icon: item?.icon || "",
     taskId: item?.taskId || "",
     weekday: typeof item?.weekday === "number" ? item.weekday : 0,
+    dateKey: item?.dateKey || "",
+    startDateKey: item?.startDateKey || "",
+    recurrenceType: item?.recurrenceType || "",
+    dayOfMonth: item?.dayOfMonth != null ? Number(item.dayOfMonth) : null,
     start: item?.allDay ? "00:00" : item?.start || "09:00",
     duration: Number(item?.duration) || 60,
     allDay: Boolean(item?.allDay),
@@ -376,6 +412,9 @@ function normalizeRecurringItem(item, index) {
     personId: personIds[0] || "",
     wholeFamily: Boolean(item?.wholeFamily),
     childIds: Array.isArray(item?.childIds) ? item.childIds : oldChildIds,
+    concernedPersonIds: Array.isArray(item?.concernedPersonIds)
+      ? item.concernedPersonIds.filter(Boolean)
+      : (Array.isArray(item?.childIds) ? item.childIds.filter(Boolean) : oldChildIds.filter(Boolean)),
     sourceType: item?.sourceType || item?.mode || "custom",
   };
 }
@@ -404,7 +443,19 @@ export function normalizeState(rawState = {}) {
   state.recipes = Array.isArray(state.recipes) ? state.recipes.map(normalizeRecipe) : [];
   state.shopping = Array.isArray(state.shopping) ? state.shopping : [];
   state.lists = Array.isArray(state.lists) ? state.lists.map(normalizeList) : [];
+  state.storageLocations = Array.isArray(state.storageLocations) ? state.storageLocations.map(normalizeStorageLocation) : [];
   state.inventory = Array.isArray(state.inventory) ? state.inventory.map(normalizeInventoryItem) : [];
+  if (state.inventory.length) {
+    state.inventory.sort((left, right) => {
+      const leftOrder = typeof left.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
+      const rightOrder = typeof right.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return String(left.name || "").localeCompare(String(right.name || ""), "fr", { sensitivity: "base" });
+    });
+    state.inventory.forEach((item, index) => {
+      item.order = index;
+    });
+  }
   if (!state.lists.length && state.shopping.length) {
     state.lists = [
       normalizeList(
@@ -449,6 +500,16 @@ export function normalizeState(rawState = {}) {
         ),
       );
     }
+    state.lists.sort(compareNormalizedLists);
+    let nextListOrder = 0;
+    state.lists.forEach((list) => {
+      if (list.isShoppingList) {
+        list.order = -1;
+        return;
+      }
+      list.order = nextListOrder;
+      nextListOrder += 1;
+    });
   }
   state.notes = Array.isArray(state.notes)
     ? state.notes.map((note, index) => ({
@@ -546,6 +607,11 @@ function applyTaskCycles(state, now) {
     const cycleBoundary = getCycleBoundary(task, now);
     const cycleKey = toCycleKey(cycleBoundary);
 
+    if (task.overdue) {
+      task.overdue = false;
+      changed = true;
+    }
+
     if (!task.currentCycleKey) {
       task.currentCycleKey = cycleKey;
       changed = true;
@@ -554,10 +620,7 @@ function applyTaskCycles(state, now) {
 
     if (task.currentCycleKey !== cycleKey) {
       if (!completed) {
-        task.overdue = true;
         task.missedCount = (Number(task.missedCount) || 0) + 1;
-      } else {
-        task.overdue = false;
       }
       task.completedByPersonId = "";
       task.completedAt = "";
@@ -579,6 +642,21 @@ export function checkReset(inputState, currentDate = getCurrentAppDate()) {
   const weekKey = utcWeekKey(today);
   const monthKey = utcMonthKey(today);
   let changed = false;
+
+  // Au changement de jour, on supprime les tâches uniques (non-récurrentes) déjà complétées.
+  // Elles restent dans l'historique (logEntry est appelé lors du toggle), mais disparaissent
+  // de tous les onglets de tâches (Aujourd'hui, Semaine, Mois, Mes tâches).
+  if (state.lastResetDaily !== dayKey) {
+    const beforeCount = state.tasks.length;
+    state.tasks = state.tasks.filter((task) => {
+      if (task.taskKind === "recurring") return true; // les récurrentes gèrent leur propre cycle
+      const completed =
+        (Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean).length > 0 : false) ||
+        Boolean(task.completedByPersonId);
+      return !completed; // retirer les tâches uniques complétées
+    });
+    if (state.tasks.length !== beforeCount) changed = true;
+  }
 
   changed = applyTaskCycles(state, today) || changed;
   if (state.lastResetDaily !== dayKey) state.lastResetDaily = dayKey;

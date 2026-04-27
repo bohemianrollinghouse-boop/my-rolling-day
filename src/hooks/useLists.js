@@ -10,6 +10,17 @@ function normalizeInventoryName(value = "") {
   return normalizeProductName(value);
 }
 
+function parseStorageLocationInput(value = "") {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return { emoji: "", name: "" };
+  const matched = trimmed.match(/^(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*(.*)$/u);
+  if (!matched) return { emoji: "", name: trimmed };
+  return {
+    emoji: String(matched[1] || "").trim(),
+    name: String(matched[2] || "").trim() || trimmed,
+  };
+}
+
 function readQuantityValue(rawQuantity, emptyAsOne = false) {
   const trimmed = String(rawQuantity || "").trim();
   if (!trimmed) return emptyAsOne ? 1 : null;
@@ -91,7 +102,13 @@ export function mergeInventoryEntry(existingItem, incomingItem) {
   const currentQuantity = readQuantityValue(existingItem.quantity, true);
   const nextQuantity = readQuantityValue(incomingItem.quantity, true);
   if (currentQuantity == null && nextQuantity == null) {
-    return { ...existingItem, purchaseDate: incomingItem.purchaseDate || existingItem.purchaseDate, stockState: "in_stock", needsRestock: false };
+    return {
+      ...existingItem,
+      purchaseDate: incomingItem.purchaseDate || existingItem.purchaseDate,
+      stockState: "in_stock",
+      needsRestock: false,
+      note: incomingItem.note || existingItem.note || "",
+    };
   }
   const mergedQuantity = (currentQuantity || 0) + (nextQuantity || 0);
   return {
@@ -100,7 +117,22 @@ export function mergeInventoryEntry(existingItem, incomingItem) {
     purchaseDate: incomingItem.purchaseDate || existingItem.purchaseDate,
     stockState: "in_stock",
     needsRestock: false,
+    note: incomingItem.note || existingItem.note || "",
   };
+}
+
+function compareInventoryEntries(left, right) {
+  const leftOrder = typeof left?.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
+  const rightOrder = typeof right?.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
+  if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+  return String(left?.name || "").localeCompare(String(right?.name || ""), "fr", { sensitivity: "base" });
+}
+
+function resequenceInventory(items) {
+  return (Array.isArray(items) ? items : [])
+    .slice()
+    .sort(compareInventoryEntries)
+    .map((item, index) => ({ ...item, order: index }));
 }
 
 export function ensureShoppingList(lists) {
@@ -118,6 +150,26 @@ export function ensureShoppingList(lists) {
 export function syncShoppingFromLists(lists) {
   const shoppingList = ensureShoppingList(lists).find((list) => list.isShoppingList);
   return Array.isArray(shoppingList?.items) ? shoppingList.items : [];
+}
+
+function compareLists(left, right) {
+  if (left.isShoppingList && !right.isShoppingList) return -1;
+  if (!left.isShoppingList && right.isShoppingList) return 1;
+  const leftOrder = typeof left.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
+  const rightOrder = typeof right.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
+  if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+  return String(left.name || "").localeCompare(String(right.name || ""), "fr", { sensitivity: "base" });
+}
+
+function resequenceLists(lists) {
+  const sortedLists = ensureShoppingList(lists).slice().sort(compareLists);
+  let nextOrder = 0;
+  return sortedLists.map((list) => {
+    if (list.isShoppingList) return { ...list, order: -1 };
+    const withOrder = { ...list, order: nextOrder };
+    nextOrder += 1;
+    return withOrder;
+  });
 }
 
 export function useLists(state, updateState, showToast) {
@@ -178,9 +230,20 @@ export function useLists(state, updateState, showToast) {
   function handleCreateList(listForm) {
     if (!listForm?.name?.trim()) return;
     updateState((previous) => {
-      const nextLists = ensureShoppingList([
-        ...ensureShoppingList(previous.lists),
-        { id: `list-${Date.now()}`, name: listForm.name.trim(), addToInventory: false, isShoppingList: false, items: [], createdBy: listForm.createdBy || "", visibility: listForm.visibility || "household", sharedWith: [] },
+      const currentLists = ensureShoppingList(previous.lists);
+      const nextLists = resequenceLists([
+        ...currentLists,
+        {
+          id: `list-${Date.now()}`,
+          name: listForm.name.trim(),
+          order: currentLists.filter((list) => !list.isShoppingList).length,
+          addToInventory: false,
+          isShoppingList: false,
+          items: [],
+          createdBy: listForm.createdBy || "",
+          visibility: listForm.visibility || "household",
+          sharedWith: [],
+        },
       ]);
       return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
     });
@@ -191,7 +254,7 @@ export function useLists(state, updateState, showToast) {
       const currentLists = ensureShoppingList(previous.lists);
       const target = currentLists.find((list) => list.id === listId);
       if (!target || target.isShoppingList) return previous;
-      const nextLists = currentLists.filter((list) => list.id !== listId);
+      const nextLists = resequenceLists(currentLists.filter((list) => list.id !== listId));
       return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
     });
   }
@@ -209,6 +272,38 @@ export function useLists(state, updateState, showToast) {
             }
           : list,
       );
+      return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
+    });
+  }
+
+  function handleMoveList(listId, targetIndex, visibleIds) {
+    updateState((previous) => {
+      const currentLists = resequenceLists(previous.lists);
+      const visibleIdSet = new Set(
+        (Array.isArray(visibleIds) ? visibleIds : [])
+          .filter(Boolean)
+          .filter((id) => currentLists.some((list) => list.id === id && !list.isShoppingList)),
+      );
+      if (!visibleIdSet.has(listId)) return previous;
+
+      const orderedLists = currentLists.slice().sort(compareLists);
+      const visibleLists = orderedLists.filter((list) => visibleIdSet.has(list.id));
+      const sourceIndex = visibleLists.findIndex((list) => list.id === listId);
+      const boundedTargetIndex = Math.max(0, Math.min(visibleLists.length - 1, Number(targetIndex) || 0));
+      if (sourceIndex < 0 || sourceIndex === boundedTargetIndex) return previous;
+
+      const reorderedVisible = visibleLists.slice();
+      const [movingList] = reorderedVisible.splice(sourceIndex, 1);
+      reorderedVisible.splice(boundedTargetIndex, 0, movingList);
+
+      let visibleCursor = 0;
+      const mergedLists = orderedLists.map((list) => {
+        if (!visibleIdSet.has(list.id)) return list;
+        const nextVisibleList = reorderedVisible[visibleCursor];
+        visibleCursor += 1;
+        return nextVisibleList || list;
+      });
+      const nextLists = resequenceLists(mergedLists);
       return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
     });
   }
@@ -276,8 +371,10 @@ export function useLists(state, updateState, showToast) {
         purchaseDate: todayKey(),
         expiryDate: "",
         price: "",
+        note: "",
         stockState: "in_stock",
         needsRestock: false,
+        order: state.inventory.length,
       };
       const mergeIndex = state.inventory.findIndex((item) => inventoryEntriesCanMerge(item, inventoryAdded));
       inventoryUndo = mergeIndex >= 0
@@ -363,8 +460,10 @@ export function useLists(state, updateState, showToast) {
         purchaseDate: item.purchaseDate || todayKey(),
         expiryDate: item.expiryDate || "",
         price: item.price || "",
+        note: item.note || "",
         stockState: item.stockState || "in_stock",
         needsRestock: item.stockState === "empty",
+        order: previous.inventory.length,
       };
       const mergeIndex = previous.inventory.findIndex((entry) => inventoryEntriesCanMerge(entry, incomingItem));
       return {
@@ -395,6 +494,38 @@ export function useLists(state, updateState, showToast) {
     }));
   }
 
+  function handleReorderInventoryItems(itemId, targetIndex, visibleIds) {
+    updateState((previous) => {
+      const currentInventory = resequenceInventory(previous.inventory);
+      const safeVisibleIds = Array.isArray(visibleIds) ? visibleIds.filter(Boolean) : [];
+      const sourceIndex = safeVisibleIds.indexOf(itemId);
+      if (sourceIndex === -1) return previous;
+      const boundedTargetIndex = Math.max(0, Math.min(targetIndex, safeVisibleIds.length - 1));
+      if (boundedTargetIndex === sourceIndex) return previous;
+
+      const visibleIdSet = new Set(safeVisibleIds);
+      const visibleItems = currentInventory.filter((item) => visibleIdSet.has(item.id));
+      if (visibleItems.length < 2) return previous;
+
+      const reorderedVisible = visibleItems.slice();
+      const [movingItem] = reorderedVisible.splice(sourceIndex, 1);
+      reorderedVisible.splice(boundedTargetIndex, 0, movingItem);
+
+      let visibleCursor = 0;
+      const mergedInventory = currentInventory.map((item) => {
+        if (!visibleIdSet.has(item.id)) return item;
+        const nextVisible = reorderedVisible[visibleCursor];
+        visibleCursor += 1;
+        return nextVisible || item;
+      });
+
+      return {
+        ...previous,
+        inventory: mergedInventory.map((item, index) => ({ ...item, order: index })),
+      };
+    });
+  }
+
   function handleDeleteInventoryItem(itemId) {
     updateState((previous) => ({
       ...previous,
@@ -414,6 +545,56 @@ export function useLists(state, updateState, showToast) {
       ...previous,
       inventory: [],
     }));
+  }
+
+  function handleAddStorageLocation(nameOrObj) {
+    const id = nameOrObj && typeof nameOrObj === "object" ? (nameOrObj.id || makeEntityId("loc")) : makeEntityId("loc");
+    const rawName = nameOrObj && typeof nameOrObj === "object" ? nameOrObj.name : nameOrObj;
+    const rawEmoji = nameOrObj && typeof nameOrObj === "object" ? nameOrObj.emoji : "";
+    const parsed = parseStorageLocationInput(rawName);
+    const name = parsed.name;
+    const emoji = String(rawEmoji || parsed.emoji || "").trim();
+    if (!String(name || "").trim()) return;
+    updateState((previous) => ({
+      ...previous,
+      storageLocations: [...(previous.storageLocations || []), { id, name: String(name).trim(), emoji }],
+    }));
+  }
+
+  function handleRenameStorageLocation(id, nameOrObj) {
+    const rawName = nameOrObj && typeof nameOrObj === "object" ? nameOrObj.name : nameOrObj;
+    const rawEmoji = nameOrObj && typeof nameOrObj === "object" ? nameOrObj.emoji : "";
+    const parsed = parseStorageLocationInput(rawName);
+    const name = parsed.name;
+    const emoji = String(rawEmoji || parsed.emoji || "").trim();
+    if (!String(name || "").trim()) return;
+    updateState((previous) => ({
+      ...previous,
+      storageLocations: (previous.storageLocations || []).map((l) => l.id === id ? { ...l, name: String(name).trim(), emoji } : l),
+    }));
+  }
+
+  function handleDeleteStorageLocation(id) {
+    updateState((previous) => ({
+      ...previous,
+      storageLocations: (previous.storageLocations || []).filter((l) => l.id !== id),
+      inventory: previous.inventory.map((item) => item.storageLocationId === id ? { ...item, storageLocationId: "" } : item),
+    }));
+  }
+
+  function handleSetItemLocation(itemId, locationId) {
+    updateState((previous) => {
+      const item = previous.inventory.find((i) => i.id === itemId);
+      const key = item ? normalizeInventoryName(item.name) : null;
+      const newMemory = key && locationId
+        ? { ...(previous.productLocationMemory || {}), [key]: locationId }
+        : (previous.productLocationMemory || {});
+      return {
+        ...previous,
+        inventory: previous.inventory.map((i) => i.id === itemId ? { ...i, storageLocationId: locationId || "" } : i),
+        productLocationMemory: newMemory,
+      };
+    });
   }
 
   function handleSendInventoryToShopping(itemId) {
@@ -449,8 +630,9 @@ export function useLists(state, updateState, showToast) {
   }
 
   return {
-    handleCreateList, handleDeleteList, handleUpdateList,
+    handleCreateList, handleDeleteList, handleUpdateList, handleMoveList,
     handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList,
-    handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping,
+    handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping, handleReorderInventoryItems,
+    handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation,
   };
 }

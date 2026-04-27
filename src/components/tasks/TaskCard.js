@@ -30,9 +30,14 @@ export function completedIds(task) {
 }
 
 export function isPastDue(task) {
-  if (task.priority !== "deadline" || completedIds(task).length > 0) return false;
+  if (task.taskKind === "recurring" || task.priority !== "deadline" || completedIds(task).length > 0) return false;
   const dueDate = getDueDateTime(task);
   return Boolean(dueDate && dueDate.getTime() < getCurrentAppTimestamp());
+}
+
+function isTaskLate(task) {
+  if (task?.taskKind === "recurring") return false;
+  return Boolean(task?.overdue || isPastDue(task));
 }
 
 function dueLabel(task) {
@@ -101,24 +106,24 @@ export function TaskCard({
   const isDone = doneIds.length > 0;
 
   return html`
-    <article className=${`task-card ${isDone ? "done" : ""} ${(task.overdue || isPastDue(task)) && !isDone ? "overdue" : ""}`} key=${task.id}>
+    <article className=${`task-card ${isDone ? "done" : ""} ${isTaskLate(task) && !isDone ? "overdue" : ""}`} key=${task.id}>
       <div className="task-card-top">
         <div className="task-main">
-          <div className="task-headline">
-            <span className=${`task-emoji ${task.icon ? "has-emoji" : "is-empty"}`}>${task.icon || "*"}</span>
+          <div className=${`task-headline ${task.icon ? "" : "no-emoji"}`}>
+            ${task.icon ? html`<span className="task-emoji has-emoji">${task.icon}</span>` : null}
             <div className="task-content">
               <div className="task-name">${task.text}</div>
               <div className="task-badges">
                 <span className=${`ttag task-priority ${taskUrgency.className || "normal"}`}>${taskUrgency.label}</span>
                 ${task.taskKind === "recurring" ? html`<span className="ttag recTag">${recurrenceLabel(task)}</span>` : null}
-                ${(task.overdue || isPastDue(task)) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
+                ${isTaskLate(task) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
               </div>
               ${assignedPerson ? html`<div className="task-assignee">Attribuée à : ${assignedPerson.label}</div>` : null}
               ${planning ? html`<div className="task-assignee">${planningLabel}${planningPeople ? ` · ${planningPeople}` : ""}</div>` : null}
               ${planningChildren ? html`<div className="task-assignee">Enfants concernés : ${planningChildren}</div>` : null}
               ${completedPeople.length
                 ? html`<div className="task-completed">Faite par : ${completedPeople.map((person) => person.label).join(", ")}${completedAtLabel ? ` - ${completedAtLabel}` : ""}</div>`
-                : html`<div className="task-completed pending">En attente</div>`}
+                : null}
             </div>
           </div>
         </div>

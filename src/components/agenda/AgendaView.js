@@ -1,7 +1,9 @@
 import { DAYS } from "../../constants.js";
 import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { addMinutesToTime, frDateLabel, getCurrentAppDate, getWeekDays, localDateKey, localWeekStart, minutesToLabel, pad2 } from "../../utils/date.js?v=2026-04-19-time-sim-2";
-import { completedIds, TaskCard } from "../tasks/TaskCard.js?v=2026-04-19-time-sim-1";
+import { completedIds, TaskCard, urgencyBadge } from "../tasks/TaskCard.js?v=2026-04-19-time-sim-1";
+import { SegmentedTabs } from "../common/SegmentedTabs.js?v=2026-04-25-segmented-nav-1";
+import { EmojiPicker } from "../tasks/EmojiPicker.js?v=2026-04-24-emoji-picker-1";
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -55,6 +57,8 @@ function monthGridDays(baseDate) {
   return output;
 }
 
+const CALENDAR_WEEKDAY_MINI = ["L", "M", "M", "J", "V", "S", "D"];
+
 function createEmptyForm(tasks, people) {
   return {
     entryType: "task",
@@ -64,6 +68,7 @@ function createEmptyForm(tasks, people) {
     emoji: "🗓️",
     dateKey: localDateKey(getCurrentAppDate()),
     start: "09:00",
+    endTime: addMinutesToTime("09:00", 60),
     durationPreset: "60",
     customDurationValue: 1,
     customDurationUnit: "hours",
@@ -145,6 +150,18 @@ function dateTimeLabel(entry) {
   return `${entry.start} → ${addMinutesToTime(entry.start, entry.duration)} · ${humanDuration(entry)}`;
 }
 
+function timeToMinutes(value) {
+  const [hour, minute] = String(value || "00:00").split(":").map(Number);
+  return (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
+}
+
+function endToDuration(start, end) {
+  const sm = timeToMinutes(start);
+  const em = timeToMinutes(end);
+  const diff = em > sm ? em - sm : 1440 - sm + em;
+  return Math.max(15, diff);
+}
+
 function recurringToAgendaDate(recurringItem, date) {
   return {
     ...recurringItem,
@@ -196,14 +213,19 @@ export function AgendaView({
     [activePeople],
   );
 
-  const [viewMode, setViewMode] = useState("week");
+  const [viewMode, setViewMode] = useState("day");
   const [focusDateKey, setFocusDateKey] = useState(localDateKey(getCurrentAppDate()));
   const [showModal, setShowModal] = useState(false);
   const [viewEntry, setViewEntry] = useState(null);
+  const [viewEntryMenuOpen, setViewEntryMenuOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(() => createEmptyForm(taskChoices, activePeople));
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
+  const [showConcernedPicker, setShowConcernedPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const focusDate = parseDateKey(focusDateKey);
+  const todayKey = localDateKey(getCurrentAppDate());
   const weekDays = getWeekDays(Math.round((localWeekStart(focusDate) - localWeekStart(getCurrentAppDate())) / (7 * 24 * 60 * 60 * 1000)));
 
   useEffect(() => {
@@ -220,12 +242,17 @@ export function AgendaView({
       dateKey,
       taskId: taskChoices[0]?.id || "",
     });
+    setShowDurationPicker(false);
+    setShowConcernedPicker(false);
+    setShowEmojiPicker(false);
     setShowModal(true);
   }
 
   function openEditModal(entry, entryKind) {
     const customDuration = customDurationFromEntry(entry);
     setEditing({ id: entry.id, entryKind });
+    const editStart = entry.start || "09:00";
+    const editDuration = entry.duration || 60;
     setForm({
       entryType: entry.sourceType === "task" ? "task" : "custom",
       taskId: entry.taskId || "",
@@ -233,7 +260,8 @@ export function AgendaView({
       useEmoji: entry.sourceType === "task" ? true : Boolean(entry.icon),
       emoji: entry.sourceType === "task" ? entry.icon || "" : entry.icon || "🗓️",
       dateKey: entry.dateKey || focusDateKey,
-      start: entry.start || "09:00",
+      start: editStart,
+      endTime: entry.allDay ? "" : addMinutesToTime(editStart, editDuration),
       durationPreset: durationPresetFromEntry(entry),
       customDurationValue: customDuration.value,
       customDurationUnit: customDuration.unit,
@@ -253,6 +281,9 @@ export function AgendaView({
   function closeModal() {
     setShowModal(false);
     setEditing(null);
+    setShowDurationPicker(false);
+    setShowConcernedPicker(false);
+    setShowEmojiPicker(false);
   }
 
   function moveRange(direction) {
@@ -298,7 +329,14 @@ export function AgendaView({
 
   function buildPayload() {
     const selectedTask = taskChoices.find((task) => task.id === form.taskId);
-    const durationInfo = normalizeDuration(form);
+    let durationInfo;
+    if (form.allDay) {
+      durationInfo = { duration: 1440, allDay: true };
+    } else if (form.endTime) {
+      durationInfo = { duration: endToDuration(form.start, form.endTime), allDay: false };
+    } else {
+      durationInfo = normalizeDuration(form);
+    }
     const text = form.entryType === "task" ? selectedTask?.text || "" : form.title.trim();
     const icon = form.entryType === "task" ? selectedTask?.icon || "" : form.useEmoji ? form.emoji.trim() : "";
     const safePersonIds = form.wholeFamily ? [] : form.personIds.filter(Boolean);
@@ -363,9 +401,26 @@ export function AgendaView({
     const oneTime = agendaItems
       .filter((item) => item.dateKey === dateKey)
       .map((item) => ({ ...item, entryKind: "agenda" }));
-    const recurring = recurringItems
-      .filter((item) => Number(item.weekday) === date.getDay())
-      .map((item) => recurringToAgendaDate(item, date));
+    const recurring = recurringItems.reduce((acc, item) => {
+      if (item.startDateKey && dateKey < item.startDateKey) return acc;
+      const linkedTask = item.taskId ? taskChoices.find((t) => t.id === item.taskId) : null;
+      const recType = item.recurrenceType
+        || (linkedTask ? linkedTask.recurrenceFrequency : null)
+        || "weekly";
+      let show = false;
+      if (recType === "daily") {
+        show = true;
+      } else if (recType === "monthly") {
+        const dom = item.dayOfMonth != null
+          ? Number(item.dayOfMonth)
+          : item.dateKey ? new Date(`${item.dateKey}T00:00`).getDate() : null;
+        show = dom != null && date.getDate() === dom;
+      } else {
+        show = Number(item.weekday) === date.getDay();
+      }
+      if (show) acc.push({ ...item, dateKey, entryKind: "recurring", recurrenceType: recType });
+      return acc;
+    }, []);
     const deadlines = taskChoices
       .filter((task) => {
         if (task.priority !== "deadline" || !task.dueDate) return false;
@@ -401,25 +456,20 @@ function renderEntryCard(entry) {
   const assignedPerson = linkedTask ? activePeople.find((person) => person.id === linkedTask.assignedPersonId) : null;
   const visibleCompleters = (adultPeople.length ? adultPeople : activePeople).slice(0, viewMode === "day" ? 6 : 3);
 
-    let cardStyle;
-    if (isDeadline) {
-      cardStyle = { borderLeft: "3px solid #f59e0b", background: "var(--deadline-card-bg, #fffbeb)", cursor: "pointer" };
-    } else if (taskIsDone) {
-      cardStyle = { borderLeft: "3px solid #10b981", background: "var(--done-card-bg, #f0fdf4)", opacity: "0.8", cursor: "pointer" };
-    } else {
-      cardStyle = { cursor: "pointer" };
-    }
+    const cardStyle = isDeadline && !taskIsDone
+      ? { borderLeft: "3px solid var(--mrd-amber)", background: "var(--mrd-amberLt)", cursor: "pointer" }
+      : { cursor: "pointer" };
 
     return html`
-      <article className="calendar-card" key=${`${entry.entryKind}-${entry.id}-${entry.dateKey || ""}`}
+      <article className=${`calendar-card${taskIsDone ? " done" : ""}`} key=${`${entry.entryKind}-${entry.id}-${entry.dateKey || ""}`}
         style=${cardStyle}
         onClick=${() => setViewEntry(entry)}>
       <div className="calendar-card-top">
         <div className="calendar-card-title">
           <span className="calendar-card-icon">${entry.icon || "•"}</span>
           <div>
-            <div className="cblktitle" style=${taskIsDone ? { textDecoration: "line-through", opacity: "0.7" } : {}}>${entry.text}</div>
-            <div className="cblksub">${isDeadline
+            <div className="cblktitle calendar-card-main-title">${entry.text}</div>
+            <div className="cblksub calendar-card-main-subtitle">${isDeadline
               ? (entry.allDay ? "À faire dans la journée" : `Avant ${entry.start}`)
               : dateTimeLabel(entry)}</div>
             ${assignedPerson ? html`<div className="mini">Attribuée à : ${assignedPerson.label}</div>` : null}
@@ -428,12 +478,12 @@ function renderEntryCard(entry) {
       </div>
       <div className="calendar-tags">
         ${isDeadline
-          ? html`<span className="calendar-tag" style=${{ background: "#fef3c7", color: "#92400e", fontWeight: "600" }}>⏰ Échéance</span>`
+          ? html`<span className="calendar-tag" style=${{ background: "var(--mrd-amberLt)", color: "var(--mrd-amberDeep)", fontWeight: "600" }}>⏰ Échéance</span>`
           : taskIsDone
-            ? html`<span className="calendar-tag" style=${{ background: "#d1fae5", color: "#065f46", fontWeight: "600" }}>✓ Terminée</span>`
+            ? html`<span className="calendar-tag" style=${{ background: "var(--mrd-sageLt)", color: "var(--mrd-sageDeep)", fontWeight: "600" }}>✓ Terminée</span>`
             : html`
                 ${linkedTask ? html`<span className="calendar-tag">${linkedTask.priority === "urgent" ? "Urgente" : linkedTask.priority === "deadline" ? "À faire avant" : "Normale"}</span>` : null}
-                ${entry.entryKind === "recurring" ? html`<span className="calendar-tag">Chaque semaine</span>` : null}
+                ${entry.entryKind === "recurring" ? html`<span className="calendar-tag">${entry.recurrenceType === "daily" ? "Chaque jour" : entry.recurrenceType === "monthly" ? "Chaque mois" : "Chaque semaine"}</span>` : null}
               `}
       </div>
       ${linkedTask && (viewMode === "day" || viewMode === "week")
@@ -446,12 +496,12 @@ function renderEntryCard(entry) {
                     key=${`${entry.id}-${person.id}`}
                     className=${`task-person-chip ${isSelected ? "on" : ""}`}
                     style=${isSelected
-                      ? { background: person.color, borderColor: person.color, color: "#fff" }
-                      : { background: "#fff", borderColor: person.color || "#D8CEBF", color: person.color || "#8A7868" }}
+                      ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" }
+                      : { background: "var(--mrd-white)", borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                     onClick=${() => onToggleTask(linkedTask.id, person.id)}
                     title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                   >
-                    <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { background: "#fff", color: person.color || "#8A7868" }}>
+                    <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { background: "var(--mrd-white)", color: person.color || "var(--mrd-fg3)" }}>
                       ${person.shortId}
                     </span>
                   </button>
@@ -487,6 +537,8 @@ function renderEntryCard(entry) {
     const otherCompleters = (adultPeople.length ? adultPeople : activePeople).filter((p) => p.id !== activePersonId);
 
     if (linkedTask) {
+      const close = () => { setViewEntry(null); setViewEntryMenuOpen(false); };
+
       const calendarOnlyDelete = () => {
         if (isDeadline) return;
         if (entry.entryKind === "recurring") {
@@ -494,54 +546,108 @@ function renderEntryCard(entry) {
         } else {
           onDeleteAgenda(entry.id);
         }
-        setViewEntry(null);
+        close();
       };
 
       const deleteTaskEverywhere = () => {
         onDeleteTask(linkedTask.id);
-        setViewEntry(null);
+        close();
       };
 
+      const taskUrgency = urgencyBadge(linkedTask);
+      const completersList = adultPeople.length ? adultPeople : activePeople;
+      const assignedPersonIds = Array.isArray(linkedTask.assignedPersonIds) && linkedTask.assignedPersonIds.length
+        ? linkedTask.assignedPersonIds
+        : linkedTask.assignedPersonId ? [linkedTask.assignedPersonId] : [];
+      const assignedPersons = assignedPersonIds.map((id) => activePeople.find((p) => p.id === id)).filter(Boolean);
+
+      const planningMeta = (() => {
+        const parts = String(entry.dateKey || "").split("-");
+        const dateFmt = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : "";
+        if (!dateFmt) return "";
+        return entry.allDay ? dateFmt : (entry.start ? `${dateFmt} · ${entry.start}` : dateFmt);
+      })();
+
       return html`
-        <div className="modal-backdrop" onClick=${() => setViewEntry(null)}>
-          <div className="modal-card task-modal" onClick=${(e) => e.stopPropagation()}>
-            <div className="task-modal-head">
-              <div>
-                <div className="miniTitle">${isDeadline ? "Échéance" : `Tâche · ${taskPeriodLabel(linkedTask.type)}`}</div>
-              </div>
-              <button className="delbtn" onClick=${() => setViewEntry(null)}>X</button>
+        <div className="modal-backdrop" onClick=${close}>
+          <div className="modal-card task-modal-redesign" style=${{ width: "min(440px, 100%)", padding: 0 }} onClick=${(e) => e.stopPropagation()}>
+
+            <!-- Fermeture -->
+            <div style=${{ display: "flex", justifyContent: "flex-end", padding: "10px 10px 0" }}>
+              <button className="mrd-mclose" onClick=${close}>✕</button>
             </div>
 
-            <div style=${{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "14px" }}>
+            <!-- Carte tâche inline -->
+            <div style=${{ padding: "6px 12px 16px" }}>
+              <article className=${`task-card ${isDone ? "done" : ""}`}>
+                <div className="task-card-top">
+                  <div className="task-main">
+                    <div className=${`task-headline ${linkedTask.icon ? "" : "no-emoji"}`}>
+                      ${linkedTask.icon ? html`<span className="task-emoji has-emoji">${linkedTask.icon}</span>` : null}
+                      <div className="task-content">
+                        <div className="task-name">${linkedTask.text}</div>
+                        <div className="task-badges">
+                          ${taskUrgency.className !== "normal" ? html`<span className=${`ttag task-priority ${taskUrgency.className}`}>${taskUrgency.label}</span>` : null}
+                          ${linkedTask.assignedWholeFamily ? html`<span className="task-assigned-chip" style=${{ background: "#8B7355" }} title="Toute la famille">🏠</span>` : null}
+                          ${!linkedTask.assignedWholeFamily ? assignedPersons.map((p) => html`
+                            <span key=${p.id} className="task-assigned-chip" style=${{ background: p.color || "#8B7355" }} title=${p.label}>
+                              ${p.shortId || String(p.label || "?")[0].toUpperCase()}
+                            </span>
+                          `) : null}
+                        </div>
+                      </div>
+                    </div>
+                    ${planningMeta ? html`<div className="task-assignee">📅 ${planningMeta}</div>` : null}
+                  </div>
+
+                  <div className="task-side">
+                    <div className="task-people task-people-side">
+                      ${completersList.map((person) => {
+                        const isSelected = doneIds.includes(person.id);
+                        return html`
+                          <button
+                            key=${`view-${linkedTask.id}-${person.id}`}
+                            className=${`task-person-chip ${isSelected ? "on" : ""}`}
+                            style=${isSelected
+                              ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" }
+                              : { background: "var(--mrd-white)", borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
+                            onClick=${() => onToggleTask(linkedTask.id, person.id)}
+                            title=${`Marquer ${person.label}`}
+                          >
+                            <span className="task-person-avatar"
+                              style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { background: "var(--mrd-white)", color: person.color || "var(--mrd-fg3)" }}>
+                              ${person.shortId}
+                            </span>
+                          </button>
+                        `;
+                      })}
+                    </div>
+                    <div className="task-menu-wrap">
+                      <button
+                        className="task-menu-btn"
+                        onClick=${(e) => { e.stopPropagation(); setViewEntryMenuOpen((v) => !v); }}
+                      >⋮</button>
+                      ${viewEntryMenuOpen ? html`
+                        <div className="task-menu-dropdown" onClick=${(e) => e.stopPropagation()}>
+                          ${!isDeadline ? html`
+                            <button className="task-menu-item" onClick=${() => { setViewEntryMenuOpen(false); close(); openEditModal(entry, entry.entryKind); }}>
+                              Modifier le bloc
+                            </button>
+                            <button className="task-menu-item" onClick=${calendarOnlyDelete}>
+                              Retirer du calendrier
+                            </button>
+                          ` : null}
+                          <button className="task-menu-item task-menu-item-danger" onClick=${deleteTaskEverywhere}>
+                            Supprimer la tâche
+                          </button>
+                        </div>
+                      ` : null}
+                    </div>
+                  </div>
+                </div>
+              </article>
             </div>
 
-            <div style=${{ marginBottom: "14px" }}>
-              <${TaskCard}
-                task=${linkedTask}
-                people=${activePeople}
-                completers=${adultPeople.length ? adultPeople : activePeople}
-                planning=${{
-                  dateKey: entry.dateKey || "",
-                  start: entry.start || "",
-                  allDay: Boolean(entry.allDay),
-                  durationLabel: humanDuration(entry),
-                  personIds: entry.personIds || (entry.personId ? [entry.personId] : []),
-                  childLabels: (entry.childIds || []).map((childId) => peopleMap[childId]?.displayName || peopleMap[childId]?.label).filter(Boolean),
-                }}
-                onToggleTask=${onToggleTask}
-                index=${0}
-                listLength=${1}
-                showDelete=${false}
-                showOrder=${false}
-              />
-            </div>
-
-            <div style=${{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-              ${!isDeadline ? html`<button className="clrbtn" onClick=${() => { setViewEntry(null); openEditModal(entry, entry.entryKind); }}>Modifier le bloc</button>` : null}
-              ${!isDeadline ? html`<button className="ghost-btn" onClick=${calendarOnlyDelete}>Retirer du calendrier</button>` : null}
-              <button className="ghost-btn" onClick=${deleteTaskEverywhere}>Supprimer la tâche complète</button>
-              <button className="aok" style=${{ background: "var(--surface2,#f0f0f0)", color: "var(--text,#333)" }} onClick=${() => setViewEntry(null)}>Fermer</button>
-            </div>
           </div>
         </div>
       `;
@@ -553,7 +659,7 @@ function renderEntryCard(entry) {
           <div className="task-modal-head">
             <div>
               <div className="miniTitle">
-                ${isDeadline ? "Échéance" : linkedTask ? `Tâche · ${taskPeriodLabel(linkedTask.type)}` : entry.entryKind === "recurring" ? "Chaque semaine" : "Événement libre"}
+                ${isDeadline ? "Échéance" : linkedTask ? `Tâche · ${taskPeriodLabel(linkedTask.type)}` : entry.entryKind === "recurring" ? (entry.recurrenceType === "daily" ? "Chaque jour" : entry.recurrenceType === "monthly" ? "Chaque mois" : "Chaque semaine") : "Événement libre"}
               </div>
               <div className="st">${entry.icon ? `${entry.icon} ` : ""}${isDeadline ? linkedTask?.text || entry.text : entry.text}</div>
             </div>
@@ -571,7 +677,7 @@ function renderEntryCard(entry) {
           </div>
 
           ${linkedTask ? html`
-            <div style=${{ borderTop: "1px solid var(--border,#eee)", paddingTop: "12px", marginBottom: "14px" }}>
+            <div style=${{ borderTop: "1px solid var(--border)", paddingTop: "12px", marginBottom: "14px" }}>
               <div className="miniTitle" style=${{ marginBottom: "10px" }}>
                 ${isDone ? "✅ Tâche terminée" : "Marquer comme fait"}
               </div>
@@ -579,7 +685,7 @@ function renderEntryCard(entry) {
               ${activePerson ? html`
                 <button type="button"
                   className=${`aok ${activePersonDone ? "" : ""}`}
-                  style=${{ width: "100%", marginBottom: "10px", background: activePersonDone ? "#6ee7b7" : "", justifyContent: "center" }}
+                  style=${{ width: "100%", marginBottom: "10px", background: activePersonDone ? "var(--mrd-sageMd)" : "", justifyContent: "center" }}
                   onClick=${() => onToggleTask(linkedTask.id, activePerson.id)}
                 >
                   ${activePersonDone ? `↩️ Retirer ma validation (${activePerson.displayName || activePerson.label})` : `✅ C'est fait ! (${activePerson.displayName || activePerson.label})`}
@@ -609,74 +715,365 @@ function renderEntryCard(entry) {
                 setViewEntry(null);
               }}>Supprimer</button>
             ` : null}
-            <button className="aok" style=${{ background: "var(--surface2,#f0f0f0)", color: "var(--text,#333)" }} onClick=${() => setViewEntry(null)}>Fermer</button>
+            <button className="aok" style=${{ background: "var(--surface2)", color: "var(--text)" }} onClick=${() => setViewEntry(null)}>Fermer</button>
           </div>
         </div>
       </div>
     `;
   }
 
-  function renderDayColumn(date, monthMode = false) {
+  function renderAgendaDayPanel(date) {
     const items = itemsForDate(date);
     const dateKey = localDateKey(date);
+    const isToday = dateKey === todayKey;
+    const monthDayLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    const weekdayLabel = date.toLocaleDateString("fr-FR", { weekday: "long" });
+
     return html`
-      <section className=${`calendar-slot ${monthMode ? "calendar-slot-month" : ""}`} key=${dateKey}>
-        <div className="calendar-slot-head">
-          <div className="cdayname">${DAYS[(date.getDay() + 6) % 7]}</div>
-          <div className="cdaydate">${frDateLabel(date)}</div>
+      <section className="calendar-agenda-panel" key=${`panel-${dateKey}`}>
+        <div className="calendar-panel-head">
+          <div>
+            <div className="calendar-panel-title">${isToday ? `Aujourd'hui · ${monthDayLabel}` : monthDayLabel}</div>
+            <div className="calendar-panel-subtitle">${weekdayLabel}</div>
+          </div>
+          <button className="calendar-panel-add" onClick=${() => openCreateModal(dateKey)} title="Ajouter un bloc">+</button>
         </div>
-        <div className="calendar-slot-body">
-          ${items.map((entry) => renderEntryCard(entry))}
-          ${!items.length
-            ? html`<button className="calendar-empty" onClick=${() => openCreateModal(dateKey)}>Ajouter un bloc</button>`
-            : null}
+
+        ${items.length
+          ? html`<div className="calendar-slot-body">${items.map((entry) => renderEntryCard(entry))}</div>`
+          : html`
+              <div className="calendar-empty-block">
+                <div className="calendar-empty-emoji">✨</div>
+                <div className="calendar-empty-title">Rien de prévu</div>
+                <div className="calendar-empty-copy">Ajoute un bloc pour organiser cette journée.</div>
+              </div>
+            `}
+      </section>
+    `;
+  }
+
+  function renderAgendaDayHeader(date) {
+    const dateKey = localDateKey(date);
+    const isToday = dateKey === todayKey;
+    const monthDayLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    const weekdayLabel = date.toLocaleDateString("fr-FR", { weekday: "long" });
+
+    return html`
+      <section className="calendar-day-summary" key=${`summary-${dateKey}`}>
+        <div className="calendar-panel-head">
+          <div>
+            <div className="calendar-panel-title">${isToday ? `Aujourd'hui · ${monthDayLabel}` : monthDayLabel}</div>
+            <div className="calendar-panel-subtitle">${weekdayLabel}</div>
+          </div>
+          <button className="calendar-panel-add" onClick=${() => openCreateModal(dateKey)} title="Ajouter un bloc">+</button>
         </div>
       </section>
     `;
   }
 
-  function renderMonthCell(date) {
-    const items = itemsForDate(date);
+  function renderMonthPickerCell(date) {
     const dateKey = localDateKey(date);
-    const visibleItems = items.slice(0, 3);
-    const hiddenCount = Math.max(0, items.length - visibleItems.length);
+    const isSelected = focusDateKey === dateKey;
+    const isToday = dateKey === todayKey;
+    const items = itemsForDate(date);
+    const visibleDots = items.slice(0, 3);
+
     return html`
-      <section className="calendar-month-slot" key=${dateKey}>
-        <button className="calendar-month-head" onClick=${() => openCreateModal(dateKey)}>
-          <span className="calendar-month-day">${date.getDate()}</span>
-          ${items.length ? html`<span className="calendar-month-count">${items.length}</span>` : null}
-        </button>
-        <div className="calendar-month-list">
-          ${visibleItems.map(
-            (entry) => {
-              const linkedTask = entry.taskId ? taskChoices.find((t) => t.id === entry.taskId) : (entry.entryKind === "deadline" ? taskChoices.find((t) => t.id === entry.id) : null);
-              const taskIsDone = linkedTask ? completedIds(linkedTask).length > 0 : false;
-              const displayText = linkedTask ? `${linkedTask.icon ? `${linkedTask.icon} ` : ""}${linkedTask.text}` : `${entry.icon ? `${entry.icon} ` : ""}${entry.text}`;
-              return html`
-              <button
-                key=${`${entry.entryKind}-${entry.id}-${dateKey}`}
-                className="calendar-month-item"
-                style=${entry.entryKind === "deadline" ? { background: "#fef3c7", borderLeft: "2px solid #f59e0b" } : {}}
-                onClick=${() => setViewEntry(entry)}
-                title=${displayText}
-              >
-                <span className="calendar-month-item-time">${entry.allDay ? "Jour" : entry.start}</span>
-                <span className="calendar-month-item-text" style=${taskIsDone ? { textDecoration: "line-through", opacity: "0.7" } : {}}>${displayText}</span>
-              </button>
-            `;
-            },
-          )}
-          ${hiddenCount > 0 ? html`<div className="calendar-month-more">+${hiddenCount}</div>` : null}
+      <button
+        key=${dateKey}
+        className=${`calendar-month-picker-btn ${isSelected ? "on" : ""} ${isToday ? "today" : ""}`}
+        onClick=${() => setFocusDateKey(dateKey)}
+      >
+        <span className="calendar-month-picker-day">${date.getDate()}</span>
+        ${visibleDots.length
+          ? html`
+              <span className="calendar-month-picker-dots">
+                ${visibleDots.map((entry, index) => html`
+                  <span
+                    key=${`${dateKey}-dot-${index}`}
+                    className="calendar-month-picker-dot"
+                    style=${{
+                      background:
+                        entry.entryKind === "deadline"
+                          ? "var(--mrd-a)"
+                          : entry.personId
+                            ? peopleMap[entry.personId]?.color || "var(--mrd-a)"
+                            : "var(--mrd-a)",
+                    }}
+                  ></span>
+                `)}
+              </span>
+            `
+          : html`<span className="calendar-month-picker-spacer"></span>`}
+      </button>
+    `;
+  }
+
+  function renderWeekDayButton(date) {
+    const dateKey = localDateKey(date);
+    const isSelected = focusDateKey === dateKey;
+    const isToday = dateKey === todayKey;
+    const items = itemsForDate(date);
+    return html`
+      <button
+        key=${dateKey}
+        className=${`calendar-week-day ${isSelected ? "on" : ""} ${isToday ? "today" : ""}`}
+        onClick=${() => setFocusDateKey(dateKey)}
+        style=${{ userSelect: "none", WebkitUserSelect: "none", WebkitTapHighlightColor: "transparent" }}
+      >
+        <span className="calendar-week-day-abbr">${DAYS[(date.getDay() + 6) % 7].slice(0, 3)}</span>
+        <span className="calendar-week-day-date">${date.getDate()}</span>
+        ${items.length ? html`<span className="calendar-week-day-dot"></span>` : null}
+      </button>
+    `;
+  }
+
+  function renderTimelineEvent(entry, options = {}) {
+    const linkedTask = entry.taskId
+      ? taskChoices.find((task) => task.id === entry.taskId)
+      : entry.entryKind === "deadline"
+        ? taskChoices.find((task) => task.id === entry.id)
+        : null;
+    const assignedPerson = linkedTask ? activePeople.find((person) => person.id === linkedTask.assignedPersonId) : null;
+    const taskIsDone = linkedTask ? completedIds(linkedTask).length > 0 : false;
+    const timeLabel = entry.allDay ? "Toute la journée" : `${entry.start} · ${humanDuration(entry)}`;
+
+    return html`
+      <button
+        key=${`${entry.entryKind}-${entry.id}-${entry.dateKey || ""}-timeline`}
+        className=${`calendar-timeline-event${taskIsDone ? " done" : ""}${options.className ? ` ${options.className}` : ""}`}
+        style=${{
+          ...(!taskIsDone && entry.entryKind === "deadline" ? { background: "var(--mrd-aLt)", borderColor: "var(--mrd-aMd)" } : {}),
+          ...(options.style || {}),
+        }}
+        onClick=${() => setViewEntry(entry)}
+      >
+        <div
+          className="calendar-timeline-event-accent"
+          style=${{
+            background:
+              entry.entryKind === "deadline"
+                ? "var(--mrd-a)"
+                : assignedPerson?.color || "var(--mrd-a)",
+          }}
+        ></div>
+        <div className="calendar-timeline-event-main">
+          <div className="calendar-timeline-event-title">
+            ${entry.icon ? `${entry.icon} ` : ""}${entry.text}
+          </div>
+          ${!options.hideTimeMeta ? html`<div className="calendar-timeline-event-meta">${options.timeLabel || timeLabel}</div>` : null}
+        </div>
+        ${assignedPerson
+          ? html`<span className="calendar-timeline-event-avatar" style=${{ background: assignedPerson.color }}>${assignedPerson.shortId || assignedPerson.label?.[0] || "•"}</span>`
+          : null}
+      </button>
+    `;
+  }
+
+  function layoutTimedEntries(entries) {
+    const prepared = entries
+      .map((entry) => {
+        const startMinutes = timeToMinutes(entry.start);
+        const duration = Math.max(15, Number(entry.duration) || 60);
+        return {
+          entry,
+          startMinutes,
+          endMinutes: startMinutes + duration,
+          duration,
+        };
+      })
+      .sort((left, right) => left.startMinutes - right.startMinutes || right.duration - left.duration);
+
+    const clusters = [];
+    let currentCluster = [];
+    let currentEnd = -1;
+
+    prepared.forEach((item) => {
+      if (currentCluster.length && item.startMinutes >= currentEnd) {
+        clusters.push(currentCluster);
+        currentCluster = [item];
+        currentEnd = item.endMinutes;
+        return;
+      }
+      currentCluster.push(item);
+      currentEnd = Math.max(currentEnd, item.endMinutes);
+    });
+
+    if (currentCluster.length) {
+      clusters.push(currentCluster);
+    }
+
+    return clusters.flatMap((cluster) => {
+      const active = [];
+      let columnCount = 1;
+
+      cluster.forEach((item) => {
+        for (let index = active.length - 1; index >= 0; index -= 1) {
+          if (active[index].endMinutes <= item.startMinutes) {
+            active.splice(index, 1);
+          }
+        }
+        const usedColumns = new Set(active.map((entry) => entry.column));
+        let column = 0;
+        while (usedColumns.has(column)) column += 1;
+        item.column = column;
+        active.push(item);
+        columnCount = Math.max(columnCount, active.length);
+      });
+
+      return cluster.map((item) => ({
+        ...item,
+        columnCount,
+      }));
+    });
+  }
+
+  function renderTimeline(date) {
+    const items = itemsForDate(date);
+    const allDayItems = items.filter((entry) => entry.allDay);
+    const timedItems = items.filter((entry) => !entry.allDay && entry.start);
+    const positionedEntries = layoutTimedEntries(timedItems);
+    const itemStartHours = positionedEntries
+      .map((item) => Math.floor(item.startMinutes / 60))
+      .filter((value) => Number.isFinite(value));
+    const itemEndHours = positionedEntries
+      .map((item) => Math.ceil(item.endMinutes / 60))
+      .filter((value) => Number.isFinite(value));
+    const startHour = itemStartHours.length ? Math.max(6, Math.min(...itemStartHours) - 1) : 7;
+    const endHour = itemEndHours.length ? Math.min(22, Math.max(...itemEndHours)) : 21;
+    const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index);
+    const rowHeight = 64;
+    const totalHeight = hours.length * rowHeight;
+
+    return html`
+      <section className="calendar-timeline">
+        <div className="calendar-timeline-head">${viewMode === "day" ? "Journée complète" : "Planning horaire"}</div>
+
+        ${allDayItems.length
+          ? html`<div className="calendar-timeline-all-day">${allDayItems.map((entry) => renderTimelineEvent(entry))}</div>`
+          : null}
+
+        <div className="calendar-timeline-grid" style=${{ height: `${totalHeight}px` }}>
+          <div className="calendar-timeline-hours">
+            ${hours.map((hour) => html`
+              <div className="calendar-timeline-hour-row" key=${`${localDateKey(date)}-${hour}`} style=${{ height: `${rowHeight}px` }}>
+                <div className="calendar-timeline-hour">${pad2(hour)}h</div>
+              </div>
+            `)}
+          </div>
+          <div className="calendar-timeline-track-absolute" style=${{ height: `${totalHeight}px` }}>
+            ${hours.map((hour, index) => html`
+              <div
+                className="calendar-timeline-slot-line"
+                key=${`${localDateKey(date)}-line-${hour}`}
+                style=${{ top: `${index * rowHeight}px`, height: `${rowHeight}px` }}
+              ></div>
+            `)}
+            <div className="calendar-timeline-events-layer">
+              ${positionedEntries.map((item) => {
+                const top = ((item.startMinutes - startHour * 60) / 60) * rowHeight;
+                const height = Math.max(28, (item.duration / 60) * rowHeight - 2);
+                const widthPercent = 100 / Math.max(1, item.columnCount);
+                const left = `calc(${item.column * widthPercent}% + ${item.column * 6}px)`;
+                const width = `calc(${widthPercent}% - ${item.columnCount > 1 ? 8 : 0}px)`;
+                return renderTimelineEvent(item.entry, {
+                  className: "calendar-timeline-event-positioned",
+                  style: {
+                    top: `${top}px`,
+                    height: `${height}px`,
+                    left,
+                    width,
+                  },
+                  hideTimeMeta: true,
+                });
+              })}
+            </div>
+          </div>
         </div>
       </section>
     `;
   }
 
-  const visibleView = useMemo(() => {
+  function renderDayWithTimeline(date) {
+    const dateKey = localDateKey(date);
+    const isToday = dateKey === todayKey;
+    const monthDayLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    const weekdayLabel = date.toLocaleDateString("fr-FR", { weekday: "long" });
+    const items = itemsForDate(date);
+    const allDayItems = items.filter((entry) => entry.allDay);
+    const timedItems = items.filter((entry) => !entry.allDay && entry.start);
+    const positionedEntries = layoutTimedEntries(timedItems);
+    const startHour = 6;
+    const endHour = 21;
+    const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index);
+    const rowHeight = 64;
+    const totalHeight = hours.length * rowHeight;
+
+    return html`
+      <section className="calendar-timeline" key=${`daypanel-${dateKey}`}>
+        <div className="calendar-panel-head">
+          <div>
+            <div className="calendar-panel-title">${isToday ? `Aujourd'hui · ${monthDayLabel}` : monthDayLabel}</div>
+            <div className="calendar-panel-subtitle">${weekdayLabel}</div>
+          </div>
+          <button className="calendar-panel-add" onClick=${() => openCreateModal(dateKey)} title="Ajouter un bloc">+</button>
+        </div>
+
+        ${allDayItems.length
+          ? html`<div className="calendar-timeline-all-day">${allDayItems.map((entry) => renderTimelineEvent(entry))}</div>`
+          : null}
+
+        <div className="calendar-timeline-grid" style=${{ height: `${totalHeight}px` }}>
+          <div className="calendar-timeline-hours">
+            ${hours.map((hour) => html`
+              <div className="calendar-timeline-hour-row" key=${`${dateKey}-${hour}`} style=${{ height: `${rowHeight}px` }}>
+                <div className="calendar-timeline-hour">${pad2(hour)}h</div>
+              </div>
+            `)}
+          </div>
+          <div className="calendar-timeline-track-absolute" style=${{ height: `${totalHeight}px` }}>
+            ${hours.map((hour, index) => html`
+              <div
+                className="calendar-timeline-slot-line"
+                key=${`${dateKey}-line-${hour}`}
+                style=${{ top: `${index * rowHeight}px`, height: `${rowHeight}px` }}
+              ></div>
+            `)}
+            <div className="calendar-timeline-events-layer">
+              ${positionedEntries.map((item) => {
+                const top = ((item.startMinutes - startHour * 60) / 60) * rowHeight;
+                const height = Math.max(28, (item.duration / 60) * rowHeight - 2);
+                const widthPercent = 100 / Math.max(1, item.columnCount);
+                const left = `calc(${item.column * widthPercent}% + ${item.column * 6}px)`;
+                const width = `calc(${widthPercent}% - ${item.columnCount > 1 ? 8 : 0}px)`;
+                return renderTimelineEvent(item.entry, {
+                  className: "calendar-timeline-event-positioned",
+                  style: {
+                    top: `${top}px`,
+                    height: `${height}px`,
+                    left,
+                    width,
+                  },
+                  hideTimeMeta: true,
+                });
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  const visibleView = (() => {
     if (viewMode === "day") {
       return {
         navLabel: viewLabel("day", focusDate, weekDays),
-        body: html`<div className="calendar-day-view">${renderDayColumn(focusDate)}</div>`,
+        top: null,
+        body: html`
+          <div className="calendar-view-stack">
+            ${renderDayWithTimeline(focusDate)}
+          </div>
+        `,
       };
     }
 
@@ -684,16 +1081,21 @@ function renderEntryCard(entry) {
       const days = monthGridDays(focusDate);
       return {
         navLabel: viewLabel("month", focusDate, weekDays),
+        top: html`
+          <div className="calendar-month-dow">
+            ${CALENDAR_WEEKDAY_MINI.map((label, index) => html`<div key=${`${label}-${index}`} className="calendar-month-dow-item">${label}</div>`)}
+          </div>
+        `,
         body: html`
-          <div className="calendar-month-grid">
-            ${days.map((date) => {
-              const inCurrentMonth = date.getMonth() === focusDate.getMonth();
-              return html`
-                <div className=${`calendar-month-cell ${inCurrentMonth ? "" : "out"}`} key=${localDateKey(date)}>
-                  ${renderMonthCell(date)}
-                </div>
-              `;
-            })}
+          <div className="calendar-view-stack">
+            <div className="calendar-month-picker">
+              ${days.map((date, index) => (
+                date.getMonth() === focusDate.getMonth()
+                  ? renderMonthPickerCell(date)
+                  : html`<div key=${`gap-${index}`} className="calendar-month-picker-gap"></div>`
+              ))}
+            </div>
+            ${renderAgendaDayPanel(focusDate)}
           </div>
         `,
       };
@@ -701,38 +1103,28 @@ function renderEntryCard(entry) {
 
     return {
       navLabel: viewLabel("week", focusDate, weekDays),
-      body: html`<div className="calendar-week-grid">${weekDays.map((date) => renderDayColumn(date))}</div>`,
+      top: html`<div className="calendar-week-strip">${weekDays.map((date) => renderWeekDayButton(date))}</div>`,
+      body: html`
+        <div className="calendar-view-stack">
+          ${renderDayWithTimeline(focusDate)}
+        </div>
+      `,
     };
-  }, [viewMode, focusDateKey, agendaItems, recurringItems, peopleMap, taskChoices]);
+  })();
 
   return html`
     <section className="calendar-shell">
-      <div className="sh calendar-toolbar">
-        <div className="sl">
-          <span className="st">Calendrier du foyer</span>
-          <span className="mini">Choisis ta vue puis ajoute un bloc en quelques taps.</span>
-        </div>
-        <button className="aok calendar-add-btn" onClick=${() => openCreateModal()}>
-          Ajouter au calendrier
-        </button>
-      </div>
-
-      <div className="calendar-switch">
-        ${[
-          { id: "day", label: "Jour" },
-          { id: "week", label: "Semaine" },
-          { id: "month", label: "Mois" },
-        ].map(
-          (option) => html`
-            <button
-              key=${option.id}
-              className=${`calendar-switch-btn ${viewMode === option.id ? "on" : ""}`}
-              onClick=${() => setViewMode(option.id)}
-            >
-              ${option.label}
-            </button>
-          `,
-        )}
+      <div className="calendar-toolbar">
+        <${SegmentedTabs}
+          ariaLabel="Navigation de l’agenda"
+          options=${[
+            { id: "day", label: "☀️ Jour" },
+            { id: "week", label: "📅 Semaine" },
+            { id: "month", label: "🗓️ Mois" },
+          ]}
+          activeId=${viewMode}
+          onChange=${setViewMode}
+        />
       </div>
 
       <div className="calendar-nav-card">
@@ -741,237 +1133,257 @@ function renderEntryCard(entry) {
         <button className="clrbtn" onClick=${() => moveRange(1)}>→</button>
       </div>
 
+      ${visibleView.top}
       ${visibleView.body}
 
       ${renderDetailPopup()}
 
       ${showModal
-        ? html`
-            <div className="modal-backdrop" onClick=${closeModal}>
-              <div className="modal-card task-modal calendar-modal" onClick=${(event) => event.stopPropagation()}>
-                <div className="task-modal-head">
-                  <div>
-                    <div className="miniTitle">Calendrier</div>
-                    <div className="st">${editing ? "Modifier le bloc" : "Nouveau bloc calendrier"}</div>
-                  </div>
-                  <button className="delbtn" onClick=${closeModal}>×</button>
-                </div>
+        ? (() => {
+            const LBL = { fontSize: 11, fontWeight: 700, color: "var(--mrd-fg3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "block" };
+            const PILL_STACK = { flex: 1, padding: "10px 6px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, transition: "all 0.15s", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 0, textAlign: "center", border: "none" };
+            const repeatLabel = viewMode === "day" ? "jour" : viewMode === "month" ? "mois" : "semaine";
+            const isRecurringLocked = editing?.entryKind === "recurring";
+            return html`
+              <div className="modal-backdrop task-create-backdrop" onClick=${closeModal}>
+                <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}
+                  style=${{ width: "min(560px, 100%)" }}>
 
-                <form className="task-create-form calendar-form" onSubmit=${submit}>
-                  <div className="calendar-choice-grid">
-                    <button
-                      type="button"
-                      className=${`calendar-choice-card ${form.entryType === "task" ? "on" : ""}`}
-                      onClick=${() => setEntryType("task")}
-                    >
-                      <span className="miniTitle">Type</span>
-                      <strong>Tâche existante</strong>
-                      <span className="mini">Le nom et l emoji sont repris automatiquement.</span>
-                    </button>
-                    <button
-                      type="button"
-                      className=${`calendar-choice-card ${form.entryType === "custom" ? "on" : ""}`}
-                      onClick=${() => setEntryType("custom")}
-                    >
-                      <span className="miniTitle">Type</span>
-                      <strong>Événement libre</strong>
-                      <span className="mini">Pour un rendez-vous, une sortie ou une activité.</span>
-                    </button>
+                  <!-- En-tête -->
+                  <div className="mrd-mhd">
+                    <span className="mrd-mtitle">${editing ? "Modifier le bloc" : "Nouveau bloc calendrier"}</span>
+                    <button type="button" onClick=${closeModal} className="mrd-mclose">✕</button>
                   </div>
 
-                  ${form.entryType === "task"
-                    ? html`
-                        <div className="fstack">
-                          <span className="miniTitle">Choisir une tâche</span>
-                          <select className="asel" value=${form.taskId} onChange=${(event) => setForm({ ...form, taskId: event.target.value })}>
-                            <option value="">Choisir une tâche du foyer</option>
-                            ${taskChoices.map((task) => html`<option value=${task.id} key=${task.id}>${buildTaskLabel(task)}</option>`)}
-                          </select>
-                        </div>
-                      `
-                    : html`
-                        <div className="fstack">
-                          <span className="miniTitle">Nom de l événement</span>
-                          <input
-                            className="ainp"
-                            placeholder="Piscine, bibliothèque, pédiatre..."
-                            value=${form.title}
-                            onInput=${(event) => setForm({ ...form, title: event.target.value })}
-                          />
-                        </div>
-                        <div className="calendar-inline-row">
-                          <div className="calendar-emoji-switch">
-                            <button
-                              type="button"
-                              className=${`calendar-mini-pill ${form.useEmoji ? "on" : ""}`}
-                              onClick=${() => setForm({ ...form, useEmoji: true })}
-                            >
-                              Avec emoji
+                  <form onSubmit=${submit} className="mrd-mbody" style=${{ paddingBottom: "calc(28px + env(safe-area-inset-bottom,0px))" }}>
+
+                    <!-- 1. TYPE -->
+                    <div>
+                      <span className="mrd-mlbl">Type</span>
+                      <div style=${{ display: "flex", gap: 6 }}>
+                        ${[
+                          { id: "task",   label: "Tâche existante", icon: "📋" },
+                          { id: "custom", label: "Événement libre",  icon: "✨" },
+                        ].map((t) => {
+                          const on = form.entryType === t.id;
+                          return html`
+                            <button key=${t.id} type="button"
+                              style=${{ ...PILL_STACK, background: on ? "var(--mrd-a)" : "var(--mrd-surf2)", color: on ? "#fff" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                              onClick=${() => setEntryType(t.id)}>
+                              <span style=${{ fontSize: 20, lineHeight: 1 }}>${t.icon}</span>
+                              <span>${t.label}</span>
                             </button>
-                            <button
-                              type="button"
-                              className=${`calendar-mini-pill ${!form.useEmoji ? "on" : ""}`}
-                              onClick=${() => setForm({ ...form, useEmoji: false, emoji: "" })}
-                            >
-                              Sans emoji
-                            </button>
-                          </div>
-                          ${form.useEmoji
-                            ? html`
-                                <input
-                                  className="ainp eminp"
-                                  value=${form.emoji}
-                                  onInput=${(event) => setForm({ ...form, emoji: event.target.value })}
-                                />
-                              `
-                            : null}
-                        </div>
-                      `}
+                          `;
+                        })}
+                      </div>
+                    </div>
 
-                  <div className="calendar-inline-row">
-                    <div className="fstack">
-                      <span className="miniTitle">Date</span>
-                      <input className="ainp" type="date" value=${form.dateKey} onInput=${(event) => setForm({ ...form, dateKey: event.target.value })} />
-                    </div>
-                    <div className="fstack">
-                      <span className="miniTitle">Heure de début</span>
-                      <input
-                        className="ainp"
-                        type="time"
-                        value=${form.start}
-                        disabled=${form.allDay}
-                        onInput=${(event) => setForm({ ...form, start: event.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="fstack">
-                    <span className="miniTitle">Durée</span>
-                    <div className="calendar-choice-row">
-                      ${[
-                        { id: "30", label: "30 min" },
-                        { id: "60", label: "1 h" },
-                        { id: "120", label: "2 h" },
-                        { id: "all-day", label: "Toute la journée" },
-                        { id: "custom", label: "Personnalisée" },
-                      ].map(
-                        (option) => html`
-                          <button
-                            key=${option.id}
-                            type="button"
-                            className=${`calendar-mini-pill ${form.durationPreset === option.id ? "on" : ""}`}
-                            onClick=${() =>
-                              setForm({
-                                ...form,
-                                durationPreset: option.id,
-                                allDay: option.id === "all-day",
-                              })}
-                          >
-                            ${option.label}
-                          </button>
-                        `,
-                      )}
-                    </div>
-                    ${form.durationPreset === "custom" && !form.allDay
+                    <!-- 2. Contenu selon type -->
+                    ${form.entryType === "task"
                       ? html`
-                          <div className="calendar-inline-row">
-                            <input
-                              className="ainp"
-                              type="number"
-                              min="1"
-                              value=${form.customDurationValue}
-                              onInput=${(event) => setForm({ ...form, customDurationValue: event.target.value })}
-                            />
-                            <select
-                              className="asel"
-                              value=${form.customDurationUnit}
-                              onChange=${(event) => setForm({ ...form, customDurationUnit: event.target.value })}
-                            >
-                              <option value="minutes">minutes</option>
-                              <option value="hours">heures</option>
-                            </select>
+                          <div>
+                            <span className="mrd-mlbl">Tâche du foyer</span>
+                            <div style=${{ position: "relative" }}>
+                              <span style=${{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, pointerEvents: "none", zIndex: 1 }}>✅</span>
+                              <select value=${form.taskId}
+                                onChange=${(e) => setForm({ ...form, taskId: e.target.value })}
+                                style=${{ width: "100%", paddingLeft: 44, paddingRight: 36, paddingTop: 13, paddingBottom: 13, background: "var(--mrd-surf2)", border: "1.5px solid " + (form.taskId ? "var(--mrd-a)" : "var(--mrd-border)"), borderRadius: 14, fontSize: 14, fontWeight: 500, color: "var(--mrd-fg)", outline: "none", appearance: "none", WebkitAppearance: "none", cursor: "pointer", fontFamily: "inherit", transition: "border-color 0.15s" }}>
+                                <option value="">Choisir une tâche…</option>
+                                ${taskChoices.map((task) => html`<option value=${task.id} key=${task.id}>${buildTaskLabel(task)}</option>`)}
+                              </select>
+                              <span style=${{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "var(--mrd-fg3)", pointerEvents: "none" }}>▼</span>
+                            </div>
                           </div>
                         `
-                      : null}
-                  </div>
-
-                  <div className="fstack">
-                    <span className="miniTitle">Personnes concernées</span>
-                    <div className="mini">Tu peux choisir une ou plusieurs personnes, ou utiliser Toute la famille.</div>
-                    <div className="calendar-choice-row">
-                      <button
-                        type="button"
-                        className=${`calendar-mini-pill ${form.wholeFamily ? "on" : ""}`}
-                        onClick=${() => setForm({ ...form, wholeFamily: !form.wholeFamily, personIds: [] })}
-                      >
-                        Toute la famille
-                      </button>
-                      ${(adultPeople.length ? adultPeople : activePeople).map(
-                        (person) => html`
-                          <button
-                            key=${person.id}
-                            type="button"
-                            className=${`pc ${form.personIds.includes(person.id) && !form.wholeFamily ? "on" : ""}`}
-                            onClick=${() => toggleMainPerson(person.id)}
-                          >
-                            ${person.displayName || person.label}
-                          </button>
-                        `,
-                      )}
-                    </div>
-                    ${form.wholeFamily
-                      ? html`<div className="mini">Sélection actuelle : Toute la famille</div>`
-                      : form.personIds.length
-                        ? html`<div className="mini">Sélection actuelle : ${selectedNames(form.personIds, peopleMap).join(", ")}</div>`
-                        : html`<div className="mini">Sélection actuelle : aucune personne précise</div>`}
-                  </div>
-
-                  ${childPeople.length
-                    ? html`
-                        <div className="fstack">
-                          <span className="miniTitle">Enfants et animaux concernés</span>
-                          <div className="mini">Champ optionnel : aucun, un ou plusieurs profils contextuels du foyer.</div>
-                          <div className="calendar-choice-row">
-                            ${childPeople.map(
-                              (child) => html`
-                                <button
-                                  key=${child.id}
-                                  type="button"
-                                  className=${`pc ${form.childIds.includes(child.id) ? "on" : ""}`}
-                                  onClick=${() => toggleChild(child.id)}
-                                >
-                                  ${child.displayName || child.label}
-                                </button>
-                              `,
-                            )}
+                      : html`
+                          <div>
+                            <span className="mrd-mlbl">Événement</span>
+                            <div style=${{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                              <button type="button"
+                                onClick=${() => setShowEmojiPicker(true)}
+                                title="Choisir un emoji"
+                                style=${{ width: 50, height: 50, minWidth: 50, flexShrink: 0, borderRadius: 14, background: "var(--mrd-surf2)", border: "1.5px solid var(--mrd-border)", fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "border-color 0.15s" }}>
+                                ${form.emoji || html`<span style=${{ fontSize: 20, color: "var(--mrd-fg3)" }}>😊</span>`}
+                              </button>
+                              <div style=${{ flex: 1, background: "var(--mrd-surf2)", borderRadius: 14, border: "1.5px solid " + (form.title ? "var(--mrd-a)" : "var(--mrd-border)"), padding: "12px 14px", transition: "border-color 0.15s" }}>
+                                <input
+                                  value=${form.title}
+                                  onInput=${(e) => setForm({ ...form, title: e.target.value })}
+                                  placeholder="Piscine, pédiatre, sortie…"
+                                  style=${{ width: "100%", background: "none", border: "none", fontSize: 15, fontWeight: 500, color: "var(--mrd-fg)", outline: "none", padding: 0, fontFamily: "inherit" }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          ${form.childIds.length
-                            ? html`<div className="mini">Profils choisis : ${selectedNames(form.childIds, peopleMap).join(", ")}</div>`
-                            : html`<div className="mini">Profils choisis : aucun</div>`}
+                        `}
+
+                    <!-- 3. Date + Heure -->
+                    <div>
+                      <span className="mrd-mlbl">Date et heure</span>
+                      <div style=${{ display: "flex", gap: 8 }}>
+                        <div style=${{ flex: 1.4, position: "relative" }}>
+                          <span style=${{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, pointerEvents: "none" }}>📅</span>
+                          <input type="date" value=${form.dateKey}
+                            onInput=${(e) => setForm({ ...form, dateKey: e.target.value })}
+                            style=${{ width: "100%", paddingLeft: 36, paddingRight: 8, paddingTop: 12, paddingBottom: 12, background: "var(--mrd-surf2)", border: "1px solid var(--mrd-border)", borderRadius: 14, fontSize: 13, color: "var(--mrd-fg)", outline: "none", appearance: "none", fontFamily: "inherit" }}
+                          />
                         </div>
-                      `
-                    : null}
+                        <div style=${{ flex: 1, position: "relative" }}>
+                          <span style=${{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, pointerEvents: "none" }}>🕐</span>
+                          <input type="time" value=${form.start}
+                            disabled=${form.allDay}
+                            onInput=${(e) => {
+                              const newStart = e.target.value;
+                              const dur = form.endTime ? endToDuration(form.start, form.endTime) : 60;
+                              setForm({ ...form, start: newStart, endTime: addMinutesToTime(newStart, dur) });
+                            }}
+                            style=${{ width: "100%", paddingLeft: 36, paddingRight: 8, paddingTop: 12, paddingBottom: 12, background: "var(--mrd-surf2)", border: "1px solid var(--mrd-border)", borderRadius: 14, fontSize: 13, color: form.allDay ? "var(--mrd-fg3)" : "var(--mrd-fg)", outline: "none", appearance: "none", fontFamily: "inherit" }}
+                          />
+                        </div>
+                      </div>
 
-                  <label className="help">
-                    <input
-                      type="checkbox"
-                      checked=${form.repeatWeekly}
-                      disabled=${editing?.entryKind === "recurring"}
-                      onChange=${(event) => setForm({ ...form, repeatWeekly: event.target.checked })}
-                    />
-                    Répéter chaque semaine
-                  </label>
-                  ${editing?.entryKind === "recurring" ? html`<div className="mini">Ce bloc est déjà réglé pour revenir chaque semaine.</div>` : null}
+                      <!-- Durée -->
+                      <div style=${{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        ${showDurationPicker && !form.allDay
+                          ? html`
+                              <div style=${{ display: "flex", gap: 6, alignItems: "center", flex: 1 }}>
+                                <input
+                                  type="number" min="1"
+                                  value=${form.customDurationValue}
+                                  onInput=${(e) => {
+                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                    const mins = form.customDurationUnit === "hours" ? val * 60 : val;
+                                    setForm({ ...form, durationPreset: "custom", customDurationValue: val, endTime: addMinutesToTime(form.start, mins) });
+                                  }}
+                                  style=${{ width: 70, padding: "10px 10px", background: "var(--mrd-surf2)", border: "1.5px solid var(--mrd-a)", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "var(--mrd-fg)", outline: "none", textAlign: "center", fontFamily: "inherit" }}
+                                />
+                                <select
+                                  value=${form.customDurationUnit}
+                                  onChange=${(e) => {
+                                    const unit = e.target.value;
+                                    const mins = unit === "hours" ? form.customDurationValue * 60 : form.customDurationValue;
+                                    setForm({ ...form, durationPreset: "custom", customDurationUnit: unit, endTime: addMinutesToTime(form.start, mins) });
+                                  }}
+                                  style=${{ flex: 1, padding: "10px 10px", background: "var(--mrd-surf2)", border: "1.5px solid var(--mrd-border)", borderRadius: 12, fontSize: 14, fontWeight: 500, color: "var(--mrd-fg)", outline: "none", appearance: "none", WebkitAppearance: "none", fontFamily: "inherit", cursor: "pointer" }}>
+                                  <option value="minutes">minutes</option>
+                                  <option value="hours">heures</option>
+                                </select>
+                              </div>
+                            `
+                          : null}
+                        <button type="button"
+                          style=${{ padding: "10px 14px", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: (showDurationPicker && !form.allDay) ? "var(--mrd-aLt)" : "var(--mrd-surf2)", color: (showDurationPicker && !form.allDay) ? "var(--mrd-a)" : "var(--mrd-fg3)", border: "1.5px solid " + ((showDurationPicker && !form.allDay) ? "var(--mrd-aMd)" : "var(--mrd-border)"), whiteSpace: "nowrap" }}
+                          onClick=${() => { setShowDurationPicker(!showDurationPicker); if (form.allDay) setForm({ ...form, allDay: false, durationPreset: "custom", endTime: addMinutesToTime(form.start, form.customDurationValue * (form.customDurationUnit === "hours" ? 60 : 1)) }); }}>
+                          ${showDurationPicker && !form.allDay ? "⏱ Durée activée" : "+ Ajouter une durée"}
+                        </button>
+                        <button type="button"
+                          style=${{ padding: "10px 14px", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: form.allDay ? "var(--mrd-a)" : "var(--mrd-surf2)", color: form.allDay ? "#fff" : "var(--mrd-fg3)", border: "1.5px solid " + (form.allDay ? "var(--mrd-a)" : "var(--mrd-border)"), whiteSpace: "nowrap" }}
+                          onClick=${() => { setShowDurationPicker(false); setForm({ ...form, allDay: !form.allDay, durationPreset: !form.allDay ? "all-day" : "60", endTime: !form.allDay ? "" : addMinutesToTime(form.start, 60) }); }}>
+                          Toute la journée
+                        </button>
+                      </div>
+                    </div>
 
-                  <div className="calendar-form-actions">
-                    <button type="button" className="clrbtn" onClick=${closeModal}>Annuler</button>
-                    <button className="aok" type="submit">${editing ? "Enregistrer" : "Ajouter au calendrier"}</button>
-                  </div>
-                </form>
+                    <!-- 4. Attribué à -->
+                    <div>
+                      <span className="mrd-mlbl">Attribué à</span>
+                      <div style=${{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <button type="button"
+                          onClick=${() => setForm({ ...form, wholeFamily: !form.wholeFamily, personIds: [] })}
+                          title="Toute la famille"
+                          style=${{ width: 40, height: 40, borderRadius: "50%", border: "2px solid " + (form.wholeFamily ? "var(--mrd-a)" : "var(--mrd-border)"), background: form.wholeFamily ? "var(--mrd-aLt)" : "var(--mrd-surf2)", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}>
+                          👥
+                        </button>
+                        ${(adultPeople.length ? adultPeople : activePeople).map((person) => {
+                          const on = form.personIds.includes(person.id) && !form.wholeFamily;
+                          return html`
+                            <button key=${person.id} type="button"
+                              onClick=${() => toggleMainPerson(person.id)}
+                              title=${person.displayName || person.label}
+                              style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 3px " + (person.color || "var(--mrd-a)") + "33" : "none" }}>
+                              <div style=${{ width: 35, height: 35, borderRadius: "50%", background: person.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 13, fontWeight: 700, margin: "auto" }}>
+                                ${person.shortId || String(person.displayName || person.label || "?")[0].toUpperCase()}
+                              </div>
+                            </button>
+                          `;
+                        })}
+                      </div>
+                    </div>
+
+                    <!-- 5. Personne concernée -->
+                    ${childPeople.length ? html`
+                      <div>
+                        <span className="mrd-mlbl">Personne concernée</span>
+                        ${!showConcernedPicker
+                          ? html`
+                              <button type="button"
+                                onClick=${() => setShowConcernedPicker(true)}
+                                style=${{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", background: "var(--mrd-surf2)", color: "var(--mrd-fg3)", border: "1px solid var(--mrd-border)", transition: "all 0.15s" }}>
+                                + Ajouter une personne
+                              </button>
+                            `
+                          : html`
+                              <div style=${{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                                ${childPeople.map((child) => {
+                                  const on = form.childIds.includes(child.id);
+                                  return html`
+                                    <button key=${child.id} type="button"
+                                      onClick=${() => toggleChild(child.id)}
+                                      style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (child.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? (child.color || "var(--mrd-a)") + "18" : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
+                                      <div style=${{ width: 26, height: 26, borderRadius: "50%", background: child.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                                        ${child.shortId || String(child.displayName || child.label || "?")[0].toUpperCase()}
+                                      </div>
+                                      <span style=${{ fontSize: 12, fontWeight: 600, color: on ? "var(--mrd-fg)" : "var(--mrd-fg2)" }}>${child.displayName || child.label}</span>
+                                    </button>
+                                  `;
+                                })}
+                              </div>
+                            `}
+                      </div>
+                    ` : null}
+
+                    <!-- 6. Répéter (toggle switch) -->
+                    <label style=${{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: "var(--mrd-surf2)", border: "1px solid var(--mrd-borderSoft)", borderRadius: 14, cursor: isRecurringLocked ? "default" : "pointer", opacity: isRecurringLocked ? 0.6 : 1 }}>
+                      <span style=${{ fontSize: 18, flexShrink: 0 }}>↻</span>
+                      <span style=${{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--mrd-fg)" }}>
+                        Répéter chaque ${repeatLabel}
+                      </span>
+                      <span style=${{ position: "relative", width: 44, height: 24, display: "inline-block", flexShrink: 0 }}>
+                        <input type="checkbox"
+                          checked=${form.repeatWeekly}
+                          disabled=${isRecurringLocked}
+                          onChange=${(e) => setForm({ ...form, repeatWeekly: e.target.checked })}
+                          style=${{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                        <span style=${{ position: "absolute", inset: 0, borderRadius: 99, background: form.repeatWeekly ? "var(--mrd-a)" : "var(--mrd-switchOff)", transition: "background 0.2s" }}></span>
+                        <span style=${{ position: "absolute", top: 3, left: form.repeatWeekly ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "var(--mrd-white)", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.18)" }}></span>
+                      </span>
+                    </label>
+
+                    <!-- 7. Actions -->
+                    <div style=${{ display: "flex", gap: 10, paddingTop: 4 }}>
+                      <button type="button" onClick=${closeModal}
+                        style=${{ flex: "0 0 auto", padding: "13px 20px", borderRadius: "var(--mrd-r)", background: "var(--mrd-surf2)", color: "var(--mrd-fg2)", fontSize: 14, fontWeight: 600, cursor: "pointer", border: "1px solid var(--mrd-border)", transition: "all 0.15s", fontFamily: "inherit" }}>
+                        Annuler
+                      </button>
+                      <button type="submit"
+                        style=${{ flex: 1, padding: "13px 0", borderRadius: "var(--mrd-r)", background: "var(--mrd-a)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", boxShadow: "0 6px 20px oklch(58% 0.13 28 / 0.28)", transition: "all 0.2s", fontFamily: "inherit" }}>
+                        ${editing ? "Enregistrer" : "Ajouter au calendrier"}
+                      </button>
+                    </div>
+
+                  </form>
+                </div>
               </div>
-            </div>
-          `
+            `;
+          })()
         : null}
+
+      ${showEmojiPicker ? html`
+        <${EmojiPicker}
+          onSelect=${(emoji) => { setForm((prev) => ({ ...prev, emoji, useEmoji: true })); setShowEmojiPicker(false); }}
+          onClose=${() => setShowEmojiPicker(false)}
+        />
+      ` : null}
     </section>
   `;
 }

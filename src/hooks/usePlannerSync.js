@@ -1,7 +1,7 @@
 import { saveFamilyPlanner, watchFamilyPlanner } from "../firebase/client.js";
 import { useEffect, useRef, useState } from "../lib.js";
 import { createDefaultState } from "../data/defaultState.js";
-import { checkReset } from "../utils/state.js?v=2026-04-19-lists-fix-3";
+import { checkReset } from "../utils/state.js?v=2026-04-26-inventory-drag-note-1";
 import { formatFirestoreError } from "../firebase/client.js";
 
 export function usePlannerSync(currentFamilyId, userId) {

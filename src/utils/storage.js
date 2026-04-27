@@ -1,4 +1,4 @@
-import { normalizeState } from "./state.js?v=2026-04-19-lists-fix-3";
+import { normalizeState } from "./state.js?v=2026-04-26-inventory-drag-note-1";
 
 export function parseImportedState(rawText) {
   const text = String(rawText || "").trim();

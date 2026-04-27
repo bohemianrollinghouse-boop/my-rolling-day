@@ -1,7 +1,7 @@
 import { DAYS } from "../../constants.js";
 import { html, useMemo, useState } from "../../lib.js";
 import { getCurrentAppDate } from "../../utils/date.js?v=2026-04-19-time-sim-2";
-import { createMealShell } from "../../utils/state.js?v=2026-04-19-lists-fix-3";
+import { createMealShell } from "../../utils/state.js?v=2026-04-26-storage-location-fix-1";
 import { formatQuantityUnit, normalizeProductName } from "../../utils/productUtils.js";
 import { CONDIMENTS } from "../../data/condiments.js";
 
@@ -223,9 +223,27 @@ export function MealsView({
 
     setMissingModal({
       recipeName: recipe.name,
+      mode: "inventory",
       items: missing,
       condimentItems: missingCondiments,
       selectedIds: missing.map((item) => item.id),
+      selectedCondiments: [],
+    });
+  }
+
+  function openManualIngredientPicker(recipe) {
+    if (!recipe) return;
+    const mainItems = Array.isArray(recipe.ingredients)
+      ? recipe.ingredients.filter((item) => item?.name)
+      : [];
+    if (!mainItems.length) return;
+
+    setMissingModal({
+      recipeName: recipe.name,
+      mode: "manual",
+      items: mainItems,
+      condimentItems: [],
+      selectedIds: [],
       selectedCondiments: [],
     });
   }
@@ -318,6 +336,9 @@ export function MealsView({
                 <div className="mrd-meals-slot-actions">
                   <button className="mrd-meals-action-link" onClick=${() => setViewModal(recipe)}>Voir la recette</button>
                   <button className="mrd-meals-action-link" onClick=${() => openPicker(meal.day, slot)}>Modifier</button>
+                  ${!linkMealsToInventory
+                    ? html`<button className="mrd-meals-action-link" onClick=${() => openManualIngredientPicker(recipe)}>Ajouter les ingrédients à ma liste</button>`
+                    : null}
                   <button className="mrd-meals-action-link danger" onClick=${() => clearSlot(meal.day, slot)}>Retirer</button>
                 </div>
               `
@@ -469,29 +490,35 @@ export function MealsView({
 
   function renderMissingModal() {
     if (!missingModal) return null;
+    const isManualMode = missingModal.mode === "manual";
     const condimentItems = missingModal.condimentItems || [];
     const hasIngredients = missingModal.items.length > 0;
     const hasCondiments = condimentItems.length > 0;
     const nothingMissing = !hasIngredients && !hasCondiments;
+    const canSubmit = isManualMode ? missingModal.selectedIds.length > 0 : !nothingMissing;
 
     return html`
       <div className="modal-backdrop" onClick=${() => setMissingModal(null)}>
         <div className="modal-card task-modal" onClick=${(event) => event.stopPropagation()}>
           <div className="task-modal-head">
             <div>
-              <div className="miniTitle">Inventaire</div>
+              <div className="miniTitle">${isManualMode ? "Liste de courses" : "Inventaire"}</div>
               <div className="st">${missingModal.recipeName}</div>
             </div>
             <button className="delbtn" onClick=${() => setMissingModal(null)}>X</button>
           </div>
 
-          ${nothingMissing
+          ${isManualMode
+            ? html`<div className="mini" style=${{ marginBottom: "16px", color: "#9A8978" }}>Choisis les ingrédients principaux à ajouter à ta liste de courses.</div>`
+            : null}
+
+          ${!isManualMode && nothingMissing
             ? html`<div className="mini" style=${{ marginBottom: "16px", color: "#7A8C6A" }}>✓ Tout est disponible dans votre inventaire. Bonne cuisine !</div>`
             : null}
 
           ${hasIngredients
             ? html`
-                <div className="miniTitle" style=${{ marginBottom: "6px" }}>Ingredients principaux manquants</div>
+                <div className="miniTitle" style=${{ marginBottom: "6px" }}>${isManualMode ? "Ingrédients principaux" : "Ingrédients principaux manquants"}</div>
                 <div className="settings-stack" style=${{ gap: "6px", marginBottom: "14px" }}>
                   ${missingModal.items.map((item) => html`
                     <label key=${item.id} className="sitem" style=${{ justifyContent: "space-between", padding: "8px 10px", marginBottom: "0" }}>
@@ -525,8 +552,8 @@ export function MealsView({
 
           <div className="task-modal-actions">
             <button type="button" className="acn" onClick=${() => setMissingModal(null)}>Fermer</button>
-            ${!nothingMissing
-              ? html`<button type="button" className="aok" onClick=${addSelectedMissingIngredients}>Ajouter la selection a la liste</button>`
+            ${canSubmit
+              ? html`<button type="button" className="aok" onClick=${addSelectedMissingIngredients}>Ajouter la sélection à la liste</button>`
               : null}
           </div>
         </div>
@@ -566,15 +593,12 @@ export function MealsView({
       ` : null}
 
       ${/* ── Lien inventaire ── */null}
-      <button
-        type="button"
-        className=${`inventory-link-toggle ${linkMealsToInventory ? "on" : ""}`}
-        style=${{ width: "100%", justifyContent: "flex-start", fontSize: "12px", marginBottom: "14px" }}
+      <button type="button"
+        className=${`mrd-inv-badge${linkMealsToInventory ? " on" : ""}`}
+        style=${{ marginBottom: "14px" }}
         onClick=${() => onToggleLinkMealsToInventory?.(!linkMealsToInventory)}
-      >
-        <span className="inventory-link-toggle-box">${linkMealsToInventory ? "✓" : ""}</span>
-        <span>Lier à l'inventaire</span>
-      </button>
+        aria-label="Lier \u00e0 l\u2019inventaire"
+      >${linkMealsToInventory ? "\u25cf" : "\u25cb"} Lié à l\u2019inventaire</button>
 
       ${/* ── Aperçu de la semaine ── */null}
       <div className="mrd-section-head" style=${{ marginBottom: "10px" }}>

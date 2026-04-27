@@ -33,12 +33,15 @@ function normalizeDuration(form) {
   if (form.calendarAllDay) {
     return { duration: 1440, allDay: true };
   }
+  if (!form.calendarDurationPreset || form.calendarDurationPreset === "none") {
+    return { duration: 0, allDay: false };
+  }
   if (form.calendarDurationPreset === "custom") {
     const rawValue = Number(form.calendarCustomDurationValue) || 0;
     const minutes = form.calendarCustomDurationUnit === "hours" ? rawValue * 60 : rawValue;
     return { duration: Math.max(15, minutes), allDay: false };
   }
-  return { duration: Number(form.calendarDurationPreset) || 60, allDay: false };
+  return { duration: Number(form.calendarDurationPreset) || 0, allDay: false };
 }
 
 export function useTasks(updateState) {
@@ -60,7 +63,10 @@ export function useTasks(updateState) {
         critical: false,
         overdue: false,
         order: sameType.length,
-        assignedPersonId: form.assignedPersonId || "",
+        assignedPersonIds: Array.isArray(form.assignedPersonIds) ? form.assignedPersonIds.filter(Boolean) : [],
+        assignedWholeFamily: Boolean(form.assignedWholeFamily),
+        assignedPersonId: Array.isArray(form.assignedPersonIds) && form.assignedPersonIds.length ? form.assignedPersonIds[0] : "",
+        concernedPersonIds: Array.isArray(form.concernedPersonIds) ? form.concernedPersonIds.filter(Boolean) : [],
         displayPeriod: isDeadlineTask ? "deadline" : targetType,
         taskKind,
         recurrenceFrequency,
@@ -91,11 +97,14 @@ export function useTasks(updateState) {
           personIds,
           personId: personIds[0] || "",
           wholeFamily: Boolean(form.calendarWholeFamily),
-          childIds: Array.isArray(form.calendarChildIds) ? form.calendarChildIds.filter(Boolean) : [],
+          childIds: Array.isArray(form.calendarConcernedPersonIds) ? form.calendarConcernedPersonIds.filter(Boolean) : (Array.isArray(form.calendarChildIds) ? form.calendarChildIds.filter(Boolean) : []),
+          concernedPersonIds: Array.isArray(form.calendarConcernedPersonIds) ? form.calendarConcernedPersonIds.filter(Boolean) : (Array.isArray(form.calendarChildIds) ? form.calendarChildIds.filter(Boolean) : []),
           sourceType: "task",
         };
 
         if (form.calendarRepeatWeekly) {
+          const recType = form.recurrenceFrequency || "weekly";
+          const parsedDate = new Date(`${payload.dateKey}T00:00`);
           nextState = {
             ...nextState,
             recurringEvents: [
@@ -103,7 +112,10 @@ export function useTasks(updateState) {
               {
                 ...payload,
                 id: `rec-${Date.now()}`,
-                weekday: new Date(`${payload.dateKey}T00:00`).getDay(),
+                recurrenceType: recType,
+                startDateKey: payload.dateKey,
+                weekday: parsedDate.getDay(),
+                dayOfMonth: parsedDate.getDate(),
               },
             ],
           };
@@ -159,7 +171,10 @@ export function useTasks(updateState) {
           type: targetType,
           priority: isDeadlineTask ? "deadline" : form.priority || task.priority,
           displayPeriod: isDeadlineTask ? "deadline" : targetType,
-          assignedPersonId: form.assignedPersonId || "",
+          assignedPersonIds: Array.isArray(form.assignedPersonIds) ? form.assignedPersonIds.filter(Boolean) : [],
+          assignedWholeFamily: Boolean(form.assignedWholeFamily),
+          assignedPersonId: Array.isArray(form.assignedPersonIds) && form.assignedPersonIds.length ? form.assignedPersonIds[0] : "",
+          concernedPersonIds: Array.isArray(form.concernedPersonIds) ? form.concernedPersonIds.filter(Boolean) : [],
           taskKind,
           recurrenceFrequency,
           dueDate: isDeadlineTask ? form.dueDate || "" : "",
@@ -167,10 +182,64 @@ export function useTasks(updateState) {
         };
       });
 
-      return {
-        ...previous,
-        tasks: reorderTasks(tasks),
-      };
+      let nextState = { ...previous, tasks: reorderTasks(tasks) };
+
+      if (form.addToCalendar) {
+        const updatedTask = nextState.tasks.find((t) => t.id === taskId) || currentTask;
+        const durationInfo = normalizeDuration(form);
+        const personIds = form.calendarWholeFamily
+          ? []
+          : Array.isArray(form.calendarPersonIds) ? form.calendarPersonIds.filter(Boolean) : [];
+
+        const payload = {
+          id: `agenda-${Date.now()}`,
+          taskId,
+          text: updatedTask.text,
+          icon: updatedTask.icon,
+          dateKey: form.calendarDateKey || form.dueDate || localDateKey(getCurrentAppDate()),
+          start: durationInfo.allDay ? "00:00" : (form.calendarStart || "09:00"),
+          duration: durationInfo.duration,
+          allDay: durationInfo.allDay,
+          personIds,
+          personId: personIds[0] || "",
+          wholeFamily: Boolean(form.calendarWholeFamily),
+          childIds: Array.isArray(form.calendarConcernedPersonIds) ? form.calendarConcernedPersonIds.filter(Boolean) : (Array.isArray(form.calendarChildIds) ? form.calendarChildIds.filter(Boolean) : []),
+          concernedPersonIds: Array.isArray(form.calendarConcernedPersonIds) ? form.calendarConcernedPersonIds.filter(Boolean) : (Array.isArray(form.calendarChildIds) ? form.calendarChildIds.filter(Boolean) : []),
+          sourceType: "task",
+        };
+
+        // Supprimer l'entrée existante pour cette tâche (agenda + récurrents)
+        const cleanAgenda    = nextState.agenda.filter((e) => e.taskId !== taskId);
+        const cleanRecurring = nextState.recurringEvents.filter((e) => e.taskId !== taskId);
+
+        if (form.calendarRepeatWeekly) {
+          const recType = form.recurrenceFrequency || "weekly";
+          const parsedDate = new Date(`${payload.dateKey}T00:00`);
+          nextState = {
+            ...nextState,
+            agenda: cleanAgenda,
+            recurringEvents: [
+              ...cleanRecurring,
+              {
+                ...payload,
+                id: `rec-${Date.now()}`,
+                recurrenceType: recType,
+                startDateKey: payload.dateKey,
+                weekday: parsedDate.getDay(),
+                dayOfMonth: parsedDate.getDate(),
+              },
+            ],
+          };
+        } else {
+          nextState = {
+            ...nextState,
+            agenda: [...cleanAgenda, payload],
+            recurringEvents: cleanRecurring,
+          };
+        }
+      }
+
+      return nextState;
     });
   }
 
@@ -183,7 +252,7 @@ export function useTasks(updateState) {
     }));
   }
 
-  function handleMoveTask(taskId, direction, groupKey) {
+  function handleMoveTask(taskId, direction, groupKey, visibleIds) {
     updateState((previous) => {
       const [typeKey, kindKey] = String(groupKey || "").split(":");
       const list = previous.tasks
@@ -194,6 +263,34 @@ export function useTasks(updateState) {
           return true;
         })
         .sort((a, b) => a.order - b.order);
+      if (!list.length) return previous;
+
+      if (Array.isArray(visibleIds) && visibleIds.length) {
+        const orderedVisibleIds = visibleIds.filter((id) => list.some((task) => task.id === id));
+        const sourceIndex = orderedVisibleIds.indexOf(taskId);
+        const targetIndex = Math.max(0, Math.min(orderedVisibleIds.length - 1, Number(direction)));
+        if (sourceIndex < 0 || sourceIndex === targetIndex) return previous;
+
+        const nextVisibleIds = orderedVisibleIds.slice();
+        const [movedId] = nextVisibleIds.splice(sourceIndex, 1);
+        nextVisibleIds.splice(targetIndex, 0, movedId);
+
+        let visibleCursor = 0;
+        const nextOrderedGroup = list.map((task) => {
+          if (!orderedVisibleIds.includes(task.id)) return task;
+          const replacementId = nextVisibleIds[visibleCursor++];
+          return list.find((candidate) => candidate.id === replacementId) || task;
+        });
+
+        const nextOrderById = new Map(nextOrderedGroup.map((task, index) => [task.id, index]));
+        const tasks = previous.tasks.map((task) => (
+          nextOrderById.has(task.id)
+            ? { ...task, order: nextOrderById.get(task.id) }
+            : task
+        ));
+        return { ...previous, tasks: reorderTasks(tasks) };
+      }
+
       const index = list.findIndex((task) => task.id === taskId);
       const target = index + direction;
       if (index < 0 || target < 0 || target >= list.length) return previous;

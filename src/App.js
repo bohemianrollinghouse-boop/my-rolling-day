@@ -1,15 +1,16 @@
-import { BottomNav } from "./components/nav/BottomNav.js?v=2026-04-20-redesign-1";
+import { BottomNav } from "./components/nav/BottomNav.js?v=2026-04-24-tasks-nav-dnd-1";
 import { HomeView } from "./components/home/HomeView.js?v=2026-04-21-redesign-13";
-import { InventoryView } from "./components/inventory/InventoryView.js?v=2026-04-19-inventory-clear-1";
-import { ListsView } from "./components/lists/ListsView.js?v=2026-04-19-recipe-structure-1";
-import { AgendaView } from "./components/agenda/AgendaView.js?v=2026-04-19-time-sim-1";
+import { InventoryView } from "./components/inventory/InventoryView.js?v=2026-04-26-inv-heading-1";
+import { ListsView } from "./components/lists/ListsView.js?v=2026-04-26-lists-ui-1";
+import { AgendaView } from "./components/agenda/AgendaView.js?v=2026-04-26-agenda-done-1";
 import { AuthScreen } from "./components/auth/AuthScreen.js";
 import { HistoryView } from "./components/history/HistoryView.js?v=2026-04-19-user-profile-1";
-import { MealsView } from "./components/meals/MealsView.js?v=2026-04-20-redesign-1";
+import { MealsView } from "./components/meals/MealsView.js?v=2026-04-25-inv-badge-2";
 import { NotesView } from "./components/notes/NotesView.js";
-import { RecipesView } from "./components/recipes/RecipesView.js?v=2026-04-19-condiments-2";
-import { SettingsView } from "./components/settings/SettingsView.js?v=2026-04-19-meals-link-1";
-import { TasksView } from "./components/tasks/TasksView.js?v=2026-04-20-redesign-1";
+import { RecipesView } from "./components/recipes/RecipesView.js?v=2026-04-26-recipes-top-1";
+import { SettingsView } from "./components/settings/SettingsView.js?v=2026-04-21-settings-redesign-5";
+import { TasksView } from "./components/tasks/TasksView.js?v=2026-04-26-task-align-1";
+import { SegmentedTabs } from "./components/common/SegmentedTabs.js?v=2026-04-25-segmented-nav-1";
 import { createDefaultState } from "./data/defaultState.js";
 import {
   canChangePassword,
@@ -37,13 +38,13 @@ import {
   setSimulatedAppDateValue,
   shiftSimulatedAppDate,
 } from "./utils/date.js?v=2026-04-19-time-sim-2";
-import { checkReset, createMealShell } from "./utils/state.js?v=2026-04-19-lists-fix-3";
-import { parseImportedState } from "./utils/storage.js?v=2026-04-19-lists-fix-3";
-import { usePlannerSync } from "./hooks/usePlannerSync.js";
+import { checkReset, createMealShell } from "./utils/state.js?v=2026-04-26-inventory-drag-note-1";
+import { parseImportedState } from "./utils/storage.js?v=2026-04-26-inventory-drag-note-1";
+import { usePlannerSync } from "./hooks/usePlannerSync.js?v=2026-04-26-inventory-drag-note-1";
 import { useAuth } from "./hooks/useAuth.js";
-import { useTasks } from "./hooks/useTasks.js";
-import { useMeals } from "./hooks/useMeals.js?v=2026-04-19-condiments-1";
-import { useLists, ensureShoppingList } from "./hooks/useLists.js?v=2026-04-19-lists-fix-4";
+import { useTasks } from "./hooks/useTasks.js?v=2026-04-24-agenda-recurrence-1";
+import { useMeals } from "./hooks/useMeals.js?v=2026-04-23-tasks-fix-1";
+import { useLists, ensureShoppingList } from "./hooks/useLists.js?v=2026-04-26-inventory-drag-note-1";
 import { useAgenda } from "./hooks/useAgenda.js";
 
 function activePersonStorageKey(familyId) {
@@ -170,28 +171,6 @@ function parsePlanningDate(dateKey) {
 
 function getTaskActiveTab(task, planning) {
   if (!task) return "";
-  if (completedIds(task).length > 0) return task.type;
-  if (!planning?.dateKey) return task.type;
-
-  const dueDate = parsePlanningDate(planning.dateKey);
-  if (!dueDate) return task.type;
-
-  const today = getCurrentAppDate();
-  today.setHours(0, 0, 0, 0);
-  const dueStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-  const diffDays = Math.round((dueStart - today) / (24 * 60 * 60 * 1000));
-
-  if (task.type === "monthly") {
-    if (diffDays <= 0) return "daily";
-    if (diffDays <= 7) return "weekly";
-    return "monthly";
-  }
-
-  if (task.type === "weekly") {
-    if (diffDays <= 0) return "daily";
-    return "weekly";
-  }
-
   return task.type;
 }
 
@@ -226,6 +205,10 @@ export function App() {
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [taskFabTrigger, setTaskFabTrigger] = useState(0);
+  const [lastTaskTab, setLastTaskTab] = useState("daily");
+  const [inventoryOrganiserMode, setInventoryOrganiserMode] = useState(
+    () => { try { return localStorage.getItem("mrd-organiser-mode") === "true"; } catch { return false; } }
+  );
   const [profilePersonId, setProfilePersonId] = useState("");
   const [activePersonId, setActivePersonId] = useState("");
   const [deviceMode, setDeviceMode] = useState("personal");
@@ -274,6 +257,7 @@ export function App() {
         childIds: Array.isArray(entry.childIds) ? entry.childIds : [],
         wholeFamily: Boolean(entry.wholeFamily),
         durationLabel: entry.allDay ? "Toute la journee" : `${entry.duration || 60} min`,
+        duration: entry.allDay ? 1440 : (entry.duration || 60),
         recurring,
       };
     };
@@ -318,6 +302,10 @@ export function App() {
   useEffect(() => {
     setState((previous) => checkReset(previous, getCurrentAppDate()).state);
   }, [appTimeVersion]);
+
+  useEffect(() => {
+    try { localStorage.setItem("mrd-organiser-mode", String(inventoryOrganiserMode)); } catch {}
+  }, [inventoryOrganiserMode]);
 
 
   useEffect(() => {
@@ -375,6 +363,12 @@ export function App() {
     return () => clearTimeout(timeoutId);
   }, [toast?.id]);
 
+  useEffect(() => {
+    if (["daily", "weekly", "monthly", "mine"].includes(activeTab)) {
+      setLastTaskTab(activeTab);
+    }
+  }, [activeTab]);
+
   function updateState(producer) {
     setState((previous) => checkReset(producer(previous), getCurrentAppDate()).state);
   }
@@ -389,6 +383,15 @@ export function App() {
     };
     console.log("[toast] showToast", nextToast.text, Boolean(action));
     setToast(nextToast);
+  }
+
+  function handleBottomNavChange(tab) {
+    setShowSettings(false);
+    if (tab === "tasks") {
+      setActiveTab(lastTaskTab || "daily");
+      return;
+    }
+    setActiveTab(tab);
   }
 
   const { handleAddTask, handleUpdateTask, handleToggleTask, handleDeleteTask, handleMoveTask } = useTasks(updateState);
@@ -417,14 +420,24 @@ export function App() {
     }));
   }
   const {
-    handleCreateList, handleDeleteList, handleUpdateList,
+    handleCreateList, handleDeleteList, handleUpdateList, handleMoveList,
     handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList,
-    handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping,
+    handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping, handleReorderInventoryItems,
+    handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation,
   } = useLists(state, updateState, showToast);
   const {
     handleAddAgenda, handleUpdateAgenda, handleDeleteAgenda,
     handleAddRecurring, handleUpdateRecurring, handleDeleteRecurring,
   } = useAgenda(state, updateState);
+
+  function handleReorderStorageLocations(orderedIds) {
+    updateState((previous) => {
+      const locs = Array.isArray(previous.storageLocations) ? previous.storageLocations : [];
+      const reordered = orderedIds.map((id) => locs.find((l) => l.id === id)).filter(Boolean);
+      const missing = locs.filter((l) => !orderedIds.includes(l.id));
+      return { ...previous, storageLocations: [...reordered, ...missing] };
+    });
+  }
 
   function handleSetActivePerson(personId) {
     const nextId = appPeopleRaw.some((person) => person.id === personId) ? personId : "";
@@ -731,15 +744,32 @@ export function App() {
   let plannerContent = null;
   if (plannerUnlocked && !showSettings) {
     if (activeTab === "mine" || activeTab === "daily" || activeTab === "weekly" || activeTab === "monthly") {
+      function isMineTask(task) {
+        if (!activePersonId) return false;
+        if (task.assignedWholeFamily) return true;
+        if (Array.isArray(task.assignedPersonIds) && task.assignedPersonIds.includes(activePersonId)) return true;
+        // backward compat for tasks created before multi-assign
+        if (!Array.isArray(task.assignedPersonIds) || !task.assignedPersonIds.length) {
+          return Boolean(task.assignedPersonId && task.assignedPersonId === activePersonId);
+        }
+        return false;
+      }
       const visibleTasks =
         activeTab === "mine"
-          ? state.tasks.filter((task) => task.assignedPersonId && task.assignedPersonId === activePersonId)
+          ? state.tasks.filter(isMineTask)
           : visibleTasksByTab[activeTab] || [];
+      // Pour "Mes tâches" : n'exposer que les tâches de l'utilisateur actif,
+      // y compris les tâches "à faire avant", pour éviter qu'elles apparaissent
+      // dans la section deadline sans être assignées à cet utilisateur.
+      const allTasksForTab =
+        activeTab === "mine"
+          ? state.tasks.filter(isMineTask)
+          : state.tasks;
       plannerContent = html`
         <${TasksView}
           tab=${activeTab}
           tasks=${visibleTasks}
-          allTasks=${state.tasks}
+          allTasks=${allTasksForTab}
           people=${householdPeople}
           childProfiles=${agendaPeople.filter((person) => person.profileMode === "context" || person.type === "child" || person.type === "animal")}
           planningByTask=${taskPlanningById}
@@ -811,6 +841,7 @@ export function App() {
           inventory=${state.inventory}
           onCreateList=${(form) => handleCreateList({ ...form, createdBy: activePersonId })}
           onUpdateList=${handleUpdateList}
+          onMoveList=${handleMoveList}
           onAddListItem=${handleAddListItem}
           onUpdateListItem=${handleUpdateListItem}
           onToggleListItem=${handleToggleListItem}
@@ -824,12 +855,21 @@ export function App() {
         <${InventoryView}
           inventory=${state.inventory}
           knownProducts=${knownProducts}
+          organiserMode=${inventoryOrganiserMode}
+          storageLocations=${state.storageLocations || []}
+          productLocationMemory=${state.productLocationMemory || {}}
           onAddInventoryItem=${handleAddInventoryItem}
           onUpdateInventoryItem=${handleUpdateInventoryItem}
           onDeleteInventoryItem=${handleDeleteInventoryItem}
           onClearFinishedInventory=${handleClearFinishedInventory}
           onClearAllInventory=${handleClearAllInventory}
           onSendInventoryToShopping=${handleSendInventoryToShopping}
+          onAddStorageLocation=${handleAddStorageLocation}
+          onRenameStorageLocation=${handleRenameStorageLocation}
+          onDeleteStorageLocation=${handleDeleteStorageLocation}
+          onSetItemLocation=${handleSetItemLocation}
+          onReorderStorageLocations=${handleReorderStorageLocations}
+          onReorderInventoryItems=${handleReorderInventoryItems}
         />
       `;
     } else if (activeTab === "recipes") {
@@ -877,15 +917,30 @@ export function App() {
 
           ${/* Back header for secondary screens */null}
           ${isSecondaryScreen && !showSettings ? html`
-            <div className="mrd-back-hdr">
-              <button className="mrd-back-btn" onClick=${() => setActiveTab("home")}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <span className="mrd-screen-title">
-                ${{ notes: "Notes", inventory: "Inventaire", recipes: "Recettes", history: "Historique" }[activeTab] || ""}
-              </span>
+            <div className=${`mrd-back-hdr${activeTab === "inventory" ? " mrd-back-hdr-with-side" : ""}`}>
+              <div className="mrd-back-hdr-main">
+                <button className="mrd-back-btn" onClick=${() => setActiveTab("home")}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <span className="mrd-screen-title">
+                  ${{ notes: "Notes", inventory: "Inventaire", recipes: "Recettes", history: "Historique" }[activeTab] || ""}
+                </span>
+              </div>
+              ${activeTab === "inventory" ? html`
+                <div className="mrd-back-hdr-side">
+                  <span className=${`mrd-hdr-switch-label${inventoryOrganiserMode ? " on" : ""}`}>Organiser</span>
+                  <button
+                    type="button"
+                    className=${`mrd-hdr-switch${inventoryOrganiserMode ? " on" : ""}`}
+                    onClick=${() => setInventoryOrganiserMode((value) => !value)}
+                    aria-pressed=${inventoryOrganiserMode ? "true" : "false"}
+                  >
+                    <span className="mrd-hdr-switch-knob"></span>
+                  </button>
+                </div>
+              ` : null}
             </div>
           ` : null}
 
@@ -1003,7 +1058,7 @@ export function App() {
               `
             : html`
                 ${/* Screen header for main tabs */null}
-                ${!isSecondaryScreen ? html`
+                ${!isSecondaryScreen && activeTab !== "lists" ? html`
                   <div className="mrd-screen-hdr">
                     <div className="mrd-screen-hdr-row">
                       <span className="mrd-screen-hdr-title">
@@ -1014,11 +1069,24 @@ export function App() {
                       </span>
                     </div>
                     ${["daily", "weekly", "monthly", "mine"].includes(activeTab) ? html`
+                      <${SegmentedTabs}
+                        ariaLabel="Navigation des tâches"
+                        options=${[
+                          { id: "daily", label: "☀️ Aujourd’hui" },
+                          { id: "weekly", label: "📆 Semaine" },
+                          { id: "monthly", label: "🗓️ Mois" },
+                          { id: "mine", label: "👤 Mes tâches" },
+                        ]}
+                        activeId=${activeTab}
+                        onChange=${setActiveTab}
+                      />
+                    ` : null}
+                    ${false && ["daily", "weekly", "monthly", "mine"].includes(activeTab) ? html`
                       <div className="mrd-subtabs">
                         ${[
                           { id: "daily",   label: "Aujourd’hui", icon: "☀️" },
-                          { id: "weekly",  label: "Semaine",     icon: "🗓" },
-                          { id: "monthly", label: "Mois",        icon: "📆" },
+                          { id: "weekly",  label: "Semaine",     icon: "📅" },
+                          { id: "monthly", label: "Mois",        icon: "🗓️" },
                           { id: "mine",    label: "Mes tâches",  icon: "👤" },
                         ].map(({ id, label, icon }) => html`
                           <button key=${id}
@@ -1040,7 +1108,7 @@ export function App() {
         ${plannerUnlocked && !showSettings ? html`
           <${BottomNav}
             activeTab=${activeTab}
-            onChange=${(tab) => { setShowSettings(false); setActiveTab(tab); }}
+            onChange=${handleBottomNavChange}
           />
         ` : null}
 

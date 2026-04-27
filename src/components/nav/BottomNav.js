@@ -76,7 +76,7 @@ function getBottomId(tab) {
 }
 
 function toTabId(id) {
-  if (id === "tasks") return "daily";
+  if (id === "tasks") return "tasks";
   return id;
 }
 
