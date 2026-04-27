@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -6,21 +6,14 @@ import { tmpdir } from "node:os";
 
 const BROWSER_CANDIDATES = [
   process.env.BROWSER_PATH,
+  "/usr/local/bin/google-chrome",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
 ].filter(Boolean);
-
-function execFileAsync(file, args) {
-  return new Promise((resolve, reject) => {
-    execFile(file, args, { encoding: "utf8" }, (error, stdout, stderr) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
-}
 
 async function pathExists(filePath) {
   return existsSync(filePath);
@@ -49,6 +42,20 @@ async function waitForDebugger(port, timeoutMs = 10000) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`Impossible de joindre le navigateur headless sur le port ${port}.`);
+}
+
+async function waitForProcessExit(processHandle, timeoutMs = 5000) {
+  if (processHandle.exitCode !== null || processHandle.signalCode !== null) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    const timeout = setTimeout(resolve, timeoutMs);
+    processHandle.once("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
 }
 
 class CDPSession {
@@ -118,18 +125,24 @@ export async function launchBrowser() {
 
   const userDataDir = await mkdtemp(join(tmpdir(), "mrd-e2e-browser-"));
   const debugPort = 9222;
+  const browserArgs = [
+    `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=${userDataDir}`,
+    "--headless=new",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-extensions",
+    "about:blank",
+  ];
+
+  if (process.platform === "linux") {
+    browserArgs.splice(browserArgs.length - 1, 0, "--no-sandbox");
+  }
+
   const processHandle = spawn(
     executablePath,
-    [
-      `--remote-debugging-port=${debugPort}`,
-      `--user-data-dir=${userDataDir}`,
-      "--headless=new",
-      "--disable-gpu",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-extensions",
-      "about:blank",
-    ],
+    browserArgs,
     {
       stdio: "ignore",
       windowsHide: true,
@@ -151,13 +164,14 @@ export async function launchBrowser() {
     userDataDir,
     async close() {
       processHandle.kill();
+      await waitForProcessExit(processHandle);
       await rm(userDataDir, { recursive: true, force: true });
     },
   };
 }
 
 export async function openPageSession(browser, targetUrl = "about:blank") {
-  await execFileAsync("curl.exe", [`http://127.0.0.1:${browser.debugPort}/json/new?${targetUrl}`]);
+  await fetch(`http://127.0.0.1:${browser.debugPort}/json/new?${targetUrl}`, { method: "PUT" });
   const targetsResponse = await fetch(`http://127.0.0.1:${browser.debugPort}/json/list`);
   const targets = await targetsResponse.json();
   const pageTarget = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);

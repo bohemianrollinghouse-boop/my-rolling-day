@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test --test-isolation=none tests/unit.test.js tests/e2e.test.js",
-    "test:unit": "node --test --test-isolation=none tests/unit.test.js",
-    "test:e2e": "node --test --test-isolation=none tests/e2e.test.js"
+    "test": "node --test --experimental-test-isolation=none tests/unit.test.js tests/e2e.test.js",
+    "test:unit": "node --test --experimental-test-isolation=none tests/unit.test.js",
+    "test:e2e": "node --test --experimental-test-isolation=none tests/e2e.test.js"
   }
 }
