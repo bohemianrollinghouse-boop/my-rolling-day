@@ -35,19 +35,20 @@ export function HistoryView({ history = [], users = [], onClearHistory }) {
                       ${column.entries.length
                         ? column.entries.map(
                             (entry) => html`
-                              <article className="history-card" key=${entry.id}>
-                                <div className="history-card-top">
-                                  <span className="history-icon">${entry.icon || "*"}</span>
-                                  <span className="history-text">${entry.text || "Tâche"}</span>
+                              <div className="history-entry" key=${entry.id}>
+                                <div className="history-entry-line">
+                                  ${entry.icon
+                                    ? html`<span className="history-entry-icon">${entry.icon}</span>`
+                                    : null}
+                                  <span className="history-entry-text">${entry.text || "Tâche"}</span>
                                 </div>
-                                <div className="history-meta">
-                                  <span>${entry.date || ""}</span>
-                                  <span>${entry.time || ""}</span>
+                                <div className="history-entry-meta">
+                                  ${[entry.date, entry.time].filter(Boolean).join(" · ")}
                                 </div>
-                              </article>
+                              </div>
                             `,
                           )
-                        : html`<div className="empty">Rien pour le moment</div>`}
+                        : html`<div className="empty history-entry-empty">Rien pour le moment</div>`}
                     </div>
                   </section>
                 `,

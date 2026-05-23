@@ -1,60 +1,13 @@
 import { APP_VERSION } from "../../constants.js";
 import { html, useEffect, useState } from "../../lib.js";
-
-const EMPTY_PERSON = {
-  id: "",
-  displayName: "",
-  type: "adult",
-  profileMode: "app_user",
-  canCompleteTasks: true,
-  active: true,
-  dateOfBirth: "",
-};
-
-function calcAge(dateOfBirth) {
-  if (!dateOfBirth) return null;
-  const d = new Date(dateOfBirth + "T00:00");
-  if (isNaN(d.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--;
-  return age >= 0 ? age : null;
-}
-
-function SectionCard({ id, icon, title, subtitle, soon = false, open, onToggle, children }) {
-  return html`
-    <div className=${`mrd-set-section${open ? " is-open" : ""}`}>
-      <button className="mrd-set-section-head" onClick=${() => onToggle(id)}>
-        <span className="mrd-set-section-icon">${icon}</span>
-        <div className="mrd-set-section-info">
-          <span className="mrd-set-section-title">${title}</span>
-          <span className="mrd-set-section-sub">${subtitle}</span>
-        </div>
-        <div className="mrd-set-section-right">
-          ${soon ? html`<span className="mrd-set-soon">Bientôt</span>` : null}
-          <svg className="mrd-set-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-      </button>
-      ${open ? html`<div className="mrd-set-section-body">${children}</div>` : null}
-    </div>
-  `;
-}
-
-function PlaceholderList({ items }) {
-  return html`
-    <div className="mrd-set-placeholder-list">
-      ${items.map((item) => html`
-        <div className="mrd-set-placeholder-row" key=${item}>
-          <span>${item}</span>
-          <span className="mrd-set-soon">Bientôt</span>
-        </div>
-      `)}
-    </div>
-  `;
-}
+import {
+  BADGE_PALETTE, EMPTY_PERSON, getNotificationPermissionState,
+  SectionCard, PlaceholderList, SeeMoreLink,
+  SettingsGroup, SettingsRow, SettingsSwitch, SettingsToggleRow,
+  SubPageHeader, ColorGrid,
+} from "./SettingsUI.js";
+import { EditMemberModal, AddPersonModal, NewMemberInviteModal } from "./SettingsModals.js";
+import { SettingsSupportPage } from "./SettingsSupportPage.js";
 
 export function SettingsView({
   isOnboarding = false,
@@ -74,6 +27,7 @@ export function SettingsView({
   emailMessage = "",
   passwordMessage = "",
   accountMessage = "",
+  busy = false,
   appTimeMode = "real",
   simulatedDateTime = "",
   currentAppDateLabel = "",
@@ -85,10 +39,13 @@ export function SettingsView({
   onRenameFamily,
   onAddPerson,
   onUpdatePerson,
+  onUpdateMemberRole = async () => {},
   onDeletePerson,
   onMovePerson,
   onChangeEmail,
   onChangePassword,
+  onLeaveFamily,
+  onDeleteAccount,
   onChangeActivePerson,
   onChangeDeviceMode,
   onCreateInvitation,
@@ -104,6 +61,20 @@ export function SettingsView({
   onExportData,
   onClearHistory,
   onResetPlanner,
+  autoOpenAddPersonSignal = 0,
+  onConsumeAutoOpenAddPersonSignal = null,
+  taskNotifications = null,
+  onUpdateTaskNotifications = () => {},
+  pushToken = "",
+  pushSyncing = false,
+  pushError = "",
+  onRequestPushPermission = async () => null,
+  settingsPage = "main",
+  onSettingsPageChange = () => {},
+  supportPage = "",
+  onSupportPageChange = () => {},
+  linkedAccountChoices = [],
+  linkedAccountLabels = {},
   onLogout,
 }) {
   const safeFamilies = Array.isArray(families) ? families : [];
@@ -114,7 +85,9 @@ export function SettingsView({
   const [joinCode, setJoinCode] = useState("");
   const [rename, setRename] = useState(currentFamily?.name || "");
   const [newEmail, setNewEmail] = useState(userProfile?.email || "");
+  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [linkedName, setLinkedName] = useState(linkedPerson?.displayName || "");
   const [personForm, setPersonForm] = useState(EMPTY_PERSON);
   const [inviteEmails] = useState({});
@@ -134,10 +107,33 @@ export function SettingsView({
       return "fr";
     }
   });
+  // settingsPage est géré par App.js via la prop settingsPage / onSettingsPageChange
   const [openSections, setOpenSections] = useState(() => (isOnboarding ? ["foyer"] : []));
   const [profileOpen, setProfileOpen] = useState(isOnboarding);
   const [linkedColor, setLinkedColor] = useState(linkedPerson?.color || "#8B7355");
   const [showInviteForId, setShowInviteForId] = useState("");
+  const [showBadgePalette, setShowBadgePalette] = useState(false);
+  const [showAddPersonModal, setShowAddPersonModal] = useState(false);
+  const [newMemberInvite, setNewMemberInvite] = useState(null);
+  const [editPersonModalId, setEditPersonModalId] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  function refreshNotificationPermission() {
+    setNotificationPermission(getNotificationPermissionState());
+  }
+
+  useEffect(() => {
+    refreshNotificationPermission();
+    function handleVisibility() {
+      if (document.visibilityState === "visible") refreshNotificationPermission();
+    }
+    window.addEventListener("focus", refreshNotificationPermission);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", refreshNotificationPermission);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
 
   useEffect(() => {
     setRename(currentFamily?.name || "");
@@ -154,6 +150,10 @@ export function SettingsView({
   useEffect(() => {
     setLinkedColor(linkedPerson?.color || "#8B7355");
   }, [linkedPerson?.id, linkedPerson?.color]);
+
+  useEffect(() => {
+    setShowBadgePalette(false);
+  }, [linkedPerson?.id]);
 
   useEffect(() => {
     if (!isOnboarding) return;
@@ -179,8 +179,20 @@ export function SettingsView({
     }
   }, [language]);
 
+  const effectiveRole = currentRole;
+  const canManageHousehold = effectiveRole === "admin";
+
   function toggleSection(id) {
     setOpenSections((previous) => (previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]));
+  }
+
+  function goSettingsPage(page) {
+    onSupportPageChange("");
+    onSettingsPageChange(page || "main");
+    requestAnimationFrame(() => {
+      const scroller = document.querySelector(".mrd-screen .cnt");
+      if (scroller?.scrollTo) scroller.scrollTo({ top: 0, behavior: "auto" });
+    });
   }
 
   function resetPersonForm() {
@@ -188,7 +200,13 @@ export function SettingsView({
     setPersonForm(EMPTY_PERSON);
   }
 
+  function openAddPersonModal() {
+    if (!canManageHousehold) return;
+    setShowAddPersonModal(true);
+  }
+
   function startAddFlow(kind) {
+    if (!canManageHousehold) return;
     if (kind === "context-child") {
       setEditId("");
       setPersonForm({
@@ -225,6 +243,7 @@ export function SettingsView({
   }
 
   function submitPerson() {
+    if (!canManageHousehold) return;
     if (!personForm.displayName.trim()) return;
     const payload = {
       displayName: personForm.displayName.trim(),
@@ -242,6 +261,7 @@ export function SettingsView({
   }
 
   function startEdit(person) {
+    if (!canManageHousehold) return;
     const safePerson = person || EMPTY_PERSON;
     setEditId(safePerson.id || "");
       setPersonForm({
@@ -255,10 +275,13 @@ export function SettingsView({
     setOpenSections((previous) => (previous.includes("foyer") ? previous : [...previous, "foyer"]));
   }
 
-  function submitPassword() {
-    if (!newPassword.trim()) return;
-    onChangePassword(newPassword.trim());
+  async function submitPassword() {
+    if (!oldPassword.trim() || !newPassword.trim()) return;
+    const success = await onChangePassword(oldPassword.trim(), newPassword.trim());
+    if (!success) return;
+    setOldPassword("");
     setNewPassword("");
+    setShowPasswordForm(false);
   }
 
   function submitEmail() {
@@ -274,25 +297,507 @@ export function SettingsView({
   function submitLinkedColor() {
     if (!linkedPerson?.id) return;
     onUpdatePerson(linkedPerson.id, { color: linkedColor });
+    setShowBadgePalette(false);
+  }
+
+  async function handleLeaveFamilyClick() {
+    if (!onLeaveFamily || !currentFamily) return;
+    const confirmed = window.confirm(
+      `Quitter le foyer "${currentFamily.name || "ce foyer"}" ? Ton profil y restera sans compte lie.`,
+    );
+    if (!confirmed) return;
+    await onLeaveFamily();
+  }
+
+  async function handleDeleteAccountClick() {
+    if (!onDeleteAccount) return;
+    const confirmed = window.confirm(
+      "Supprimer definitivement ton compte ? Tu seras retiree de tes foyers et tu devras te reconnecter si tu changes d'avis.",
+    );
+    if (!confirmed) return;
+    let currentPassword = "";
+    if (authMode === "password") {
+      currentPassword = window.prompt("Entre ton mot de passe actuel pour confirmer la suppression de ton compte.") || "";
+      if (!currentPassword.trim()) return;
+    }
+    await onDeleteAccount(currentPassword);
   }
 
   const loginMethodLabel = authMode === "password" ? "Email et mot de passe" : authMode === "google" ? "Google" : "Connexion externe";
-  const pendingInvitationsByMember = safeInvitations.reduce((accumulator, invitation) => {
-    if (invitation.status !== "pending") return accumulator;
-    accumulator[invitation.memberId] = invitation;
-    return accumulator;
-  }, {});
+  // safeInvitations est trié newest-first — on prend le premier code pending par membre
+  const pendingInvitationsByMember = {};
+  for (const invitation of safeInvitations) {
+    if (invitation.status !== "pending") continue;
+    if (!pendingInvitationsByMember[invitation.memberId]) {
+      pendingInvitationsByMember[invitation.memberId] = invitation;
+    }
+  }
 
   const profileInitial = (linkedPerson?.displayName || userProfile?.email || "?").slice(0, 1).toUpperCase();
   const profileColor = linkedColor || linkedPerson?.color || "#8B7355";
-  const roleDisplay = currentRole === "admin" ? "Admin" : "Standard";
+  const roleDisplay = effectiveRole === "admin" ? "Admin" : "Standard";
+  const currentLinkedName = String(linkedPerson?.displayName || "");
+  const currentFamilyName = String(currentFamily?.name || "");
+  const currentEmail = String(userProfile?.email || "");
+  const currentLinkedColor = String(linkedPerson?.color || "#8B7355");
+  const canSubmitLinkedName = Boolean(linkedPerson?.id) && linkedName.trim() && linkedName.trim() !== currentLinkedName.trim();
+  const canSubmitLinkedColor = Boolean(linkedPerson?.id) && linkedColor !== currentLinkedColor;
+  const canSubmitEmail = newEmail.trim() && newEmail.trim() !== currentEmail.trim();
+  const canSubmitPassword = authMode === "password" && oldPassword.trim() && newPassword.trim();
+
+  useEffect(() => {
+    if (!autoOpenAddPersonSignal || !canManageHousehold) return;
+    setOpenSections((previous) => Array.from(new Set([...previous, "foyer"])));
+    openAddPersonModal();
+    onConsumeAutoOpenAddPersonSignal?.();
+  }, [autoOpenAddPersonSignal, canManageHousehold, onConsumeAutoOpenAddPersonSignal]);
+  const canRenameFamily = canManageHousehold && rename.trim() && rename.trim() !== currentFamilyName.trim();
+  const canCreateFamily = createName.trim().length > 0;
+  const canJoinFamily = joinCode.trim().length > 0;
+  const canSubmitPerson = personForm.displayName.trim().length > 0;
+  const editModalPerson = editPersonModalId ? (safePeople.find((p) => p.id === editPersonModalId) || null) : null;
+  const editModalHasPendingCode = editModalPerson ? Boolean(pendingInvitationsByMember[editModalPerson.id]) : false;
+  const editModalLinkedAccount = editModalPerson?.linkedAccountId ? safeMemberDirectory[editModalPerson.linkedAccountId] || null : null;
+  const editModalRole = editModalLinkedAccount?.role || editModalPerson?.role || "member";
+  const editModalCanInvite = editModalPerson && editModalPerson.type !== "animal" && !editModalPerson.linkedAccountId;
+  const supportUserId = String(userProfile?.uid || linkedPerson?.linkedAccountId || "");
+
+  function openSupportPage(page) {
+    onSupportPageChange(page);
+  }
+
+  const notif = {
+    enabled: Boolean(taskNotifications?.enabled),
+    endOfDay: taskNotifications?.endOfDay !== false,
+    endOfDayTime: taskNotifications?.endOfDayTime || "18:00",
+    urgent: taskNotifications?.urgent !== false,
+    due: taskNotifications?.due !== false,
+  };
+  const activeNotificationItems = [
+    notif.endOfDay ? `fin de journee ${notif.endOfDayTime}` : null,
+    notif.urgent ? "taches urgentes" : null,
+    notif.due ? "taches avec echeance" : null,
+  ].filter(Boolean);
+
+  function updateNotif(key, value) {
+    onUpdateTaskNotifications({ ...notif, [key]: value });
+  }
+
+  function openMemberFromSubpage(personId) {
+    setEditPersonModalId(personId);
+  }
+
+  function openAddMemberFromSubpage() {
+    setTimeout(() => openAddPersonModal(), 0);
+  }
+
+  function renderSettingsSubPage() {
+    if (settingsPage === "profile") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Mon profil" />
+          <div className="settings-profile-hero">
+            <div className="settings-profile-hero-avatar" style=${{ background: profileColor }}>${profileInitial}</div>
+            <div className="settings-profile-hero-name">${linkedPerson?.displayName || "Mon profil"}</div>
+            ${userProfile?.email ? html`<div className="settings-profile-hero-email">${userProfile.email}</div>` : null}
+          </div>
+          <${SettingsGroup} title="Identite">
+            <div className="settings-subpage-field">
+              <label>Prenom</label>
+              <input className="ainp" placeholder="Votre prenom" value=${linkedName} onInput=${(event) => setLinkedName(event.target.value)} />
+            </div>
+            <${SettingsRow} label="Role dans le foyer" value=${roleDisplay} last=${true} />
+          <//>
+          <${SettingsGroup} title="Couleur du badge">
+            <div className="settings-subpage-field">
+              <p className="settings-subpage-help">Cette couleur t'identifie dans le foyer, les taches et les plannings.</p>
+              <${ColorGrid} value=${linkedColor} onChange=${setLinkedColor} />
+            </div>
+          <//>
+          <button
+            type="button"
+            className=${`settings-valider-btn${(canSubmitLinkedName || canSubmitLinkedColor) ? " active" : ""}`}
+            disabled=${!canSubmitLinkedName && !canSubmitLinkedColor}
+            onClick=${() => { if (canSubmitLinkedName) submitLinkedName(); if (canSubmitLinkedColor) submitLinkedColor(); }}
+          >Valider</button>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "household") {
+      if (!canManageHousehold) {
+        return html`
+          <div className="mrd-set-page settings-subpage">
+            <${SubPageHeader} title="Mon foyer" />
+            <div className="settings-summary-card">
+              <strong>Accès admin requis</strong>
+              <span>La gestion détaillée du foyer est réservée aux admins.</span>
+            </div>
+          </div>
+        `;
+      }
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Mon foyer" />
+          <${SettingsGroup} title="Nom du foyer">
+            <div className="settings-subpage-field">
+              ${canManageHousehold ? html`
+                <input className="ainp" value=${rename} onInput=${(event) => setRename(event.target.value)} />
+                <button
+                  type="button"
+                  className=${`settings-valider-btn${canRenameFamily ? " active" : ""}`}
+                  disabled=${!canRenameFamily}
+                  onClick=${() => onRenameFamily(rename)}
+                >Valider</button>
+              ` : html`<div className="settings-static-value">${currentFamily?.name || "Aucun foyer"}</div>`}
+            </div>
+          <//>
+          <section className="settings-subpage-group">
+            <div className="settings-subpage-title-row">
+              <div className="settings-subpage-group-title">Membres · ${safePeople.length}</div>
+            </div>
+            <div className="settings-subpage-group-card">
+              ${safePeople.length ? safePeople.map((person, index) => {
+                const isNoAccount = person.profileMode === "context" || person.type === "child" || person.type === "animal";
+                const linkedAccount = person.linkedAccountId ? safeMemberDirectory[person.linkedAccountId] || null : null;
+                const roleLabel = isNoAccount
+                  ? (person.type === "animal" ? "Animal" : person.type === "child" ? "Enfant" : "Membre")
+                  : (linkedAccount?.role === "admin" ? "Admin" : "Standard");
+                const pendingCode = pendingInvitationsByMember[person.id] || null;
+                return html`
+                  <button type="button" className=${`settings-member-row${index === safePeople.length - 1 ? " is-last" : ""}`} key=${person.id} onClick=${() => openMemberFromSubpage(person.id)}>
+                    <span className="foyer-member-badge" style=${{ background: person.color || "#8B7355" }}>${(person.displayName || "?").slice(0, 2).toUpperCase()}</span>
+                    <span className="settings-member-copy">
+                      <span className="settings-member-name">${person.displayName || "Sans nom"}</span>
+                      <span className="settings-member-role">${roleLabel}${pendingCode?.code ? ` · ${pendingCode.code.slice(0, 3)}-${pendingCode.code.slice(3)}` : ""}</span>
+                    </span>
+                    <span className="settings-subpage-row-chevron">›</span>
+                  </button>
+                `;
+              }) : html`<div className="settings-empty-row">Aucun membre pour le moment.</div>`}
+            </div>
+          </section>
+          <${SettingsGroup} title="Invitations">
+            <div className="settings-subpage-field">
+              <button type="button" className="foyer-add-btn foyer-add-btn--detail" onClick=${openAddMemberFromSubpage}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+                Ajouter un membre
+              </button>
+              <div className="mini">${safeInvitations.filter((invitation) => invitation.status === "pending").length ? "Des codes d'invitation sont actifs." : "Aucun code actif pour le moment."}</div>
+            </div>
+          <//>
+          <${SettingsGroup} title="Zone sensible">
+            <${SettingsRow} icon="🚪" label="Quitter le foyer" onClick=${handleLeaveFamilyClick} danger=${true} />
+            <${SettingsRow} icon="🗑" label="Supprimer mon compte" onClick=${handleDeleteAccountClick} danger=${true} last=${true} />
+          <//>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "notifications") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Notifications" />
+          <${SettingsGroup} title="Canal">
+            <${SettingsToggleRow} icon="🔔" label="Rappels de taches" sub="Preferences partagees dans le foyer." value=${notif.enabled} onChange=${(value) => updateNotif("enabled", value)} />
+            <${SettingsToggleRow}
+              icon="📱"
+              label="Cet appareil"
+              sub=${
+                notificationPermission === "granted"
+                  ? (pushSyncing ? "Enregistrement en cours…" : pushToken ? "Rappels actifs sur cet appareil." : "Autorise — token en attente.")
+                  : notificationPermission === "denied"
+                  ? "Bloque. Modifiez les reglages de votre navigateur."
+                  : notificationPermission === "unsupported"
+                  ? "Non disponible sur cet appareil."
+                  : "Appuyez pour activer les rappels ici."
+              }
+              value=${notificationPermission === "granted"}
+              onChange=${async (val) => {
+                if (val) {
+                  if (notificationPermission === "denied") {
+                    setShowNotificationModal(true);
+                  } else {
+                    await onRequestPushPermission();
+                    refreshNotificationPermission();
+                  }
+                } else {
+                  setShowNotificationModal(true);
+                }
+              }}
+              last=${true}
+            />
+          <//>
+          <${SettingsGroup} title="Types d'alertes">
+            <${SettingsToggleRow} icon="🌙" label="Rappel fin de journee" sub=${`Tous les jours a ${notif.endOfDayTime}`} value=${notif.endOfDay} onChange=${(value) => updateNotif("endOfDay", value)} />
+            ${notif.endOfDay ? html`
+              <div className="settings-subpage-field">
+                <label>Heure</label>
+                <input className="ainp settings-time-input" type="time" value=${notif.endOfDayTime} onChange=${(event) => updateNotif("endOfDayTime", event.target.value)} />
+              </div>
+            ` : null}
+            <${SettingsToggleRow} icon="⚠️" label="Taches urgentes" sub="Maximum un rappel par tache urgente et par jour." value=${notif.urgent} onChange=${(value) => updateNotif("urgent", value)} />
+            <${SettingsToggleRow} icon="📅" label="Taches avec echeance" sub="Utilise le rappel choisi dans la tache." value=${notif.due} onChange=${(value) => updateNotif("due", value)} last=${true} />
+          <//>
+          <div className="settings-summary-card">
+            <strong>Resume actif</strong>
+            <span>${notif.enabled ? (activeNotificationItems.length ? activeNotificationItems.join(" · ") : "Aucun rappel actif") : "Rappels de taches desactives"}</span>
+          </div>
+        </div>
+        ${showNotificationModal ? html`
+        <div className="modal-backdrop settings-modal-backdrop notification-modal-backdrop" onClick=${() => setShowNotificationModal(false)}>
+          <div className="notification-modal-card" onClick=${(event) => event.stopPropagation()}>
+            <h2 className="notification-modal-title">Notifications</h2>
+            ${(notificationPermission === "denied" || notificationPermission === "granted") ? html`
+              <p className="notification-modal-text">${
+                notificationPermission === "granted"
+                  ? "Pour desactiver les notifications sur cet appareil, ouvre les reglages de ton navigateur et bloque les notifications pour cette application."
+                  : "Les notifications ont ete bloquees sur cet appareil. Pour les reactiver, ouvre les reglages de ton navigateur ou de ton appareil et autorise les notifications pour cette application."
+              }</p>
+              <div className="notification-modal-actions">
+                <button type="button" className="notification-modal-close" onClick=${() => setShowNotificationModal(false)}>Fermer</button>
+              </div>
+            ` : html`
+              <p className="notification-modal-text">Choisis si cet appareil peut recevoir les rappels.</p>
+              <div className="notification-modal-actions">
+                <button
+                  type="button"
+                  className="notification-modal-primary"
+                  disabled=${pushSyncing || notificationPermission === "unsupported"}
+                  onClick=${async () => {
+                    await onRequestPushPermission();
+                    refreshNotificationPermission();
+                    setShowNotificationModal(false);
+                  }}
+                >
+                  Autoriser
+                </button>
+                <button
+                  type="button"
+                  className="notification-modal-secondary"
+                  onClick=${() => {
+                    refreshNotificationPermission();
+                    setShowNotificationModal(false);
+                  }}
+                >
+                  Ne pas autoriser
+                </button>
+                <button
+                  type="button"
+                  className="notification-modal-close"
+                  onClick=${() => setShowNotificationModal(false)}
+                >
+                  Fermer
+                </button>
+              </div>
+            `}
+          </div>
+        </div>
+        ` : null}
+      `;
+    }
+
+    if (settingsPage === "appearance") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Apparence" />
+          <div className="settings-appearance-grid">
+            <button type="button" className=${`settings-choice-card${appearanceMode === "light" ? " on" : ""}`} onClick=${() => setAppearanceMode("light")}>
+              <span>☀️</span><strong>Clair</strong>
+            </button>
+            <button type="button" className=${`settings-choice-card${appearanceMode === "dark" ? " on" : ""}`} onClick=${() => setAppearanceMode("dark")}>
+              <span>🌙</span><strong>Sombre</strong>
+            </button>
+          </div>
+          <${SettingsGroup} title="Langue">
+            <div className="settings-subpage-field">
+              <select className="asel" value=${language} onChange=${(event) => setLanguage(event.target.value)}>
+                <option value="fr">Français</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          <//>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "account") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Compte et securite" />
+          <${SettingsGroup} title="Connexion">
+            <${SettingsRow} icon="🔐" label="Mode de connexion" value=${loginMethodLabel} />
+            <div className="settings-subpage-field">
+              <label>Adresse mail</label>
+              <input className="ainp" type="email" placeholder="Nouvel email" value=${newEmail} onInput=${(event) => setNewEmail(event.target.value)} />
+              ${emailMessage ? html`<div className="mini">${emailMessage}</div>` : null}
+            </div>
+            ${authMode === "password" ? html`
+              <div className="settings-subpage-field">
+                <label>Mot de passe</label>
+                <input className="ainp" type="password" placeholder="Ancien mot de passe" autocomplete="current-password" onInput=${(event) => setOldPassword(event.target.value)} />
+                <input className="ainp" type="password" placeholder="Nouveau mot de passe" value=${newPassword} onInput=${(event) => setNewPassword(event.target.value)} autocomplete="new-password" />
+                ${passwordMessage ? html`<div className="mini">${passwordMessage}</div>` : null}
+              </div>
+            ` : html`<div className="settings-subpage-note">Compte Google : le mot de passe se gere en dehors de l'application.</div>`}
+            ${accountMessage ? html`<div className="mini">${accountMessage}</div>` : null}
+          <//>
+          <button
+            type="button"
+            className=${`settings-valider-btn${(canSubmitEmail || canSubmitPassword) ? " active" : ""}`}
+            disabled=${!canSubmitEmail && !canSubmitPassword}
+            onClick=${() => { if (canSubmitEmail) submitEmail(); if (canSubmitPassword) submitPassword(); }}
+          >Valider</button>
+          <${SettingsGroup} title="Zone sensible">
+            <${SettingsRow} icon="🚪" label="Quitter le foyer" onClick=${handleLeaveFamilyClick} danger=${true} />
+            <${SettingsRow} icon="🗑" label="Supprimer le compte" onClick=${handleDeleteAccountClick} danger=${true} last=${true} />
+          <//>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "privacy") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="💾 Donnees" />
+          <${SettingsGroup} title="Mes donnees">
+            <${SettingsRow} icon="📤" label="Exporter mes donnees" value="JSON" onClick=${onExportData} />
+            <${SettingsRow} icon="📥" label=${showImport ? "Masquer l'import" : "Importer des donnees"} onClick=${onToggleImport} />
+            ${showImport ? html`
+              <div className="settings-subpage-field">
+                <label>Import JSON</label>
+                <textarea className="nta" rows="6" value=${importText} onInput=${(event) => onImportTextChange(event.target.value)}></textarea>
+                <button type="button" className="aok" onClick=${onImportData}>Importer</button>
+              </div>
+            ` : null}
+            ${dataMessage ? html`<div className="mini">${dataMessage}</div>` : null}
+          <//>
+          <${SettingsGroup} title="Maintenance">
+            <${SettingsRow} icon="🧹" label="Vider l'historique" onClick=${onClearHistory} />
+            <${SettingsRow} icon="↺" label="Reinitialiser le planner" onClick=${onResetPlanner} danger=${true} last=${true} />
+          <//>
+          <${SettingsGroup} title="Documents legaux">
+            <${SettingsRow} label="Politique de confidentialite" onClick=${() => openSupportPage("privacy")} />
+            <${SettingsRow} label="Conditions d'utilisation" onClick=${() => openSupportPage("terms")} last=${true} />
+          <//>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "help") {
+      const faqs = [
+        { q: "Comment inviter quelqu'un dans mon foyer ?", a: "Va dans Reglages, puis Foyer. Les codes d'invitation actifs sont affiches avec les membres concernes." },
+        { q: "Puis-je utiliser plusieurs appareils ?", a: "Oui. Le mode appareil personnel ou partage se regle dans le foyer." },
+        { q: "Les notes privees sont-elles partagees ?", a: "Non. Les contenus prives restent visibles uniquement par leur createur." },
+      ];
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Aide et contact" />
+          <${SettingsGroup} title="Nous contacter">
+            <${SettingsRow} icon="🐞" label="Signaler un bug" onClick=${() => openSupportPage("bug")} />
+            <${SettingsRow} icon="✨" label="Suggerer une fonctionnalite" onClick=${() => openSupportPage("feature")} />
+            <${SettingsRow} icon="✉️" label="Contacter le support" onClick=${() => openSupportPage("contact")} last=${true} />
+          <//>
+          <${SettingsGroup} title="Questions frequentes">
+            ${faqs.map((faq, index) => html`
+              <details className=${`settings-faq-row${index === faqs.length - 1 ? " is-last" : ""}`} key=${faq.q}>
+                <summary>${faq.q}</summary>
+                <p>${faq.a}</p>
+              </details>
+            `)}
+          <//>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "about") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="A propos" />
+          <div className="settings-about-hero">
+            <div className="settings-about-logo">
+              <img src="./src/assets/brand/mark-white.svg" width="52" height="52" alt="" />
+            </div>
+            <h2>My Rolling Day</h2>
+            <p>Version ${APP_VERSION}</p>
+          </div>
+          <div className="settings-about-quote">L'app qui fait tourner la maison.</div>
+          <${SettingsGroup} title="Informations">
+            <${SettingsRow} icon="🏷" label="Version" value=${APP_VERSION} />
+            <${SettingsRow} icon="🏢" label="Editeur" value="Bohemian Rolling House" last=${true} />
+          <//>
+          <${SettingsGroup} title="Legal">
+            <${SettingsRow} label="Politique de confidentialite" onClick=${() => openSupportPage("privacy")} />
+            <${SettingsRow} label="Conditions d'utilisation" onClick=${() => openSupportPage("terms")} last=${true} />
+          <//>
+        </div>
+      `;
+    }
+
+    return null;
+  }
+
+  if (supportPage) {
+    return html`
+      <${SettingsSupportPage}
+        key=${supportPage}
+        supportPage=${supportPage}
+        onBack=${() => onSupportPageChange("")}
+        userId=${supportUserId}
+      />
+    `;
+  }
+
+  function renderModalOverlays() {
+    return html`
+      ${editModalPerson ? html`
+        <${EditMemberModal}
+          person=${editModalPerson}
+          role=${editModalRole}
+          hasPendingCode=${editModalHasPendingCode}
+          canInvite=${editModalCanInvite}
+          onClose=${() => setEditPersonModalId("")}
+          onUpdateMemberRole=${onUpdateMemberRole}
+          onUpdatePerson=${onUpdatePerson}
+          onCreateInvitation=${onCreateInvitation}
+          onInviteCreated=${(invite) => setNewMemberInvite(invite)}
+          onDeletePerson=${onDeletePerson}
+        />
+      ` : null}
+
+      ${showAddPersonModal ? html`
+        <${AddPersonModal}
+          onClose=${() => setShowAddPersonModal(false)}
+          onAddPerson=${onAddPerson}
+          onInviteCreated=${(invite) => setNewMemberInvite(invite)}
+        />
+      ` : null}
+
+      ${newMemberInvite ? html`
+        <${NewMemberInviteModal}
+          invite=${newMemberInvite}
+          onClose=${() => setNewMemberInvite(null)}
+        />
+      ` : null}
+    `;
+  }
+
+  if (settingsPage !== "main") {
+    return html`
+      <div>
+        ${renderSettingsSubPage()}
+        ${renderModalOverlays()}
+      </div>
+    `;
+  }
 
   return html`
     <div className="mrd-set-page">
-
       <!-- ── Carte profil (MOI) ── -->
       <div className=${`mrd-set-profile-card${profileOpen ? " is-open" : ""}`}>
-        <button className="mrd-set-profile-head" onClick=${() => setProfileOpen((v) => !v)}>
+        <button className="mrd-set-profile-head" onClick=${() => goSettingsPage("profile")}>
           <div className="mrd-set-profile-avatar" style=${{ background: profileColor }}>
             ${profileInitial}
           </div>
@@ -302,7 +807,7 @@ export function SettingsView({
             ${userProfile?.email ? html`<span className="mrd-set-profile-email">${userProfile.email}</span>` : null}
           </div>
           <svg className="mrd-set-profile-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
 
@@ -311,74 +816,98 @@ export function SettingsView({
 
             <!-- Prénom + couleur + rôle -->
             <div className="settings-group">
-              <div className="settings-row">
-                <span>Prénom affiché</span>
-                <div style=${{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <input
-                    className="ainp"
-                    placeholder="Ton prénom"
-                    value=${linkedName}
-                    onInput=${(event) => setLinkedName(event.target.value)}
-                    style=${{ width: "120px", minWidth: 0 }}
-                  />
-                  <button className="abtn" onClick=${submitLinkedName} disabled=${!linkedPerson?.id || !linkedName.trim()}>OK</button>
-                </div>
+              <div className="settings-row" style=${{ flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: "10px" }}>
+                <span>Prénom :</span>
+                <input
+                  className="ainp"
+                  placeholder="Votre prénom"
+                  value=${linkedName}
+                  onInput=${(event) => setLinkedName(event.target.value)}
+                  style=${{ width: "140px", minWidth: 0 }}
+                />
               </div>
-              <div className="settings-row">
-                <span>Couleur du badge</span>
-                <div style=${{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <div style=${{ width: "26px", height: "26px", borderRadius: "50%", background: profileColor, flexShrink: 0, border: "2px solid var(--mrd-border)" }}></div>
-                  <input
-                    type="color"
-                    value=${linkedColor}
-                    onInput=${(event) => setLinkedColor(event.target.value)}
-                    style=${{ width: "34px", height: "34px", border: "none", background: "none", cursor: "pointer", padding: "0" }}
-                  />
-                  <button className="abtn" onClick=${submitLinkedColor} disabled=${!linkedPerson?.id}>OK</button>
+              <div className="settings-row" style=${{ flexDirection: "column", alignItems: "flex-start", gap: "10px" }}>
+                <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <span>Couleur du badge :</span>
+                  <div style=${{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <div style=${{ width: "22px", height: "22px", borderRadius: "50%", background: profileColor, flexShrink: 0, border: "2px solid var(--mrd-border)" }}></div>
+                    ${showBadgePalette
+                      ? html`<button className="abtn" onClick=${() => setShowBadgePalette(false)}>Annuler</button>`
+                      : html`<button className="abtn" onClick=${() => setShowBadgePalette(true)}>Modifier</button>`}
+                  </div>
                 </div>
+                ${showBadgePalette ? html`
+                  <div className="badge-palette-grid">
+                    ${BADGE_PALETTE.map((column, ci) => html`
+                      <div key=${ci} className="badge-palette-col">
+                        ${column.map((hex) => html`
+                          <button
+                            key=${hex}
+                            type="button"
+                            className=${`badge-palette-swatch${linkedColor === hex ? " selected" : ""}`}
+                            style=${{ background: hex }}
+                            onClick=${() => setLinkedColor(hex)}
+                            aria-label=${hex}
+                            title=${hex}
+                          >
+                            ${linkedColor === hex ? html`
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                              </svg>
+                            ` : null}
+                          </button>
+                        `)}
+                      </div>
+                    `)}
+                  </div>
+                ` : null}
               </div>
-              <div className="settings-row">
-                <span>Rôle dans le foyer</span>
+              <div className="settings-row" style=${{ flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: "10px" }}>
+                <span>Rôle dans le foyer :</span>
                 <strong>${roleDisplay}</strong>
               </div>
+              <button
+                type="button"
+                className=${`settings-valider-btn${(canSubmitLinkedName || canSubmitLinkedColor) ? " active" : ""}`}
+                disabled=${!canSubmitLinkedName && !canSubmitLinkedColor}
+                onClick=${() => { if (canSubmitLinkedName) submitLinkedName(); if (canSubmitLinkedColor) submitLinkedColor(); }}
+              >Valider</button>
             </div>
 
             <!-- Compte & connexion (tout en un) -->
             <div className="settings-subcard">
               <button className="settings-subhead" onClick=${() => setSecurityOpen((v) => !v)}>
                 <div>
-                  <div className="miniTitle">Compte & Connexion</div>
-                  <div className="mini">${userProfile?.email || "—"} · ${loginMethodLabel}</div>
+                  <div className="miniTitle">Connexion</div>
+                  <div className="mini">${loginMethodLabel}</div>
                 </div>
                 <span className="settings-chevron">${securityOpen ? "Fermer" : "Modifier"}</span>
               </button>
               ${securityOpen ? html`
                 <div className="settings-subbody">
                   <div className="settings-actions">
-                    <div className="miniTitle">Changer l’email</div>
-                    <div className="arow">
-                      <input className="ainp" type="email" placeholder="Nouvel email" value=${newEmail} onInput=${(event) => setNewEmail(event.target.value)} />
-                      <button className="abtn" onClick=${submitEmail}>OK</button>
-                    </div>
+                    <div className="miniTitle">Adresse mail</div>
+                    <input className="ainp" type="email" placeholder="Nouvel email" value=${newEmail} onInput=${(event) => setNewEmail(event.target.value)} />
                     ${emailMessage ? html`<div className="mini">${emailMessage}</div>` : null}
                   </div>
-                  <div className="settings-actions">
-                    <div className="miniTitle">Changer le mot de passe</div>
-                    ${authMode === "password"
-                      ? html`
-                          <div className="arow">
-                            <input className="ainp" type="password" placeholder="Nouveau mot de passe" value=${newPassword} onInput=${(event) => setNewPassword(event.target.value)} />
-                            <button className="aok" onClick=${submitPassword}>OK</button>
-                          </div>
-                        `
-                      : html`<div className="mini">Compte Google — le mot de passe se gère en dehors de l’application.</div>`}
-                    ${passwordMessage ? html`<div className="mini">${passwordMessage}</div>` : null}
-                  </div>
+                  ${authMode === "password" ? html`
+                    <div className="settings-actions">
+                      <div className="miniTitle">Mot de passe</div>
+                      <input className="ainp" type="password" placeholder="Ancien mot de passe" autocomplete="current-password" onInput=${(event) => setOldPassword(event.target.value)} />
+                      <input className="ainp" type="password" placeholder="Nouveau mot de passe" value=${newPassword} onInput=${(event) => setNewPassword(event.target.value)} autocomplete="new-password" />
+                      ${passwordMessage ? html`<div className="mini">${passwordMessage}</div>` : null}
+                    </div>
+                  ` : html`<div className="mini">Compte Google — le mot de passe se gère en dehors de l’application.</div>`}
                   ${accountMessage ? html`<div className="mini">${accountMessage}</div>` : null}
-                  <div className="settings-inline-actions">
-                    <button className="ghost-btn" disabled>Quitter le foyer</button>
-                    <button className="ghost-btn" disabled>Supprimer le compte</button>
-                    <span className="settings-badge soon">Bientôt</span>
+                  <button
+                    type="button"
+                    className=${`settings-valider-btn${(canSubmitEmail || canSubmitPassword) ? " active" : ""}`}
+                    disabled=${!canSubmitEmail && !canSubmitPassword}
+                    onClick=${() => { if (canSubmitEmail) submitEmail(); if (canSubmitPassword) submitPassword(); }}
+                  >Valider</button>
+                  <div className="settings-inline-actions settings-inline-actions--center">
+                    <button className="ghost-btn settings-danger-btn" onClick=${handleLeaveFamilyClick} disabled=${busy || !currentFamily}>Quitter le foyer</button>
+                    <button className="ghost-btn settings-danger-btn" onClick=${handleDeleteAccountClick} disabled=${busy || !userProfile}>Supprimer le compte</button>
                   </div>
                 </div>
               ` : null}
@@ -391,7 +920,7 @@ export function SettingsView({
       <!-- ── Sections ── -->
       <div className="mrd-set-stack">
 
-        <!-- Foyer + Membres (fusionnés) -->
+        <!-- Foyer + Membres -->
         <${SectionCard}
           id="foyer"
           icon="🏠"
@@ -404,136 +933,32 @@ export function SettingsView({
         >
           ${currentFamily ? html`
 
-            <!-- Infos du foyer -->
-            <div className="settings-group">
-              <div className="settings-row">
-                <span>Nom du foyer</span>
-                <strong>${currentFamily.name}</strong>
+            <!-- Nom du foyer -->
+            <div className="foyer-name-block">
+              <div className="foyer-name-row">
+                <strong className="foyer-name-value foyer-name-value--preview">${currentFamily.name}</strong>
               </div>
             </div>
-
-            <!-- Renommer (admin seulement) -->
-            ${currentRole === "admin" ? html`
-              <div className="settings-row">
-                <span>Renommer</span>
-                <div style=${{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <input className="ainp" style=${{ width: "130px", minWidth: 0 }} placeholder="Nouveau nom" value=${rename} onInput=${(event) => setRename(event.target.value)} />
-                  <button className="abtn" onClick=${() => onRenameFamily(rename)}>OK</button>
-                </div>
-              </div>
-            ` : null}
 
             <!-- Liste des membres -->
             <div className="settings-actions">
               <div className="miniTitle">Membres du foyer</div>
-              ${safePeople.length ? safePeople.map((person, index) => {
-                const isContextProfile = person.profileMode === "context" || person.type === "child" || person.type === "animal";
-                const linkedAccount = person.linkedAccountId ? safeMemberDirectory[person.linkedAccountId] || null : null;
-                const pendingInvitation = pendingInvitationsByMember[person.id] || null;
-                const roleLabel = linkedAccount?.role === "admin" ? "Admin" : "Standard";
-                const memberTypeLabel = person.type === "animal" ? "Animal" : person.type === "child" ? "Enfant" : "Membre sans compte";
-                const accountEmail = linkedAccount?.email || "";
-                const canInvite = !isContextProfile && person.type === "adult" && !person.linkedAccountId;
-                const inviteVisible = showInviteForId === person.id;
+              ${safePeople.length ? safePeople.map((person) => {
                 return html`
-                  <div className="person-row" key=${person.id}>
-                    <div className="ubdg">
-                      <div className="ucirc" style=${{ background: person.color || "#8B7355" }}>
-                        ${(person.displayName || "?").slice(0, 2).toUpperCase()}
+                  <div className="foyer-member-card foyer-member-card--preview" key=${person.id}>
+                    <div className="foyer-member-left">
+                      <div className="foyer-member-badge foyer-member-badge--preview" style=${{ background: person.color || "#8B7355" }}>
+                        ${(person.displayName || "?").slice(0, 1).toUpperCase()}
                       </div>
-                      <div>
-                        ${isContextProfile ? html`
-                          <div>${person.displayName || "Sans nom"}</div>
-                          <div className="mini">${memberTypeLabel} · sans compte</div>
-                        ` : html`
-                          <div>${person.displayName || "Sans nom"}</div>
-                          <div className="mini">Utilisateur · ${roleLabel}${accountEmail ? ` · ${accountEmail}` : ""}</div>
-                        `}
-                        ${inviteVisible && pendingInvitation ? html`
-                          <div style=${{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px" }}>
-                            <span style=${{ fontFamily: "monospace", fontWeight: "700", fontSize: "14px", letterSpacing: "2px", background: "var(--mrd-surf2)", padding: "4px 10px", borderRadius: "8px", color: "var(--mrd-fg)" }}>${pendingInvitation.code}</span>
-                            <button className="abtn" style=${{ fontSize: "11px", padding: "4px 10px" }} onClick=${() => navigator.clipboard?.writeText(pendingInvitation.code)}>Copier</button>
-                            <button className="acn" style=${{ fontSize: "11px", padding: "4px 10px" }} onClick=${() => setShowInviteForId("")}>Fermer</button>
-                          </div>
-                        ` : null}
-                      </div>
+                      <div className="foyer-member-info">
+                        <span className="foyer-member-name">${person.displayName || "Sans nom"}</span>
+</div>
                     </div>
-                    <div className="member-actions">
-                      <button className="abtn" onClick=${() => startEdit(person)}>Modifier</button>
-                      ${canInvite ? html`
-                        <button className="abtn" style=${{ fontSize: "11px" }} onClick=${() => {
-                          setShowInviteForId(person.id);
-                          onCreateInvitation(person.id, "");
-                        }}>
-                          ${pendingInvitation ? "Code" : "Inviter"}
-                        </button>
-                      ` : null}
-                      <button className="delbtn" onClick=${() => onDeletePerson(person.id)}>✕</button>
-                    </div>
-                  </div>
+</div>
                 `;
               }) : html`<div className="empty">Aucun membre pour l’instant.</div>`}
             </div>
-
-            <!-- Ajouter un membre -->
-            <div className="settings-actions">
-              <div className="miniTitle">${editId ? "Modifier un membre" : "Ajouter un membre"}</div>
-              ${!editId ? html`
-                <div className="settings-actions" style=${{ gap: "6px" }}>
-                  <div className="mini" style=${{ fontWeight: "600", color: "var(--mrd-fg2)" }}>Avec compte</div>
-                  <div className="settings-inline-actions">
-                    <button className=${`task-choice ${personForm.profileMode === "app_user" ? "on" : ""}`} onClick=${() => startAddFlow("app-user")}>
-                      Utilisateur du foyer
-                    </button>
-                  </div>
-                  <div className="mini" style=${{ fontWeight: "600", color: "var(--mrd-fg2)", marginTop: "6px" }}>Sans compte</div>
-                  <div className="settings-inline-actions">
-                    <button className=${`task-choice ${personForm.profileMode === "context" && personForm.type === "child" ? "on" : ""}`} onClick=${() => startAddFlow("context-child")}>
-                      Enfant
-                    </button>
-                    <button className=${`task-choice ${personForm.profileMode === "context" && personForm.type === "animal" ? "on" : ""}`} onClick=${() => startAddFlow("context-animal")}>
-                      Animal
-                    </button>
-                  </div>
-                </div>
-              ` : null}
-              <div className="mini">
-                ${personForm.profileMode === "app_user"
-                  ? "Membre avec compte. Peut se connecter, recevoir et valider des tâches."
-                  : "Membre sans compte. Peut être concerné par des événements, rendez-vous ou rappels."}
-              </div>
-              <div className="arow">
-                <input className="ainp" placeholder="Prénom ou nom" value=${personForm.displayName} onInput=${(event) => setPersonForm({ ...personForm, displayName: event.target.value })} />
-                <span className=${`settings-badge ${personForm.profileMode === "context" ? "soon" : ""}`}>
-                  ${personForm.profileMode === "app_user" ? "Utilisateur" : personForm.type === "animal" ? "Animal" : "Sans compte"}
-                </span>
-              </div>
-              ${personForm.profileMode === "app_user" ? html`
-                <div className="arow">
-                  <label className="help">
-                    <input type="checkbox" checked=${personForm.canCompleteTasks} onChange=${(event) => setPersonForm({ ...personForm, canCompleteTasks: event.target.checked })} />
-                    Peut valider les tâches
-                  </label>
-                  <label className="help">
-                    <input type="checkbox" checked=${personForm.active} onChange=${(event) => setPersonForm({ ...personForm, active: event.target.checked })} />
-                    Profil actif
-                  </label>
-                </div>
-              ` : html`
-                <div className="arow">
-                  <label className="help">
-                    <input type="checkbox" checked=${personForm.active} onChange=${(event) => setPersonForm({ ...personForm, active: event.target.checked })} />
-                    Profil actif
-                  </label>
-                </div>
-              `}
-              <div className="arow">
-                <button className="aok" onClick=${submitPerson}>${editId ? "Mettre à jour" : "Ajouter"}</button>
-                ${editId ? html`<button className="acn" onClick=${resetPersonForm}>Annuler</button>` : null}
-              </div>
-            </div>
-
-            <!-- Changer de foyer -->
+<!-- Changer de foyer -->
             ${safeFamilies.length > 1 ? html`
               <div className="settings-actions">
                 <div className="miniTitle">Changer de foyer</div>
@@ -553,18 +978,19 @@ export function SettingsView({
               <div className="miniTitle">Créer un foyer</div>
               <div className="arow">
                 <input className="ainp" placeholder="Nom du foyer" value=${createName} onInput=${(event) => setCreateName(event.target.value)} />
-                <button className="aok" onClick=${() => onCreateFamily(createName)}>Créer</button>
+                <button className="aok" onClick=${() => onCreateFamily(createName)} disabled=${!canCreateFamily}>Créer</button>
               </div>
             </div>
             <div className="settings-actions">
               <div className="miniTitle">Rejoindre un foyer existant</div>
               <div className="arow">
-                <input className="ainp" placeholder="Code d’invitation" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
-                <button className="aok" onClick=${() => onJoinFamily(joinCode)}>Rejoindre</button>
+                <input className="ainp" placeholder="ABC-123" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
+                <button className="aok" onClick=${() => onJoinFamily(joinCode)} disabled=${!canJoinFamily}>Rejoindre</button>
               </div>
               <div className="mini">Le code d’invitation rattache ton compte au bon membre du foyer.</div>
             </div>
           `}
+          ${canManageHousehold ? html`<${SeeMoreLink} onClick=${() => goSettingsPage("household")}>Gerer le foyer en detail<//>` : null}
         <//>
 
         <!-- Apparence -->
@@ -590,6 +1016,7 @@ export function SettingsView({
               <option value="en">🇬🇧 English</option>
             </select>
           </div>
+          <${SeeMoreLink} onClick=${() => goSettingsPage("appearance")}>Plus d'options d'apparence<//>
         <//>
 
         <!-- Notifications -->
@@ -597,67 +1024,111 @@ export function SettingsView({
           id="notifications"
           icon="🔔"
           title="Notifications"
-          subtitle="Rappels, heures calmes et préférences."
-          soon=${true}
+          subtitle="Rappels de tâches du foyer."
           open=${openSections.includes("notifications")}
           onToggle=${toggleSection}
         >
-          <${PlaceholderList}
-            items=${[
-              "Activer / désactiver les notifications",
-              "Rappels de tâches",
-              "Rappels agenda",
-              "Rappels liste de courses",
-              "Rappels repas",
-              "Heures calmes / nuit",
-            ]}
-          />
+          ${(() => {
+            const notif = {
+              enabled: Boolean(taskNotifications?.enabled),
+              endOfDay: taskNotifications?.endOfDay !== false,
+              endOfDayTime: taskNotifications?.endOfDayTime || "18:00",
+              urgent: taskNotifications?.urgent !== false,
+              due: taskNotifications?.due !== false,
+            };
+            return html`
+              <div className="settings-compact-toggle-row">
+                <span>Activer les rappels de taches</span>
+                <${SettingsSwitch}
+                  value=${notif.enabled}
+                  onChange=${(value) => onUpdateTaskNotifications({ ...notif, enabled: value })}
+                />
+              </div>
+            `;
+          })()}
+          <${SeeMoreLink} onClick=${() => goSettingsPage("notifications")}>Tous les paramètres de notifications<//>
         <//>
 
-        <!-- Données -->
-        <${SectionCard}
-          id="data"
-          icon="💾"
-          title="Données"
-          subtitle="Synchronisation, import et export."
-          open=${openSections.includes("data")}
-          onToggle=${toggleSection}
-        >
-          <div className="settings-group">
-            <div className="settings-row">
-              <span>Synchronisation</span>
-              <strong>${syncLabel}</strong>
+        ${showNotificationModal ? html`
+        <div className="modal-backdrop settings-modal-backdrop notification-modal-backdrop" onClick=${() => setShowNotificationModal(false)}>
+            <div className="notification-modal-card" onClick=${(event) => event.stopPropagation()}>
+              <h2 className="notification-modal-title">Notifications</h2>
+              ${(notificationPermission === "denied" || notificationPermission === "granted") ? html`
+                <p className="notification-modal-text">${
+                  notificationPermission === "granted"
+                    ? "Pour desactiver les notifications sur cet appareil, ouvre les reglages de ton navigateur et bloque les notifications pour cette application."
+                    : "Les notifications ont ete bloquees sur cet appareil. Pour les reactiver, ouvre les reglages de ton navigateur ou de ton appareil et autorise les notifications pour cette application."
+                }</p>
+                <div className="notification-modal-actions">
+                  <button type="button" className="notification-modal-close" onClick=${() => setShowNotificationModal(false)}>Fermer</button>
+                </div>
+              ` : html`
+                <p className="notification-modal-text">Choisis si cet appareil peut recevoir les rappels.</p>
+                <div className="notification-modal-actions">
+                  <button
+                    type="button"
+                    className="notification-modal-primary"
+                    disabled=${pushSyncing || notificationPermission === "unsupported"}
+                    onClick=${async () => {
+                      await onRequestPushPermission();
+                      refreshNotificationPermission();
+                      setShowNotificationModal(false);
+                    }}
+                  >
+                    Autoriser
+                  </button>
+                  <button
+                    type="button"
+                    className="notification-modal-secondary"
+                    onClick=${() => {
+                      refreshNotificationPermission();
+                      setShowNotificationModal(false);
+                    }}
+                  >
+                    Ne pas autoriser
+                  </button>
+                  <button
+                    type="button"
+                    className="notification-modal-close"
+                    onClick=${() => setShowNotificationModal(false)}
+                  >
+                    Fermer
+                  </button>
+                </div>
+              `}
             </div>
           </div>
-          <div className="settings-inline-actions">
-            <button className="abtn" onClick=${onExportData}>Exporter</button>
-            <button className="abtn" onClick=${onToggleImport}>${showImport ? "Fermer l’import" : "Importer"}</button>
-            <button className="clrbtn" onClick=${onClearHistory}>Effacer l’historique</button>
-            <button className="clrbtn" onClick=${onResetPlanner}>Réinitialiser</button>
+        ` : null}
+
+        <${SectionCard}
+          id="account"
+          icon="🔐"
+          title="Compte & sécurité"
+          subtitle=${loginMethodLabel}
+          open=${openSections.includes("account")}
+          onToggle=${toggleSection}
+        >
+          <div className="settings-row">
+            <span>Email</span>
+            <strong>${currentEmail || "Non renseigne"}</strong>
           </div>
-          ${showImport
-            ? html`
-                <div className="settings-actions">
-                  <textarea className="nta" placeholder="Colle ici un export JSON" value=${importText} onInput=${(event) => onImportTextChange(event.target.value)}></textarea>
-                  <div className="arow">
-                    <button className="aok" onClick=${onImportData}>Importer</button>
-                  </div>
-                </div>
-              `
-            : null}
-          ${dataMessage ? html`<div className="mini">${dataMessage}</div>` : null}
+          <div className="settings-row">
+            <span>Connexion</span>
+            <strong>${loginMethodLabel}</strong>
+          </div>
+          <${SeeMoreLink} onClick=${() => goSettingsPage("account")}>Gérer la sécurité<//>
         <//>
 
         <!-- Aide -->
         <${SectionCard}
           id="support"
           icon="❓"
-          title="Aide & Support"
+          title="Support & legal"
           subtitle="Contact, suggestions et infos légales."
           open=${openSections.includes("support")}
           onToggle=${toggleSection}
         >
-          <${PlaceholderList}
+          ${false ? html`<${PlaceholderList}
             items=${[
               "Signaler un bug",
               "Contacter le support",
@@ -665,11 +1136,48 @@ export function SettingsView({
               "Politique de confidentialité",
               "Conditions d’utilisation",
             ]}
-          />
+          />` : null}
+          <div className="support-link-list">
+            <button type="button" className="support-link-row" onClick=${() => openSupportPage("bug")}>
+              <span>Signaler un bug</span><span>›</span>
+            </button>
+            <button type="button" className="support-link-row" onClick=${() => openSupportPage("feature")}>
+              <span>Suggérer une fonctionnalité</span><span>›</span>
+            </button>
+            <button type="button" className="support-link-row" onClick=${() => openSupportPage("contact")}>
+              <span>Contacter le support</span><span>›</span>
+            </button>
+            <button type="button" className="support-link-row" onClick=${() => openSupportPage("privacy")}>
+              <span>Politique de confidentialité</span><span>›</span>
+            </button>
+            <button type="button" className="support-link-row" onClick=${() => openSupportPage("terms")}>
+              <span>Conditions d’utilisation</span><span>›</span>
+            </button>
+          </div>
           <div className="settings-row">
             <span>Version</span>
             <strong>${APP_VERSION}</strong>
           </div>
+          <${SeeMoreLink} onClick=${() => goSettingsPage("help")}>Centre d'aide & contact<//>
+        <//>
+
+        <${SectionCard}
+          id="about"
+          icon="ℹ️"
+          title="À propos"
+          subtitle=${`My Rolling Day · ${APP_VERSION}`}
+          open=${openSections.includes("about")}
+          onToggle=${toggleSection}
+        >
+          <div className="settings-row">
+            <span>Version</span>
+            <strong>${APP_VERSION}</strong>
+          </div>
+          <div className="settings-row">
+            <span>Éditeur</span>
+            <strong>Bohemian Rolling House</strong>
+          </div>
+          <${SeeMoreLink} onClick=${() => goSettingsPage("about")}>Voir les informations<//>
         <//>
 
       </div>
@@ -678,6 +1186,8 @@ export function SettingsView({
       <button className="mrd-set-logout" onClick=${onLogout}>
         Se déconnecter
       </button>
+
+      ${renderModalOverlays()}
 
     </div>
   `;

@@ -1,4 +1,4 @@
-import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
+﻿import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
 import { getCurrentAppDate } from "../../utils/date.js?v=2026-04-19-time-sim-2";
 import { findSimilarItem, formatQuantityUnit, normalizeProductName, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js?v=2026-04-24-emoji-picker-1";
@@ -275,10 +275,10 @@ export function InventoryView({
     };
   }, [safeInventory, search, sortMode, organiserMode, effectiveTab]);
 
-  const visibleExpiringCount = activeItems.filter((item) => {
-    const d = daysUntilExpiry(item.expiryDate);
-    return d !== null && d <= 7;
-  }).length;
+  const expiringItems = activeItems
+    .filter((item) => { const d = daysUntilExpiry(item.expiryDate); return d !== null && d <= 7; })
+    .sort((a, b) => (daysUntilExpiry(a.expiryDate) ?? 9999) - (daysUntilExpiry(b.expiryDate) ?? 9999));
+  const visibleExpiringCount = expiringItems.length;
   const visibleActiveCount = activeItems.length;
 
   useEffect(() => {
@@ -819,7 +819,7 @@ export function InventoryView({
               `}
               ${actionLocName ? html`
                 <span className="inv-item-loc-inline">
-                  <span>ðŸ“</span><span>${actionLocName}</span>
+                  <span>📍</span><span>${actionLocName}</span>
                 </span>
               ` : null}
             </div>
@@ -1302,25 +1302,11 @@ export function InventoryView({
                   </div>
                   <div style=${{ flex: 1 }}>
                     <span className="mrd-mlbl" style=${{ marginBottom: 6 }}>DLC</span>
-                    <label style=${{ display: "block", position: "relative" }}>
-                      <div style=${{
-                        ...INP_INNER, width: "100%", boxSizing: "border-box",
-                        display: "flex", alignItems: "center", gap: 7, cursor: "pointer",
-                        color: form.expiryDate ? "var(--mrd-fg)" : "var(--mrd-fg3)",
-                        userSelect: "none",
-                      }}>
-                        <span>📅</span>
-                        <span>${form.expiryDate
-                          ? new Date(form.expiryDate.replace(/-/g, "/")).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
-                          : "Date limite"
-                        }</span>
-                      </div>
-                      <input type="date"
-                        value=${form.expiryDate}
-                        onInput=${(e) => setForm({ ...form, expiryDate: e.target.value })}
-                        style=${{ position: "absolute", opacity: 0, inset: 0, width: "100%", height: "100%", cursor: "pointer" }}
-                      />
-                    </label>
+                    <input type="date"
+                      value=${form.expiryDate}
+                      onInput=${(e) => setForm({ ...form, expiryDate: e.target.value })}
+                      style=${{ ...INP_INNER, width: "100%", boxSizing: "border-box", cursor: "pointer" }}
+                    />
                   </div>
                 </div>
 
@@ -1394,30 +1380,6 @@ export function InventoryView({
           <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-primary" onClick=${bulkShopping} disabled=${!count}>Ã€ racheter</button>
           <button type="button" className="inv-bulkbar-btn" onClick=${bulkFinished} disabled=${!count}>Fini</button>
           <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-danger" onClick=${bulkDelete} disabled=${!count}>Supprimer</button>
-        </div>
-      </div>
-    `;
-    return html`
-      <div className="inv-bulkbar">
-        <div className="inv-bulkbar-top">
-          <span className="inv-bulkbar-count">
-          ${count} sélectionné${count > 1 ? "s" : ""}
-          </span>
-          <button type="button" className="inv-bulkbar-cancel" onClick=${exitSelectionMode}>
-            Annuler
-          </button>
-        </div>
-        <div className="inv-bulkbar-actions" style=${{ gridTemplateColumns: `repeat(${actionCount}, minmax(0, 1fr))` }}>
-        ${organiserMode ? html`
-          <button type="button" className="inv-bulkbar-btn" onClick=${bulkMove} disabled=${!count}
-            style=${{ ...ACT, background: "rgba(255,255,255,0.12)", color: "#fff", border: "none" }}>Déplacer</button>
-        ` : null}
-        <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-primary" onClick=${bulkShopping} disabled=${!count}
-          style=${{ ...ACT, background: "rgba(255,255,255,0.12)", color: "#fff", border: "none" }}>À racheter</button>
-        <button type="button" className="inv-bulkbar-btn" onClick=${bulkFinished} disabled=${!count}
-          style=${{ ...ACT, background: "rgba(255,255,255,0.12)", color: "#fff", border: "none" }}>Fini</button>
-        <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-danger" onClick=${bulkDelete} disabled=${!count}
-          style=${{ ...ACT, background: "var(--mrd-dangerLt)", color: "var(--mrd-danger)", border: "none" }}>Supprimer</button>
         </div>
       </div>
     `;
@@ -1516,17 +1478,46 @@ export function InventoryView({
         </div>
       `}
 
-      ${renderItemSection(activeItems, false)}
+      ${expiringItems.length && !search ? html`
+        <div className="inv-expiring-section">
+          <div className="inv-expiring-head">
+            <span className="inv-expiring-icon">⏰</span>
+            <span className="inv-expiring-title">À consommer bientôt</span>
+            <span className="inv-expiring-count">${expiringItems.length} article${expiringItems.length > 1 ? "s" : ""}</span>
+          </div>
+          <div className="ldv-card inv-expiring-list">
+            ${expiringItems.map((item) => renderItem(item, false, expiringItems, "expiring"))}
+          </div>
+        </div>
+      ` : null}
+
+      ${renderItemSection(
+        expiringItems.length && !search
+          ? activeItems.filter((item) => !expiringItems.some((e) => e.id === item.id))
+          : activeItems,
+        false
+      )}
 
       ${!activeItems.length && !finishedItems.length ? html`
-        <div style=${{ textAlign: "center", padding: "40px 16px", color: "var(--mrd-fg3)" }}>
-          <div style=${{ fontSize: 36, marginBottom: 10 }}>📦</div>
-          <div style=${{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+        <div className="inv-empty-state">
+          <div className="inv-empty-emoji">
+            ${search ? "🔍" : effectiveTab === "unassigned" ? "✅" : "📦"}
+          </div>
+          <div className="inv-empty-title">
             ${search ? "Aucun résultat" : effectiveTab === "unassigned" ? "Tout est rangé ✓" : "Inventaire vide"}
           </div>
-          <div style=${{ fontSize: 12 }}>
-            ${search ? "Essayez un autre mot-clé" : "Appuyez sur + pour commencer"}
+          <div className="inv-empty-sub">
+            ${search
+              ? "Essayez un autre mot-clé"
+              : effectiveTab === "unassigned"
+                ? "Tous tes articles ont un emplacement."
+                : "Ajoute tes produits pour suivre ton stock."}
           </div>
+          ${!search && effectiveTab !== "unassigned" ? html`
+            <button className="aok inv-empty-btn" onClick=${openCreateModal}>
+              + Ajouter un article
+            </button>
+          ` : null}
         </div>
       ` : null}
 
@@ -1549,31 +1540,7 @@ export function InventoryView({
       ${renderModal()}
       ${renderRangerPicker()}
       ${renderStorageEmojiPicker()}
-      ${(() => {
-        if (!selectionMode) return null;
-        const count = selectedIds.length;
-        const actionCount = organiserMode ? 4 : 3;
-        return html`
-          <div className="inv-bulkbar">
-            <div className="inv-bulkbar-top">
-              <span className="inv-bulkbar-count">
-                ${count} ${`s\u00E9lectionn\u00E9${count > 1 ? "s" : ""}`}
-              </span>
-              <button type="button" className="inv-bulkbar-cancel" onClick=${exitSelectionMode}>
-                Annuler
-              </button>
-            </div>
-            <div className="inv-bulkbar-actions" style=${{ gridTemplateColumns: `repeat(${actionCount}, minmax(0, 1fr))` }}>
-              ${organiserMode ? html`
-                <button type="button" className="inv-bulkbar-btn" onClick=${bulkMove} disabled=${!count}>${`D\u00E9placer`}</button>
-              ` : null}
-              <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-primary" onClick=${bulkShopping} disabled=${!count}>${`\u00C0 racheter`}</button>
-              <button type="button" className="inv-bulkbar-btn" onClick=${bulkFinished} disabled=${!count}>Fini</button>
-              <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-danger" onClick=${bulkDelete} disabled=${!count}>Supprimer</button>
-            </div>
-          </div>
-        `;
-      })()}
+      ${renderBulkBar()}
 
       <button className="mrd-fab" onClick=${openCreateModal} title="Ajouter un article">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none">

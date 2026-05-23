@@ -1,16 +1,19 @@
 import { BottomNav } from "./components/nav/BottomNav.js?v=2026-04-24-tasks-nav-dnd-1";
-import { HomeView } from "./components/home/HomeView.js?v=2026-04-21-redesign-13";
-import { InventoryView } from "./components/inventory/InventoryView.js?v=2026-04-26-inv-heading-1";
+import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js?v=2026-05-06-feedback-1";
+import { HomeView } from "./components/home/HomeView.js?v=2026-05-05-recipe-category-colors-1";
+import { InventoryView } from "./components/inventory/InventoryView.js?v=2026-05-05-stability-fix-1";
 import { ListsView } from "./components/lists/ListsView.js?v=2026-04-26-lists-ui-1";
-import { AgendaView } from "./components/agenda/AgendaView.js?v=2026-04-26-agenda-done-1";
-import { AuthScreen } from "./components/auth/AuthScreen.js";
+import { AgendaView } from "./components/agenda/AgendaView.js?v=2026-05-05-agenda-notif-1";
+import { AuthScreen } from "./components/auth/AuthScreen.js?v=2026-05-06-cocon-1";
+import { OnboardingFlow } from "./components/auth/OnboardingFlow.js?v=2026-05-08-invite-fix-1";
 import { HistoryView } from "./components/history/HistoryView.js?v=2026-04-19-user-profile-1";
-import { MealsView } from "./components/meals/MealsView.js?v=2026-04-25-inv-badge-2";
-import { NotesView } from "./components/notes/NotesView.js";
-import { RecipesView } from "./components/recipes/RecipesView.js?v=2026-04-26-recipes-top-1";
-import { SettingsView } from "./components/settings/SettingsView.js?v=2026-04-21-settings-redesign-5";
-import { TasksView } from "./components/tasks/TasksView.js?v=2026-04-26-task-align-1";
+import { MealsView } from "./components/meals/MealsView.js?v=2026-05-05-recipe-category-colors-1";
+import { NotesView } from "./components/notes/NotesView.js?v=2026-05-05-notes-modal-2";
+import { RecipesView } from "./components/recipes/RecipesView.js?v=2026-05-05-recipe-category-colors-2";
+import { SettingsView } from "./components/settings/SettingsView.js?v=2026-05-08-invite-fix-1";
+import { TasksView } from "./components/tasks/TasksView.js?v=2026-05-06-no-arrow-btns-1";
 import { SegmentedTabs } from "./components/common/SegmentedTabs.js?v=2026-04-25-segmented-nav-1";
+import { ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal } from "./components/modals/AppModals.js";
 import { createDefaultState } from "./data/defaultState.js";
 import {
   canChangePassword,
@@ -22,9 +25,11 @@ import {
   signOutUser,
   signUpWithEmail,
   updateFamilyPerson,
-} from "./firebase/client.js";
-import { html, useEffect, useMemo, useState } from "./lib.js";
-import { collectKnownProducts, normalizeProductName } from "./utils/productUtils.js?v=2026-04-19-meals-stock-3";
+} from "./firebase/client.js?v=2026-05-08-offline-cache-1";
+import { html, useEffect, useMemo, useRef, useState } from "./lib.js";
+import { collectKnownProducts } from "./utils/productUtils.js?v=2026-04-19-meals-stock-3";
+import { productMatchKey, toBaseQuantity, fromBaseQuantity } from "./utils/units.js";
+import { readStoredActivePerson, storeActivePerson, readDeviceMode, storeDeviceMode } from "./utils/personStorage.js";
 import {
   formatDateTimeInputValue,
   formatHeaderDate,
@@ -38,123 +43,20 @@ import {
   setSimulatedAppDateValue,
   shiftSimulatedAppDate,
 } from "./utils/date.js?v=2026-04-19-time-sim-2";
-import { checkReset, createMealShell } from "./utils/state.js?v=2026-04-26-inventory-drag-note-1";
-import { parseImportedState } from "./utils/storage.js?v=2026-04-26-inventory-drag-note-1";
-import { usePlannerSync } from "./hooks/usePlannerSync.js?v=2026-04-26-inventory-drag-note-1";
-import { useAuth } from "./hooks/useAuth.js";
-import { useTasks } from "./hooks/useTasks.js?v=2026-04-24-agenda-recurrence-1";
-import { useMeals } from "./hooks/useMeals.js?v=2026-04-23-tasks-fix-1";
+import { checkReset, createMealShell } from "./utils/state.js?v=2026-05-05-notifications-fix-1";
+import { parseImportedState } from "./utils/storage.js?v=2026-05-05-notifications-fix-1";
+import { usePlannerSync } from "./hooks/usePlannerSync.js?v=2026-05-08-offline-cache-1";
+import { useAuth } from "./hooks/useAuth.js?v=2026-05-08-boot-timeout-1";
+import { usePushMessaging } from "./hooks/usePushMessaging.js?v=2026-05-08-offline-cache-1";
+import { useTasks } from "./hooks/useTasks.js?v=2026-05-05-notifications-fix-1";
+import { useMeals } from "./hooks/useMeals.js?v=2026-05-05-notifications-fix-1";
 import { useLists, ensureShoppingList } from "./hooks/useLists.js?v=2026-04-26-inventory-drag-note-1";
-import { useAgenda } from "./hooks/useAgenda.js";
+import { useAgenda } from "./hooks/useAgenda.js?v=2026-05-05-notifications-fix-1";
+import { useTaskNotifications } from "./hooks/useTaskNotifications.js?v=2026-05-05-notifications-fix-1";
+import { useAppRouting } from "./hooks/useAppRouting.js";
 
-function activePersonStorageKey(familyId) {
-  return `mrd-active-person-${familyId}`;
-}
 
-function deviceModeStorageKey(familyId) {
-  return `mrd-device-mode-${familyId}`;
-}
 
-function normalizeUnitValue(value) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (!raw) return "";
-  const cleaned = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (cleaned === "u" || cleaned === "unite" || cleaned === "unites") return "unite";
-  if (["g", "kg", "ml", "cl", "l"].includes(cleaned)) return cleaned;
-  return cleaned;
-}
-
-function parseQuantityValue(value) {
-  const trimmed = String(value || "").trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed.replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatQuantityValue(value) {
-  if (!Number.isFinite(value)) return "";
-  if (Number.isInteger(value)) return String(value);
-  return String(value).replace(".", ",");
-}
-
-const PRODUCT_STOPWORDS = new Set(["de", "du", "des", "d", "la", "le", "les", "a", "au", "aux", "un", "une"]);
-
-function productMatchKey(name) {
-  const normalized = normalizeProductName(name);
-  const filtered = normalized
-    .split(" ")
-    .map((token) => token.trim())
-    .filter((token) => token && !PRODUCT_STOPWORDS.has(token));
-  return filtered.join(" ") || normalized;
-}
-
-function normalizeUnitForStock(unit, quantity) {
-  const normalized = normalizeUnitValue(unit);
-  if (normalized) return normalized;
-  return parseQuantityValue(quantity) != null ? "unite" : "";
-}
-
-function toBaseQuantity(quantity, unit) {
-  const normalizedUnit = normalizeUnitForStock(unit, quantity);
-  const parsedQuantity = parseQuantityValue(quantity);
-  if (parsedQuantity == null || !normalizedUnit) return null;
-
-  if (normalizedUnit === "kg") return { kind: "mass", value: parsedQuantity * 1000, unit: normalizedUnit };
-  if (normalizedUnit === "g") return { kind: "mass", value: parsedQuantity, unit: normalizedUnit };
-  if (normalizedUnit === "l") return { kind: "volume", value: parsedQuantity * 1000, unit: normalizedUnit };
-  if (normalizedUnit === "cl") return { kind: "volume", value: parsedQuantity * 10, unit: normalizedUnit };
-  if (normalizedUnit === "ml") return { kind: "volume", value: parsedQuantity, unit: normalizedUnit };
-  if (normalizedUnit === "unite") return { kind: "count", value: parsedQuantity, unit: normalizedUnit };
-  return null;
-}
-
-function fromBaseQuantity(baseValue, originalUnit) {
-  const normalizedUnit = normalizeUnitForStock(originalUnit, 1);
-  if (!Number.isFinite(baseValue) || !normalizedUnit) return "";
-  if (normalizedUnit === "kg") return formatQuantityValue(baseValue / 1000);
-  if (normalizedUnit === "g") return formatQuantityValue(baseValue);
-  if (normalizedUnit === "l") return formatQuantityValue(baseValue / 1000);
-  if (normalizedUnit === "cl") return formatQuantityValue(baseValue / 10);
-  if (normalizedUnit === "ml") return formatQuantityValue(baseValue);
-  if (normalizedUnit === "unite") return formatQuantityValue(baseValue);
-  return "";
-}
-
-function readStoredActivePerson(familyId) {
-  if (!familyId) return "";
-  try {
-    return localStorage.getItem(activePersonStorageKey(familyId)) || "";
-  } catch (error) {
-    return "";
-  }
-}
-
-function storeActivePerson(familyId, personId) {
-  if (!familyId) return;
-  try {
-    localStorage.setItem(activePersonStorageKey(familyId), personId || "");
-  } catch (error) {
-    console.warn("[app] impossible d enregistrer la personne active", error);
-  }
-}
-
-function readDeviceMode(familyId) {
-  if (!familyId) return "personal";
-  try {
-    return localStorage.getItem(deviceModeStorageKey(familyId)) === "shared" ? "shared" : "personal";
-  } catch (error) {
-    return "personal";
-  }
-}
-
-function storeDeviceMode(familyId, mode) {
-  if (!familyId) return;
-  try {
-    localStorage.setItem(deviceModeStorageKey(familyId), mode === "shared" ? "shared" : "personal");
-  } catch (error) {
-    console.warn("[app] impossible d enregistrer le mode appareil", error);
-  }
-}
 
 function completedIds(task) {
   const doneBy = Array.isArray(task?.doneBy) ? task.doneBy.filter(Boolean) : [];
@@ -179,24 +81,40 @@ function taskAppearsInTab(task, tab, planning) {
 }
 
 
+
 export function App() {
   const {
-    user, authReady, authPhase,
+    user, authReady, bootLoading,
     startupStage, startupError, setStartupStage, setStartupError,
     userProfile, currentFamilyId, currentFamily, currentRole,
     safeFamilies, safeMembers, safePeople, appPeopleRaw, invitations,
-    linkedPerson, householdPeople, agendaPeople,
+    linkedPerson, householdPeople, agendaPeople, peopleBootstrapped,
     memberDirectory, linkedAccountChoices, linkedAccountLabels,
     authError, familyError, bootstrapError, setBootstrapError,
     accountMessage, setAccountMessage,
     emailMessage, passwordMessage,
     busy,
     runAuth, runFamilyAction,
-    setPendingInviteCode, handleForgotPassword,
+    handleForgotPassword,
     handleChangeEmail, handleChangePassword,
+    handlePreviewHouseholdInvitation,
+    handleCreateHouseholdOnboarding,
+    handleJoinHouseholdOnboarding,
     handleCreateFamily, handleJoinFamily, handleCreateInvitation,
-    handleAddPerson, handleUpdatePerson, handleDeletePerson, handleMovePerson,
+    handleAddPerson, handleUpdatePerson, handleUpdateMemberRole, handleCompleteProfileSetup, handleDeletePerson, handleMovePerson,
+    handleLeaveFamily, handleDeleteAccount, handleCancelProfileSetup,
   } = useAuth();
+
+  const {
+    pushToken,
+    pushSyncing,
+    pushError,
+    requestPushPermission,
+  } = usePushMessaging({
+    userId: user?.uid || "",
+    familyId: currentFamilyId || "",
+    linkedPersonId: linkedPerson?.id || "",
+  });
 
   const [activeTab, setActiveTab] = useState("home");
   const [toast, setToast] = useState(null);
@@ -213,10 +131,22 @@ export function App() {
   const [activePersonId, setActivePersonId] = useState("");
   const [deviceMode, setDeviceMode] = useState("personal");
   const [profileDraft, setProfileDraft] = useState({ displayName: "", color: "#8B7355", mood: "", message: "" });
+  const [authEntryPage, setAuthEntryPage] = useState("welcome");
+  const [pendingSignupSetup, setPendingSignupSetup] = useState(false);
+  const [pendingSignupDraftName, setPendingSignupDraftName] = useState("");
+  const [showHouseholdWelcomeModal, setShowHouseholdWelcomeModal] = useState(false);
+  const [postOnboardingState, setPostOnboardingState] = useState(null);
+  const [postOnboardingInviteCodes, setPostOnboardingInviteCodes] = useState([]);
+  const pendingPostOnboardingRef = useRef(null);
+  const [settingsAutoOpenAddPersonSignal, setSettingsAutoOpenAddPersonSignal] = useState(0);
+  const [settingsSupportPage, setSettingsSupportPage] = useState("");
+  const [settingsSubPage, setSettingsSubPage] = useState("main");
   const [appTimeMode, setAppTimeModeState] = useState(() => getCurrentAppTimeMode());
   const [simulatedDateTime, setSimulatedDateTimeState] = useState(() => getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate()));
   const [appTimeVersion, setAppTimeVersion] = useState(0);
 
+  // Guard : ouvre le setup à la connexion si l'user n'a pas encore de foyer.
+  // Une fois activé, seul onDone() le ferme (évite la fermeture prématurée quand Firebase répond).
   const { state, setState, status, plannerError } = usePlannerSync(currentFamilyId, user?.uid);
 
   const activeHouseholdPerson = appPeopleRaw.find((person) => person.id === activePersonId) || null;
@@ -224,6 +154,23 @@ export function App() {
   const canEditSelectedProfile = Boolean(selectedProfile && linkedPerson && selectedProfile.id === linkedPerson.id);
   const hasFamily = Boolean(currentFamilyId && currentFamily);
   const plannerUnlocked = hasFamily && safePeople.length > 0;
+  // bootLoading comes from useAuth — single source of truth for the loading screen.
+  // Only derive routing state once bootLoading is false.
+  const { needsFamilySetup, profileGuardActive } = useAppRouting({
+    bootLoading, user, userProfile, currentFamilyId, currentFamily, linkedPerson,
+  });
+
+  useEffect(() => {
+    if (!profileGuardActive && pendingPostOnboardingRef.current) {
+      const pending = pendingPostOnboardingRef.current;
+      pendingPostOnboardingRef.current = null;
+      document.querySelector(".mrd-home")?.scrollTo(0, 0);
+      if (pending.inviteCodes.length) setPostOnboardingInviteCodes(pending.inviteCodes);
+      if (pending.notifState) setPostOnboardingState(pending.notifState);
+    }
+  }, [profileGuardActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const canDiscardPendingSignup = pendingSignupSetup && !currentFamilyId && !linkedPerson?.id;
   const needsActivePersonChoice = plannerUnlocked && deviceMode === "shared" && !activeHouseholdPerson;
   const authMode = getCurrentAuthMode();
   const passwordAvailable = canChangePassword();
@@ -233,15 +180,27 @@ export function App() {
   const stats = useMemo(() => {
     const total = state.tasks.length;
     const done = state.tasks.filter((task) => (Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean).length : 0) > 0 || task.completedByPersonId).length;
+    const nowMs = currentAppDate.getTime();
+    const overdue = state.tasks.filter((task) => {
+      if (task.taskKind === "recurring" || task.priority !== "deadline") return false;
+      const doneBy = Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean) : [];
+      if (doneBy.length || task.completedByPersonId) return false;
+      if (task.overdue) return true;
+      if (!task.dueDate) return false;
+      const composed = task.dueTime ? `${task.dueDate}T${task.dueTime}` : `${task.dueDate}T23:59`;
+      const parsed = new Date(composed);
+      return !Number.isNaN(parsed.getTime()) && parsed.getTime() < nowMs;
+    }).length;
     return {
       percentDone: total ? Math.round((done / total) * 100) : 0,
+      overdueTaskCount: overdue,
       remaining: {
         daily: state.tasks.filter((task) => task.type === "daily" && !((Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean).length : 0) > 0 || task.completedByPersonId)).length,
         weekly: state.tasks.filter((task) => task.type === "weekly" && !((Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean).length : 0) > 0 || task.completedByPersonId)).length,
         monthly: state.tasks.filter((task) => task.type === "monthly" && !((Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean).length : 0) > 0 || task.completedByPersonId)).length,
       },
     };
-  }, [state]);
+  }, [state, currentAppDate]);
 
   const taskPlanningById = useMemo(() => {
     const map = {};
@@ -344,6 +303,11 @@ export function App() {
     if (!user) {
       setDeviceMode("personal");
       setShowSettings(false);
+      setShowHouseholdWelcomeModal(false);
+      setPostOnboardingState(null);
+      setPostOnboardingInviteCodes([]);
+      setSettingsSupportPage("");
+      setSettingsSubPage("main");
       setDataMessage("");
       setToast(null);
     }
@@ -395,6 +359,19 @@ export function App() {
   }
 
   const { handleAddTask, handleUpdateTask, handleToggleTask, handleDeleteTask, handleMoveTask } = useTasks(updateState);
+
+  useTaskNotifications({
+    tasks: state.tasks,
+    taskNotifications: state.taskNotifications,
+    updateState,
+  });
+
+  function handleUpdateTaskNotifications(updates) {
+    updateState((prev) => ({
+      ...prev,
+      taskNotifications: { ...(prev.taskNotifications || {}), ...updates },
+    }));
+  }
   const { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleDeleteRecipe, handleLoadDemoRecipes } = useMeals(updateState);
 
   function handleAddCustomCondiment(name) {
@@ -421,7 +398,7 @@ export function App() {
   }
   const {
     handleCreateList, handleDeleteList, handleUpdateList, handleMoveList,
-    handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList,
+    handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList, handleClearCheckedItems, handleCheckAllItems,
     handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping, handleReorderInventoryItems,
     handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation,
   } = useLists(state, updateState, showToast);
@@ -477,7 +454,7 @@ export function App() {
       mood: String(profileDraft.mood || "").trim(),
       message: String(profileDraft.message || "").trim(),
     });
-    setAccountMessage("Ton profil a ete mis a jour.");
+    showToast("✓ Profil mis à jour");
   }
 
   function handleAddNote(text, visibility = "household", sharedWith = []) {
@@ -603,13 +580,20 @@ export function App() {
     }));
   }
 
-  function computeMealCookState(previous, day, slot) {
-    const existing = previous.meals.find((meal) => meal.day === day);
+  function computeMealCookState(previous, day, slot, weekKey) {
+    const wk = weekKey || "";
+    // Même logique que matchMeal dans useMeals : les repas sans weekKey matchent toujours
+    const matchFn = (meal) => {
+      if (meal.day !== day) return false;
+      const mwk = meal.weekKey || "";
+      return mwk === wk || (mwk === "" && wk !== "");
+    };
+    const existing = previous.meals.find(matchFn);
     const baseMeals = existing
       ? [...previous.meals]
-      : [...previous.meals, createMealShell(day, previous.meals.length)];
+      : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
 
-    const targetMeal = baseMeals.find((meal) => meal.day === day);
+    const targetMeal = baseMeals.find(matchFn);
     if (!targetMeal) return null;
 
     const cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
@@ -652,7 +636,7 @@ export function App() {
     }
 
     return {
-      meals: baseMeals.map((meal) => (meal.day === day ? { ...meal, [cookedKey]: nextCooked } : meal)),
+      meals: baseMeals.map((meal) => (matchFn(meal) ? { ...meal, weekKey: wk, [cookedKey]: nextCooked } : meal)),
       inventory: nextInventory,
       nextCooked,
       recipeId,
@@ -660,13 +644,14 @@ export function App() {
     };
   }
 
-  function handleToggleCookWithInventory(day, slot) {
+  function handleToggleCookWithInventory(day, slot, weekKey) {
+    const wk = weekKey || "";
     const beforeInventory = state.inventory;
-    const computed = computeMealCookState(state, day, slot);
+    const computed = computeMealCookState(state, day, slot, wk);
     if (!computed) return;
 
     updateState((previous) => {
-      const recomputed = computeMealCookState(previous, day, slot);
+      const recomputed = computeMealCookState(previous, day, slot, wk);
       return recomputed
         ? { ...previous, meals: recomputed.meals, inventory: recomputed.inventory }
         : previous;
@@ -679,14 +664,15 @@ export function App() {
           label: "Annuler",
           onClick: () => {
             updateState((previous) => {
-              const existing = previous.meals.find((meal) => meal.day === day);
+              const matchFn = (meal) => { if (meal.day !== day) return false; const mwk = meal.weekKey || ""; return mwk === wk || (mwk === "" && wk !== ""); };
+              const existing = previous.meals.find(matchFn);
               const baseMeals = existing
                 ? [...previous.meals]
-                : [...previous.meals, createMealShell(day, previous.meals.length)];
+                : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
               const cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
               return {
                 ...previous,
-                meals: baseMeals.map((meal) => (meal.day === day ? { ...meal, [cookedKey]: false } : meal)),
+                meals: baseMeals.map((meal) => (matchFn(meal) ? { ...meal, [cookedKey]: false } : meal)),
                 inventory: beforeInventory,
               };
             });
@@ -699,10 +685,8 @@ export function App() {
   }
 
 
-  if (!authReady) {
-    return html`<div className="ldr"><div className="spin"></div>Vérification de la session...</div>`;
-  }
-
+  // ── Routing: single decision tree, zero intermediate renders ───────────────
+  // 1. Error
   if (startupStage === "error" && startupError) {
     return html`
       <div className="auth-shell">
@@ -718,24 +702,109 @@ export function App() {
     `;
   }
 
+  // 2. Splash — one single element kept in place throughout all boot phases so
+  //    the CSS animation never restarts. bootLoading comes from useAuth and is
+  //    the only place that decides "we don't know enough yet".
+  if (bootLoading) {
+    return html`
+      <div className="ldr" aria-label="Chargement">
+        <div className="ldr-mark">
+          <svg viewBox="0 0 96 96" width="96" height="96" fill="none">
+            <circle className="spl-ring" cx="48" cy="48" r="34" stroke="#B85F4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 8" opacity="0.55"/>
+            <circle className="spl-inner" cx="48" cy="48" r="22" stroke="#B85F4A" stroke-width="3" stroke-linecap="round"/>
+            <circle className="spl-dot" cx="48" cy="14" r="5" fill="#B85F4A"/>
+          </svg>
+        </div>
+        <div className="ldr-wordmark">my <em>rolling</em> day</div>
+        <div className="ldr-tag">Le foyer, jour après jour</div>
+        <div className="ldr-text">On prépare ta journée…</div>
+      </div>
+    `;
+  }
+
+  // 3. Auth — bootLoading is false AND user is null → definitively logged out
   if (!user) {
     return html`
       <${AuthScreen}
+        initialPage=${authEntryPage}
         errorMessage=${authError}
-        infoMessage=${`État auth : ${authPhase === "checking" ? "vérification" : authPhase === "signed_out" ? "non connecté" : "connecté"}`}
         loading=${busy}
-        onGoogleLogin=${() => runAuth(() => signInWithGoogle())}
-        onEmailLogin=${(form) => runAuth(() => signInWithEmail(form.email, form.password))}
-        onEmailSignup=${(form) => runAuth(() => signUpWithEmail(form))}
-        onForgotPassword=${(email) => handleForgotPassword(email)}
-        onJoinWithCode=${(form) => {
-          setPendingInviteCode(form.code.trim().toUpperCase());
-          if (form.mode === "signup") return runAuth(() => signUpWithEmail(form));
+        onGoogleLogin=${() => {
+          setPendingSignupSetup(false);
+          setPendingSignupDraftName("");
+          return runAuth(() => signInWithGoogle());
+        }}
+        onEmailLogin=${(form) => {
+          setAuthEntryPage("login");
+          setPendingSignupSetup(false);
+          setPendingSignupDraftName("");
           return runAuth(() => signInWithEmail(form.email, form.password));
         }}
-        onGoogleJoin=${(code) => {
-          setPendingInviteCode(code.trim().toUpperCase());
-          return runAuth(() => signInWithGoogle());
+        onEmailSignup=${(form) => {
+          setPendingSignupSetup(true);
+          setPendingSignupDraftName("");
+          return runAuth(() => signUpWithEmail(form));
+        }}
+        onForgotPassword=${(email) => handleForgotPassword(email)}
+      />
+    `;
+  }
+
+  // 4. (Onboarding handled below via profileGuardActive, which is also gated on !bootLoading)
+
+  if (profileGuardActive) {
+    return html`
+      <${OnboardingFlow}
+        user=${user}
+        userProfile=${userProfile}
+        currentFamily=${currentFamily}
+        linkedPerson=${linkedPerson}
+        draftDisplayName=${pendingSignupDraftName}
+        accountMessage=${accountMessage}
+        busy=${busy}
+        errorMessage=${familyError}
+        onPreviewInvitationCode=${(code) => runFamilyAction(() => handlePreviewHouseholdInvitation(code))}
+        onCreateHousehold=${(payload) => runFamilyAction(async () => {
+          const result = await handleCreateHouseholdOnboarding(payload);
+          setPendingSignupSetup(false);
+          setPendingSignupDraftName("");
+          setShowSettings(false);
+          setActiveTab("home");
+          const inviteCodes = Array.isArray(result?.invitations) ? result.invitations.filter((item) => item.code) : [];
+          const alreadySeen = localStorage.getItem("mrd_notifications_prompt_seen") === "true";
+          const notifState = !alreadySeen ? "notify" : (inviteCodes.length ? "invite-codes" : null);
+          if (notifState || inviteCodes.length) {
+            pendingPostOnboardingRef.current = { notifState, inviteCodes };
+          }
+        })}
+        onJoinHousehold=${(payload) => runFamilyAction(async () => {
+          await handleJoinHouseholdOnboarding(payload);
+          setPendingSignupSetup(false);
+          setPendingSignupDraftName("");
+          setShowSettings(false);
+          setActiveTab("home");
+          const alreadySeen = localStorage.getItem("mrd_notifications_prompt_seen") === "true";
+          if (!alreadySeen) {
+            pendingPostOnboardingRef.current = { notifState: "notify", inviteCodes: [] };
+          }
+        })}
+        onCompleteExistingProfile=${(payload) => runFamilyAction(async () => {
+          await handleCompleteProfileSetup(payload);
+          setPendingSignupSetup(false);
+          setPendingSignupDraftName("");
+          setShowSettings(false);
+          setActiveTab("home");
+          const alreadySeen = localStorage.getItem("mrd_notifications_prompt_seen") === "true";
+          if (!alreadySeen) {
+            pendingPostOnboardingRef.current = { notifState: "notify", inviteCodes: [] };
+          }
+        })}
+        onChangeAccount=${() => {
+          setAuthEntryPage("login");
+          setPendingSignupDraftName("");
+          const discardDraft = canDiscardPendingSignup;
+          setPendingSignupSetup(false);
+          return runFamilyAction(() => handleCancelProfileSetup({ discardDraft }));
         }}
       />
     `;
@@ -746,12 +815,13 @@ export function App() {
     if (activeTab === "mine" || activeTab === "daily" || activeTab === "weekly" || activeTab === "monthly") {
       function isMineTask(task) {
         if (!activePersonId) return false;
-        if (task.assignedWholeFamily) return true;
+        // Tâche explicitement assignée à cette personne
         if (Array.isArray(task.assignedPersonIds) && task.assignedPersonIds.includes(activePersonId)) return true;
-        // backward compat for tasks created before multi-assign
+        // Compatibilité ancienne structure (champ unique assignedPersonId)
         if (!Array.isArray(task.assignedPersonIds) || !task.assignedPersonIds.length) {
           return Boolean(task.assignedPersonId && task.assignedPersonId === activePersonId);
         }
+        // assignedWholeFamily seul (= pas d'assignation explicite) → n'apparaît pas dans "Mes tâches"
         return false;
       }
       const visibleTasks =
@@ -776,10 +846,10 @@ export function App() {
           activePersonId=${activePersonId}
           activePersonLabel=${activeHouseholdPerson?.displayName || activeHouseholdPerson?.label || ""}
           externalOpenCreate=${taskFabTrigger}
-          onAddTask=${handleAddTask}
-          onUpdateTask=${handleUpdateTask}
+          onAddTask=${(task) => { handleAddTask(task); showToast("✓ Tâche créée"); }}
+          onUpdateTask=${(id, updates) => { handleUpdateTask(id, updates); showToast("✓ Tâche mise à jour"); }}
           onToggleTask=${handleToggleTask}
-          onDeleteTask=${handleDeleteTask}
+          onDeleteTask=${(id) => { handleDeleteTask(id); showToast("Tâche supprimée"); }}
           onMoveTask=${handleMoveTask}
         />
       `;
@@ -790,12 +860,12 @@ export function App() {
           people=${agendaPeople}
           agenda=${state.agenda}
           recurringEvents=${state.recurringEvents}
-          onAddAgenda=${handleAddAgenda}
-          onUpdateAgenda=${handleUpdateAgenda}
-          onDeleteAgenda=${handleDeleteAgenda}
-          onAddRecurring=${handleAddRecurring}
-          onUpdateRecurring=${handleUpdateRecurring}
-          onDeleteRecurring=${handleDeleteRecurring}
+          onAddAgenda=${(ev) => { handleAddAgenda(ev); showToast("✓ Événement ajouté"); }}
+          onUpdateAgenda=${(id, updates) => { handleUpdateAgenda(id, updates); showToast("✓ Événement mis à jour"); }}
+          onDeleteAgenda=${(id) => { handleDeleteAgenda(id); showToast("Événement supprimé"); }}
+          onAddRecurring=${(ev) => { handleAddRecurring(ev); showToast("✓ Événement récurrent ajouté"); }}
+          onUpdateRecurring=${(id, updates) => { handleUpdateRecurring(id, updates); showToast("✓ Événement mis à jour"); }}
+          onDeleteRecurring=${(id) => { handleDeleteRecurring(id); showToast("Événement supprimé"); }}
           onDeleteTask=${handleDeleteTask}
           onToggleTask=${handleToggleTask}
           activePersonId=${activePersonId}
@@ -819,7 +889,7 @@ export function App() {
                 unit: item.unit || "",
               }),
             );
-            showToast("Ingrédients ajoutés à votre liste de courses.");
+            showToast(`✓ ${items.length} ingrédient${items.length > 1 ? "s" : ""} ajouté${items.length > 1 ? "s" : ""} à la liste de courses`);
           }}
           onUpdateMeal=${handleUpdateMeal}
           onToggleCook=${handleToggleCookWithInventory}
@@ -873,14 +943,46 @@ export function App() {
         />
       `;
     } else if (activeTab === "recipes") {
-      plannerContent = html`<${RecipesView} recipes=${state.recipes} inventory=${state.inventory} knownProducts=${knownProducts} customCondiments=${state.customCondiments || []} onAddCustomCondiment=${handleAddCustomCondiment} onDeleteCustomCondiment=${handleDeleteCustomCondiment} onAddRecipe=${handleAddRecipe} onUpdateRecipe=${handleUpdateRecipe} onDeleteRecipe=${handleDeleteRecipe} onLoadDemoRecipes=${handleLoadDemoRecipes} />`;
+      const recipesShoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
+      plannerContent = html`<${RecipesView}
+        recipes=${state.recipes}
+        inventory=${state.inventory}
+        knownProducts=${knownProducts}
+        customCondiments=${state.customCondiments || []}
+        onAddCustomCondiment=${handleAddCustomCondiment}
+        onDeleteCustomCondiment=${handleDeleteCustomCondiment}
+        onAddRecipe=${(recipe) => { handleAddRecipe(recipe); showToast("✓ Recette ajoutée"); }}
+        onUpdateRecipe=${(id, updates) => { handleUpdateRecipe(id, updates); showToast("✓ Recette mise à jour"); }}
+        onDeleteRecipe=${(id) => { handleDeleteRecipe(id); showToast("Recette supprimée"); }}
+        onLoadDemoRecipes=${handleLoadDemoRecipes}
+        onAddRecipeIngredientsToShopping=${(items) => {
+          if (!recipesShoppingList?.id || !Array.isArray(items) || !items.length) return;
+          items.forEach((item) =>
+            handleAddListItem(recipesShoppingList.id, {
+              text: item.name,
+              quantity: item.quantity || "",
+              unit: item.unit || "",
+            }),
+          );
+          showToast(`✓ ${items.length} ingrédient${items.length > 1 ? "s" : ""} ajouté${items.length > 1 ? "s" : ""} à la liste de courses`);
+        }}
+        onOpenMealsTab=${() => setActiveTab("meals")}
+        onBack=${() => setActiveTab("home")}
+      />`;
     } else if (activeTab === "notes") {
       const visibleNotes = state.notes.filter((note) => {
         if (note.visibility === "private") return !note.createdBy || note.createdBy === activePersonId;
         if (note.visibility === "shared") return note.createdBy === activePersonId || (note.sharedWith || []).includes(activePersonId);
         return true;
       });
-      plannerContent = html`<${NotesView} notes=${visibleNotes} activePersonId=${activePersonId} people=${householdPeople} onAddNote=${handleAddNote} onDeleteNote=${handleDeleteNote} onUpdateNote=${handleUpdateNote} />`;
+      plannerContent = html`<${NotesView}
+        notes=${visibleNotes}
+        activePersonId=${activePersonId}
+        people=${householdPeople}
+        onAddNote=${(text, vis, shared) => { handleAddNote(text, vis, shared); showToast("✓ Note enregistrée"); }}
+        onDeleteNote=${(id) => { handleDeleteNote(id); showToast("Note supprimée"); }}
+        onUpdateNote=${(id, updates) => { handleUpdateNote(id, updates); showToast("✓ Note mise à jour"); }}
+      />`;
     } else if (activeTab === "history") {
       plannerContent = html`<${HistoryView} history=${state.history} users=${householdPeople} onClearHistory=${handleClearHistory} />`;
     }
@@ -894,29 +996,12 @@ export function App() {
     <div className="mrd-outer">
       <div className="mrd-shell">
 
-        ${/* Status bar */null}
-        <div className="mrd-statusbar">
-          <span>9:41</span>
-          <div className="mrd-statusbar-icons">
-            <svg width="15" height="11" viewBox="0 0 15 11" fill="none">
-              <rect x="0" y="4" width="3" height="7" rx="1" fill="var(--mrd-fg)"/>
-              <rect x="4" y="2.5" width="3" height="8.5" rx="1" fill="var(--mrd-fg)"/>
-              <rect x="8" y="1" width="3" height="10" rx="1" fill="var(--mrd-fg)"/>
-              <rect x="12" y="0" width="3" height="11" rx="1" fill="var(--mrd-fg)"/>
-            </svg>
-            <svg width="16" height="11" viewBox="0 0 16 11" fill="none">
-              <rect x="0.5" y="0.5" width="13" height="10" rx="2.5" stroke="var(--mrd-fg)" stroke-width="1.2"/>
-              <rect x="14" y="3.5" width="1.5" height="4" rx="0.75" fill="var(--mrd-fg)"/>
-              <rect x="2" y="2" width="9" height="7" rx="1.5" fill="var(--mrd-fg)"/>
-            </svg>
-          </div>
-        </div>
 
         ${/* Main screen area */null}
         <div className="mrd-screen">
 
           ${/* Back header for secondary screens */null}
-          ${isSecondaryScreen && !showSettings ? html`
+          ${isSecondaryScreen && !showSettings && activeTab !== "recipes" ? html`
             <div className=${`mrd-back-hdr${activeTab === "inventory" ? " mrd-back-hdr-with-side" : ""}`}>
               <div className="mrd-back-hdr-main">
                 <button className="mrd-back-btn" onClick=${() => setActiveTab("home")}>
@@ -947,7 +1032,17 @@ export function App() {
           ${/* Settings close header */null}
           ${showSettings && plannerUnlocked ? html`
             <div className="mrd-back-hdr">
-              <button className="mrd-back-btn" onClick=${() => setShowSettings(false)}>
+              <button className="mrd-back-btn" onClick=${() => {
+                if (settingsSupportPage) {
+                  setSettingsSupportPage("");
+                  return;
+                }
+                if (settingsSubPage !== "main") {
+                  setSettingsSubPage("main");
+                  return;
+                }
+                setShowSettings(false);
+              }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -985,7 +1080,7 @@ export function App() {
           ${/* Settings */null}
           ${showSettings || !plannerUnlocked
             ? html`
-                <div className="cnt">
+                <div className="cnt cnt--settings">
                   <${SettingsView}
                     isOnboarding=${!plannerUnlocked}
                     currentFamily=${currentFamily}
@@ -1017,10 +1112,16 @@ export function App() {
                     onRenameFamily=${(name) => runFamilyAction(() => renameFamily(currentFamilyId, name))}
                     onAddPerson=${(person) => runFamilyAction(() => handleAddPerson(person))}
                     onUpdatePerson=${(personId, updates) => runFamilyAction(() => handleUpdatePerson(personId, updates))}
+                    onUpdateMemberRole=${(uid, role) => runFamilyAction(() => handleUpdateMemberRole(uid, role))}
                     onDeletePerson=${(personId) => runFamilyAction(() => handleDeletePerson(personId))}
                     onMovePerson=${(personId, direction) => runFamilyAction(() => handleMovePerson(personId, direction))}
                     onChangeEmail=${handleChangeEmail}
                     onChangePassword=${handleChangePassword}
+                    onLeaveFamily=${() => runFamilyAction(() => handleLeaveFamily())}
+                    onDeleteAccount=${(currentPassword) => runFamilyAction(async () => {
+                      await handleDeleteAccount(currentPassword);
+                      setAuthEntryPage("login");
+                    })}
                     onChangeActivePerson=${handleSetActivePerson}
                     onChangeDeviceMode=${handleSetDeviceMode}
                     onCreateInvitation=${(personId, email) => runFamilyAction(() => handleCreateInvitation(personId, email))}
@@ -1036,7 +1137,23 @@ export function App() {
                     onExportData=${handleExportData}
                     onClearHistory=${handleClearHistory}
                     onResetPlanner=${handleResetPlanner}
-                    onLogout=${() => signOutUser()}
+                    autoOpenAddPersonSignal=${settingsAutoOpenAddPersonSignal}
+                    onConsumeAutoOpenAddPersonSignal=${() => setSettingsAutoOpenAddPersonSignal(0)}
+                    taskNotifications=${state.taskNotifications}
+                    onUpdateTaskNotifications=${handleUpdateTaskNotifications}
+                    pushToken=${pushToken}
+                    pushSyncing=${pushSyncing}
+                    pushError=${pushError}
+                    onRequestPushPermission=${requestPushPermission}
+                    settingsPage=${settingsSubPage}
+                    onSettingsPageChange=${setSettingsSubPage}
+                    supportPage=${settingsSupportPage}
+                    onSupportPageChange=${setSettingsSupportPage}
+                    busy=${busy}
+                    onLogout=${() => {
+                      setAuthEntryPage("welcome");
+                      return signOutUser();
+                    }}
                   />
                 </div>
               `
@@ -1046,11 +1163,19 @@ export function App() {
                   tasks=${state.tasks}
                   meals=${state.meals}
                   recipes=${state.recipes}
+                  notes=${state.notes}
+                  lists=${state.lists}
+                  inventory=${state.inventory}
                   agenda=${state.agenda}
+                  recurringEvents=${state.recurringEvents}
                   people=${householdPeople}
                   familyName=${currentFamily?.name || ""}
                   currentDate=${getCurrentAppDate()}
                   activePersonId=${activePersonId}
+                  pendingShoppingCount=${(() => {
+                    const sl = state.lists.find((l) => l.isShoppingList);
+                    return sl ? (sl.items || []).filter((i) => !i.checked).length : 0;
+                  })()}
                   onToggleTask=${handleToggleTask}
                   onNavigate=${(tab) => { setShowSettings(false); setActiveTab(tab); }}
                   onOpenSettings=${() => setShowSettings(true)}
@@ -1072,29 +1197,14 @@ export function App() {
                       <${SegmentedTabs}
                         ariaLabel="Navigation des tâches"
                         options=${[
-                          { id: "daily", label: "☀️ Aujourd’hui" },
-                          { id: "weekly", label: "📆 Semaine" },
-                          { id: "monthly", label: "🗓️ Mois" },
-                          { id: "mine", label: "👤 Mes tâches" },
+                          { id: "daily",   emoji: "☀️",  label: "Aujourd’hui" },
+                          { id: "weekly",  emoji: "📆",  label: "Semaine" },
+                          { id: "monthly", emoji: "🗓️", label: "Mois" },
+                          { id: "mine",    emoji: "👤",  label: "Mes tâches" },
                         ]}
                         activeId=${activeTab}
                         onChange=${setActiveTab}
                       />
-                    ` : null}
-                    ${false && ["daily", "weekly", "monthly", "mine"].includes(activeTab) ? html`
-                      <div className="mrd-subtabs">
-                        ${[
-                          { id: "daily",   label: "Aujourd’hui", icon: "☀️" },
-                          { id: "weekly",  label: "Semaine",     icon: "📅" },
-                          { id: "monthly", label: "Mois",        icon: "🗓️" },
-                          { id: "mine",    label: "Mes tâches",  icon: "👤" },
-                        ].map(({ id, label, icon }) => html`
-                          <button key=${id}
-                            className=${"mrd-subtab-btn" + (activeTab === id ? " on" : "")}
-                            onClick=${() => setActiveTab(id)}
-                          >${icon} ${label}</button>
-                        `)}
-                      </div>
                     ` : null}
                   </div>
                 ` : null}
@@ -1109,83 +1219,41 @@ export function App() {
           <${BottomNav}
             activeTab=${activeTab}
             onChange=${handleBottomNavChange}
+            overdueTaskCount=${stats.overdueTaskCount}
           />
         ` : null}
 
         ${/* FAB — tâches (ouvre la modale de création) */null}
-        ${plannerUnlocked && !showSettings && ["daily","weekly","monthly","mine"].includes(activeTab) ? html`
+        ${plannerUnlocked && !showSettings && ["home","daily","weekly","monthly","mine"].includes(activeTab) ? html`
           <button
             className="mrd-fab"
-            onClick=${() => setTaskFabTrigger((n) => n + 1)}
+            onClick=${() => {
+              if (activeTab === "home") {
+                setActiveTab("daily");
+                setTimeout(() => setTaskFabTrigger((n) => n + 1), 60);
+              } else {
+                setTaskFabTrigger((n) => n + 1);
+              }
+            }}
             title="Nouvelle tâche"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
             </svg>
           </button>
         ` : null}
 
         ${/* Modals — absolute-positioned within the shell */null}
-        ${selectedProfile
-        ? html`
-            <div className="modal-backdrop" onClick=${() => setProfilePersonId("")}>
-              <div className="modal-card profile-card" onClick=${(event) => event.stopPropagation()}>
-                <div className="task-modal-head">
-                  <div>
-                    <div className="miniTitle">${canEditSelectedProfile ? "Mon profil" : "Profil public"}</div>
-                    <div className="st">${selectedProfile.label}</div>
-                  </div>
-                  <button className="delbtn" onClick=${() => setProfilePersonId("")}>X</button>
-                </div>
-                <div className="profile-hero">
-                  <div className="profile-avatar" style=${{ background: (canEditSelectedProfile ? profileDraft.color : selectedProfile.color) || "#8B7355" }}>
-                    ${(canEditSelectedProfile ? profileDraft.mood : selectedProfile.mood) || selectedProfile.shortId}
-                  </div>
-                  <div className="profile-meta">
-                    <div className="profile-name">${canEditSelectedProfile ? profileDraft.displayName || selectedProfile.label : selectedProfile.label}</div>
-                    ${selectedProfile.email ? html`<div className="mini">${selectedProfile.email}</div>` : null}
-                    <div className="profile-message">
-                      ${canEditSelectedProfile ? profileDraft.message || "Ajoute un petit mot visible par le foyer." : selectedProfile.message || "Aucun message public pour le moment."}
-                    </div>
-                  </div>
-                </div>
-                ${canEditSelectedProfile
-                  ? html`
-                      <div className="settings-actions">
-                        <div className="miniTitle">Nom visible</div>
-                        <input className="ainp" value=${profileDraft.displayName} onInput=${(event) => setProfileDraft({ ...profileDraft, displayName: event.target.value })} />
-                      </div>
-                      <div className="settings-actions">
-                        <div className="miniTitle">Couleur personnelle</div>
-                        <input className="ainp profile-color-input" type="color" value=${profileDraft.color || "#8B7355"} onInput=${(event) => setProfileDraft({ ...profileDraft, color: event.target.value })} />
-                      </div>
-                      <div className="settings-actions">
-                        <div className="miniTitle">Humeur</div>
-                        <div className="task-choice-row">
-                          ${["😊", "😴", "😡", "🤍", "🌿", "✨"].map(
-                            (mood) => html`<button type="button" className=${`task-choice ${profileDraft.mood === mood ? "on" : ""}`} onClick=${() => setProfileDraft({ ...profileDraft, mood })}>${mood}</button>`,
-                          )}
-                        </div>
-                      </div>
-                      <div className="settings-actions">
-                        <div className="miniTitle">Petit message public</div>
-                        <textarea className="nta profile-message-input" rows="3" maxlength="160" value=${profileDraft.message} onInput=${(event) => setProfileDraft({ ...profileDraft, message: event.target.value })}></textarea>
-                      </div>
-                      <div className="task-modal-actions">
-                        <button className="acn" onClick=${() => setProfilePersonId("")}>Fermer</button>
-                        <button className="aok" onClick=${() => runFamilyAction(() => handleSaveProfileCard())}>Enregistrer</button>
-                      </div>
-                    `
-                  : html`
-                      <div className="settings-actions">
-                        <div className="miniTitle">Humeur</div>
-                        <div className="profile-public-line">${selectedProfile.mood || "Aucune humeur partagee pour le moment."}</div>
-                      </div>
-                    `}
-              </div>
-            </div>
-          `
-        : null}
+        ${selectedProfile ? html`
+          <${ProfileModal}
+            profile=${selectedProfile}
+            canEdit=${canEditSelectedProfile}
+            draft=${profileDraft}
+            onDraftChange=${setProfileDraft}
+            onClose=${() => setProfilePersonId("")}
+            onSave=${() => runFamilyAction(() => handleSaveProfileCard())}
+          />
+        ` : null}
       ${toast?.text
         ? html`
             <div className="app-toast-wrap">
@@ -1198,7 +1266,41 @@ export function App() {
             </div>
           `
         : null}
+
+      ${postOnboardingState === "notify" ? html`
+        <${NotifPromptModal}
+          onActivate=${async () => {
+            localStorage.setItem("mrd_notifications_prompt_seen", "true");
+            try { await requestPushPermission(); } catch (_) {}
+            setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
+          }}
+          onLater=${() => {
+            localStorage.setItem("mrd_notifications_prompt_seen", "true");
+            setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
+          }}
+        />
+      ` : null}
+
+      ${postOnboardingState === "invite-codes" && postOnboardingInviteCodes.length ? html`
+        <${InviteCodesModal}
+          inviteCodes=${postOnboardingInviteCodes}
+          onClose=${() => { setPostOnboardingState(null); setPostOnboardingInviteCodes([]); }}
+        />
+      ` : null}
+
+      ${plannerUnlocked && showHouseholdWelcomeModal ? html`
+        <${HouseholdWelcomeModal}
+          onClose=${() => setShowHouseholdWelcomeModal(false)}
+          onAddMembers=${() => {
+            setShowHouseholdWelcomeModal(false);
+            setShowSettings(true);
+            setSettingsAutoOpenAddPersonSignal((value) => value + 1);
+          }}
+        />
+      ` : null}
       </div>
+
+      <${FeedbackWidget} user=${user} currentPage=${activeTab || ""} />
     </div>
   `;
 }
