@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "../lib.js";
-import { getCurrentAppDate, localDateKey } from "../utils/date.js?v=2026-04-19-time-sim-2";
-import { normalizeProductName } from "../utils/productUtils.js?v=2026-04-19-product-graph-1";
+import { getCurrentAppDate, localDateKey } from "../utils/date.js";
+import { normalizeProductName } from "../utils/productUtils.js";
 
 function todayKey() {
   return localDateKey(getCurrentAppDate());
@@ -312,13 +312,14 @@ export function useLists(state, updateState, showToast) {
     const rawText = typeof itemForm === "string" ? itemForm : itemForm?.text;
     const rawQuantity = typeof itemForm === "string" ? "" : itemForm?.quantity;
     const rawUnit = typeof itemForm === "string" ? "" : itemForm?.unit;
+    const rawPrice = typeof itemForm === "string" ? "" : String(itemForm?.price || "").trim();
     if (!rawText?.trim()) return;
     const normalized = normalizeListItemPayload(rawText, rawQuantity, rawUnit);
     updateState((previous) => {
       const nextLists = ensureShoppingList(previous.lists).map((list) => {
         if (list.id !== listId) return list;
         const items = Array.isArray(list.items) ? list.items : [];
-        const incomingItem = { id: makeEntityId("list-item"), text: normalized.text, quantity: normalized.quantity, unit: normalized.unit, done: false, purchasedAt: "" };
+        const incomingItem = { id: makeEntityId("list-item"), text: normalized.text, quantity: normalized.quantity, unit: normalized.unit, price: rawPrice, done: false, purchasedAt: "" };
         const nextItems = upsertMergedListItems(items, incomingItem);
         return {
           ...list,
@@ -338,11 +339,13 @@ export function useLists(state, updateState, showToast) {
           const nextText = Object.prototype.hasOwnProperty.call(updates || {}, "text") ? String(updates.text || "").trim() : item.text;
           const nextQuantity = Object.prototype.hasOwnProperty.call(updates || {}, "quantity") ? String(updates.quantity || "").trim() : item.quantity || "";
           const nextUnit = Object.prototype.hasOwnProperty.call(updates || {}, "unit") ? String(updates.unit || "").trim() : item.unit || "";
+          const nextPrice = Object.prototype.hasOwnProperty.call(updates || {}, "price") ? String(updates.price || "").trim() : item.price || "";
           return {
             ...item,
             text: nextText || item.text,
             quantity: nextQuantity,
             unit: nextUnit,
+            price: nextPrice,
           };
         });
         return { ...list, items: nextItems };
@@ -370,8 +373,8 @@ export function useLists(state, updateState, showToast) {
         unit: String(currentItem.unit || "").trim(),
         purchaseDate: todayKey(),
         expiryDate: "",
-        price: "",
-        note: "",
+        price: String(currentItem.price || "").trim(),
+        note: String(currentItem.note || "").trim(),
         stockState: "in_stock",
         needsRestock: false,
         order: state.inventory.length,
@@ -406,7 +409,6 @@ export function useLists(state, updateState, showToast) {
             ...item,
             done: willBeDone,
             purchasedAt: willBeDone ? todayKey() : "",
-            quantity: willBeDone ? "0" : item.quantity,
           };
         });
         return { ...list, items: nextItems.slice().sort((l, r) => Number(l.done) - Number(r.done)) };
@@ -445,6 +447,17 @@ export function useLists(state, updateState, showToast) {
       const nextLists = ensureShoppingList(previous.lists).map((list) =>
         list.isShoppingList ? { ...list, items: [] } : list,
       );
+      return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
+    });
+  }
+
+  function handleClearCheckedItems(listId) {
+    if (!listId) return;
+    updateState((previous) => {
+      const nextLists = ensureShoppingList(previous.lists).map((list) => {
+        if (list.id !== listId) return list;
+        return { ...list, items: (Array.isArray(list.items) ? list.items : []).filter((item) => !item.done) };
+      });
       return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
     });
   }
@@ -610,6 +623,8 @@ export function useLists(state, updateState, showToast) {
           text: target.name,
           quantity: target.quantity || "",
           unit: target.unit || "",
+          price: target.price || "",
+          note: target.note || "",
           done: false,
           purchasedAt: "",
         };
@@ -629,9 +644,26 @@ export function useLists(state, updateState, showToast) {
     showToast("Produit ajoute a votre liste de courses.");
   }
 
+  // Coche tous les articles en attente d'une liste en une seule mise à jour d'état.
+  function handleCheckAllItems(listId) {
+    const today = todayKey();
+    updateState((previous) => {
+      const nextLists = ensureShoppingList(previous.lists).map((list) => {
+        if (list.id !== listId) return list;
+        return {
+          ...list,
+          items: (list.items || []).map((item) =>
+            item.done ? item : { ...item, done: true, purchasedAt: today },
+          ),
+        };
+      });
+      return { ...previous, lists: nextLists, shopping: syncShoppingFromLists(nextLists) };
+    });
+  }
+
   return {
     handleCreateList, handleDeleteList, handleUpdateList, handleMoveList,
-    handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList,
+    handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList, handleClearCheckedItems, handleCheckAllItems,
     handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping, handleReorderInventoryItems,
     handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation,
   };

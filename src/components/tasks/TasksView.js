@@ -1,7 +1,7 @@
 import { html, useMemo, useState, useEffect, useRef } from "../../lib.js";
-import { TaskCard as SharedTaskCard } from "./TaskCard.js?v=2026-04-23-tasks-dnd-1";
-import { getCurrentAppDate, getCurrentAppTimestamp, localDateKey } from "../../utils/date.js?v=2026-04-19-time-sim-2";
-import { EmojiPicker } from "./EmojiPicker.js?v=2026-04-24-emoji-picker-1";
+import { TaskCard as SharedTaskCard } from "./TaskCard.js";
+import { getCurrentAppDate, getCurrentAppTimestamp, localDateKey } from "../../utils/date.js";
+import { EmojiPicker } from "./EmojiPicker.js";
 
 const LONG_PRESS_MS = 280;
 const DRAG_CANCEL_DISTANCE = 8;
@@ -37,6 +37,24 @@ function durationToPreset(durationMinutes, allDay) {
   };
 }
 
+function deriveTaskReminder(dueDate, dueTime) {
+  if (!dueDate && !dueTime) return "";
+  return dueTime ? "1h_before" : "day_before";
+}
+
+function getTaskReminderValue(task) {
+  const reminder = String(task?.notification?.reminder || "").trim();
+  if (reminder === "none" || reminder === "at_time" || reminder === "1h_before" || reminder === "30m_before" || reminder === "custom_before" || reminder === "day_before") {
+    return reminder;
+  }
+  return deriveTaskReminder(task?.dueDate || "", task?.dueTime || "");
+}
+
+function getTaskReminderCustomMinutes(task) {
+  const minutes = Number(task?.notification?.customMinutes);
+  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : 15;
+}
+
 function blockTitle(tab) {
   if (tab === "mine") return "Mes tâches";
   if (tab === "daily") return "Aujourd’hui";
@@ -54,9 +72,11 @@ function defaultTaskForm(tab) {
     priority: "normal",
     displayPeriod: tab === "mine" ? "daily" : tab,
     taskKind: "single",
-    recurrenceFrequency: "daily",
+    recurrenceFrequency: tab === "weekly" ? "weekly" : tab === "monthly" ? "monthly" : "daily",
     dueDate: "",
     dueTime: "",
+    taskReminder: "",
+    taskReminderCustomMinutes: 15,
     addToCalendar: false,
     calendarDateKey: localDateKey(getCurrentAppDate()),
     calendarStart: "09:00",
@@ -265,8 +285,8 @@ export function TasksView({
   const suppressOpenRef = useRef("");
   const lastExternalOpenCreateRef = useRef(externalOpenCreate);
 
-  const sortedTasks = useMemo(() => sortTasks(Array.isArray(tasks) ? tasks : []), [tasks]);
-  const safeAllTasks = useMemo(() => (Array.isArray(allTasks) ? allTasks : []), [allTasks]);
+  const sortedTasks = useMemo(() => sortTasks((Array.isArray(tasks) ? tasks : []).filter((t) => !t.archived)), [tasks]);
+  const safeAllTasks = useMemo(() => (Array.isArray(allTasks) ? allTasks : []).filter((t) => !t.archived), [allTasks]);
   const overdueCount = sortedTasks.filter((task) => isTaskLate(task) && completedIds(task).length === 0).length;
   const doneCount = sortedTasks.filter((task) => completedIds(task).length > 0).length;
   const percentDone = sortedTasks.length ? Math.round((doneCount / sortedTasks.length) * 100) : 0;
@@ -458,6 +478,8 @@ export function TasksView({
       recurrenceFrequency: task.recurrenceFrequency || "daily",
       dueDate: task.dueDate || "",
       dueTime: task.dueTime || "",
+      taskReminder: getTaskReminderValue(task),
+      taskReminderCustomMinutes: getTaskReminderCustomMinutes(task),
       addToCalendar: Boolean(planning),
       calendarDateKey: planning?.dateKey || localDateKey(getCurrentAppDate()),
       calendarStart: planning?.start || "09:00",
@@ -480,7 +502,6 @@ export function TasksView({
   function toggleAssignedPerson(personId) {
     setForm((previous) => ({
       ...previous,
-      assignedWholeFamily: false,
       assignedPersonIds: previous.assignedPersonIds.includes(personId)
         ? previous.assignedPersonIds.filter((id) => id !== personId)
         : [...previous.assignedPersonIds, personId],
@@ -623,15 +644,20 @@ export function TasksView({
     if (!form.text.trim()) return;
     const isDeadline = form.priority === "deadline" || form.displayPeriod === "deadline";
     if (isDeadline && !form.dueDate) return;
+    if (form.taskKind === "recurring" && form.dueDate) return;
     const recurrenceFrequency = form.displayPeriod === "daily" ? "daily"
       : form.displayPeriod === "weekly" ? "weekly"
       : form.displayPeriod === "monthly" ? "monthly"
       : form.recurrenceFrequency;
+    const wholeFamilyComputed = form.assignedPersonIds.length === 0;
     const payload = {
       ...form,
+      assignedWholeFamily: wholeFamilyComputed,
       recurrenceFrequency,
+      taskReminder: form.taskReminder || "none",
+      taskReminderCustomMinutes: form.taskReminderCustomMinutes,
       calendarPersonIds: form.assignedPersonIds,
-      calendarWholeFamily: form.assignedWholeFamily,
+      calendarWholeFamily: wholeFamilyComputed,
       calendarConcernedPersonIds: form.concernedPersonIds,
       calendarRepeatWeekly: form.taskKind === "recurring" && !isDeadline && form.calendarRecurConfirm === "yes",
     };
@@ -700,8 +726,7 @@ export function TasksView({
                         <div className="task-name">${task.text}</div>
                         <div className="task-badges">
                           ${taskUrgency.className !== "normal" ? html`<span className=${`ttag task-priority ${taskUrgency.className}`}>${taskUrgency.label}</span>` : null}
-                          ${task.assignedWholeFamily ? html`<span className="task-assigned-chip" style=${{ background: "#8B7355" }} title="Toute la famille">🏠</span>` : null}
-                          ${!task.assignedWholeFamily ? assignedPersons.map((p) => html`<span key=${p.id} className="task-assigned-chip" style=${{ background: p.color || "#8B7355" }} title=${p.label}>${p.shortId || String(p.label || "?")[0].toUpperCase()}</span>`) : null}
+                          ${assignedPersons.map((p) => html`<span key=${p.id} className="task-assigned-chip" style=${{ background: p.color || "#8B7355" }} title=${p.label}>${p.shortId || String(p.label || "?")[0].toUpperCase()}</span>`)}
                           ${isTaskLate(task) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
                         </div>
                       </div>
@@ -721,21 +746,17 @@ export function TasksView({
                               <button
                                 key=${`${task.id}-${person.id}`}
                                 className=${`task-person-chip ${isSelected ? "on" : ""}`}
-                                style=${isSelected ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" } : { background: "var(--mrd-white)", borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
+                                style=${isSelected ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" } : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                                 onClick=${() => onToggleTask(task.id, person.id)}
                                 title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                               >
-                                <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { background: "var(--mrd-white)", color: person.color || "var(--mrd-fg3)" }}>
+                                <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { color: person.color || "var(--mrd-fg3)" }}>
                                   ${person.shortId}
                                 </span>
                               </button>
                             `;
                           })
                         : html`<div className="mini">Ajoute une personne du foyer capable de valider les tâches.</div>`}
-                      <div className="task-order-actions">
-                        <button className="task-order-btn" disabled=${index === 0} onClick=${() => onMoveTask(task.id, -1, moveGroupKey)} title="Monter">↑</button>
-                        <button className="task-order-btn" disabled=${index === list.length - 1} onClick=${() => onMoveTask(task.id, 1, moveGroupKey)} title="Descendre">↓</button>
-                      </div>
                     </div>
                     <div className="task-menu-wrap">
                       <button
@@ -887,7 +908,7 @@ export function TasksView({
                         className=${`task-person-chip ${doneIds.includes(person.id) ? "on" : ""}`}
                         style=${doneIds.includes(person.id)
                           ? { background: person.color, borderColor: person.color, color: "#fff" }
-                          : { background: "var(--mrd-white)", borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
+                          : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                         onClick=${() => onToggleTask(task.id, person.id)}
                         title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                       >
@@ -895,7 +916,7 @@ export function TasksView({
                           className="task-person-avatar"
                           style=${doneIds.includes(person.id)
                             ? { background: "transparent", color: "var(--mrd-white)" }
-                            : { background: "var(--mrd-white)", color: person.color || "var(--mrd-fg3)" }}
+                            : { color: person.color || "var(--mrd-fg3)" }}
                         >
                           ${person.shortId}
                         </span>
@@ -903,10 +924,6 @@ export function TasksView({
                     `,
                   )
                 : html`<div className="mini">Ajoute une personne du foyer capable de valider les tâches.</div>`}
-              <div className="task-order-actions">
-                <button className="task-order-btn" disabled=${index === 0} onClick=${() => onMoveTask(task.id, -1, moveGroupKey)} title="Monter">↑</button>
-                <button className="task-order-btn" disabled=${index === list.length - 1} onClick=${() => onMoveTask(task.id, 1, moveGroupKey)} title="Descendre">↓</button>
-              </div>
             </div>
             <button className="delbtn task-delete" onClick=${() => onDeleteTask(task.id)}>X</button>
           </div>
@@ -937,8 +954,8 @@ export function TasksView({
       ${sortedTasks.length === 0 && deadlineTasks.length === 0
         ? html`
             <div className="task-empty-state">
-              <div className="task-empty-title">Aucune tâche pour le moment ✨</div>
-              <button className="aok task-empty-btn" onClick=${openCreate}>Créer la première</button>
+              <div className="task-empty-title">Pas de tâche pour le moment ✨</div>
+              <button className="aok task-empty-btn" onClick=${openCreate}>Ajouter ma première tâche</button>
             </div>
           `
         : html`
@@ -1014,11 +1031,13 @@ export function TasksView({
         const PILL_STACK = { flex: 1, padding: "10px 6px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, transition: "all 0.15s", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 0, textAlign: "center" };
         const DISC_BASE = { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, transition: "all 0.15s", cursor: "pointer" };
         const isDeadline = form.priority === "deadline" || form.displayPeriod === "deadline";
-        const formValid = Boolean(form.text.trim()) && (!isDeadline || Boolean(form.dueDate));
+        const hasInvalidDueRepeat = form.taskKind === "recurring" && Boolean(form.dueDate);
+        const formValid = Boolean(form.text.trim()) && (!isDeadline || Boolean(form.dueDate)) && !hasInvalidDueRepeat;
         const allMembers = [...assignees, ...children];
         const recurrenceHint = form.displayPeriod === "daily" ? "chaque jour"
           : form.displayPeriod === "weekly" ? "chaque semaine"
           : form.displayPeriod === "monthly" ? "chaque mois" : null;
+        const selectedTaskReminder = form.taskReminder || "none";
 
         return html`
           <div className="modal-backdrop task-create-backdrop" onClick=${closeCreate}>
@@ -1077,21 +1096,97 @@ export function TasksView({
                           onClick=${() => { updateForm("displayPeriod", "deadline"); updateForm("priority", "deadline"); }}
                         >
                           <span style=${{ fontSize: 18, lineHeight: 1 }}>⏰</span>
-                          <span>À faire avant</span>
+                          <span>Avant...</span>
                         </button>
                       `;
                     })()}
                   </div>
                   ${isDeadline ? html`
-                    <div style=${{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <input type="date" value=${form.dueDate || ""}
+                    <div className="task-date-time-row task-deadline-date-row" style=${{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <input type="date" className="task-date-time-input" value=${form.dueDate || ""}
                         onInput=${(e) => updateForm("dueDate", e.target.value)}
                         style=${{ flex: 1, background: "var(--mrd-surf2)", border: "1px solid var(--mrd-border)", borderRadius: 12, padding: "10px 12px", fontSize: 13, color: "var(--mrd-fg)", outline: "none" }}
                       />
-                      <input type="time" value=${form.dueTime || ""}
+                      <input type="time" className="task-date-time-input" value=${form.dueTime || ""}
                         onInput=${(e) => updateForm("dueTime", e.target.value)}
                         style=${{ flex: 1, background: "var(--mrd-surf2)", border: "1px solid var(--mrd-border)", borderRadius: 12, padding: "10px 12px", fontSize: 13, color: "var(--mrd-fg)", outline: "none" }}
                       />
+                    </div>
+
+                    <div style=${{ marginTop: 12 }}>
+                      <span className="mrd-mlbl">Rappel</span>
+                      <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <span style=${{ fontSize: 13, fontWeight: 600, color: "var(--mrd-fg2)" }}>
+                          ${selectedTaskReminder === "none" ? "Désactivé" : "Activé"}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked=${selectedTaskReminder !== "none"}
+                          onClick=${() => updateForm("taskReminder", selectedTaskReminder === "none" ? "1h_before" : "none")}
+                          style=${{
+                            width: 54,
+                            height: 30,
+                            borderRadius: 99,
+                            padding: 3,
+                            border: "1px solid " + (selectedTaskReminder === "none" ? "var(--mrd-border)" : "var(--mrd-aMd)"),
+                            background: selectedTaskReminder === "none" ? "var(--mrd-surf2)" : "var(--mrd-a)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: selectedTaskReminder === "none" ? "flex-start" : "flex-end",
+                            transition: "all 0.15s",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span style=${{
+                            width: 22,
+                            height: 22,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.18)",
+                            display: "block",
+                          }}></span>
+                        </button>
+                      </div>
+                      ${selectedTaskReminder !== "none" ? html`
+                        <div style=${{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                          ${[
+                            { id: "1h_before", label: "1h avant" },
+                            { id: "30m_before", label: "30min" },
+                            { id: "custom_before", label: "Personnalisé" },
+                          ].map((option) => {
+                            const on = selectedTaskReminder === option.id;
+                            return html`
+                              <button
+                                key=${option.id}
+                                type="button"
+                                onClick=${() => updateForm("taskReminder", option.id)}
+                                style=${{
+                                  ...DISC_BASE,
+                                  background: on ? "var(--mrd-aLt)" : "var(--mrd-surf2)",
+                                  color: on ? "var(--mrd-a)" : "var(--mrd-fg2)",
+                                  border: "1px solid " + (on ? "var(--mrd-aMd)" : "var(--mrd-border)"),
+                                }}
+                              >${option.label}</button>
+                            `;
+                          })}
+                          ${selectedTaskReminder === "custom_before" ? html`
+                            <div style=${{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <input
+                                type="number"
+                                min="5"
+                                step="5"
+                                value=${form.taskReminderCustomMinutes || 15}
+                                onInput=${(e) => updateForm("taskReminderCustomMinutes", e.target.value)}
+                                aria-label="Minutes avant l'échéance"
+                                style=${{ width: 72, background: "var(--mrd-surf2)", border: "1px solid var(--mrd-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--mrd-fg)", outline: "none" }}
+                              />
+                              <span style=${{ fontSize: 12, fontWeight: 700, color: "var(--mrd-fg3)" }}>min</span>
+                            </div>
+                          ` : null}
+                        </div>
+                      ` : null}
                     </div>
                   ` : null}
                 </div>
@@ -1131,6 +1226,11 @@ export function TasksView({
                       title=${form.priority === "urgent" ? "Urgente — cliquer pour retirer" : "Marquer comme urgente"}
                       style=${{ width: 44, height: 44, borderRadius: 12, fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s", background: form.priority === "urgent" ? "var(--mrd-dangerLt)" : "var(--mrd-surf2)", border: "1.5px solid " + (form.priority === "urgent" ? "var(--mrd-dangerMd)" : "var(--mrd-border)"), boxShadow: form.priority === "urgent" ? "0 0 0 3px oklch(90% 0.07 15 / 0.25)" : "none" }}
                     >🚨</button>
+                    ${form.priority === "urgent" ? html`
+                      <div style=${{ marginTop: 8, fontSize: 11, color: "var(--mrd-fg3)" }}>
+                        Cette tâche peut être incluse dans les rappels urgents activés dans les réglages.
+                      </div>
+                    ` : null}
                   </div>
                 ` : null}
 
@@ -1138,11 +1238,6 @@ export function TasksView({
                 <div>
                   <span className="mrd-mlbl">Attribué à</span>
                   <div style=${{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <button type="button"
-                      onClick=${() => setForm((prev) => ({ ...prev, assignedWholeFamily: !prev.assignedWholeFamily, assignedPersonIds: [] }))}
-                      title="Toute la famille"
-                      style=${{ width: 40, height: 40, borderRadius: "50%", border: "2px solid " + (form.assignedWholeFamily ? "var(--mrd-a)" : "var(--mrd-border)"), background: form.assignedWholeFamily ? "var(--mrd-aLt)" : "var(--mrd-surf2)", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}
-                    >👥</button>
                     ${assignees.map((person) => {
                       const on = form.assignedPersonIds.includes(person.id);
                       return html`
@@ -1199,12 +1294,12 @@ export function TasksView({
                   <div style=${{ display: "flex", flexDirection: "column", gap: 12, background: "var(--mrd-surf2)", borderRadius: 16, padding: "14px 14px 12px", border: "1px solid var(--mrd-borderSoft)" }}>
                     <span className="mrd-mlbl" style=${{ marginBottom: 0 }}>Planification calendrier</span>
 
-                    <div style=${{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                      <input type="date" value=${form.calendarDateKey}
+                    <div className="task-date-time-row task-calendar-date-row" style=${{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <input type="date" className="task-date-time-input" value=${form.calendarDateKey}
                         onInput=${(e) => updateForm("calendarDateKey", e.target.value)}
                         style=${{ flex: 1, minWidth: 120, background: "var(--mrd-surf)", border: "1px solid var(--mrd-border)", borderRadius: 10, padding: "9px 10px", fontSize: 13, color: "var(--mrd-fg)", outline: "none" }}
                       />
-                      <input type="time" value=${form.calendarStart}
+                      <input type="time" className="task-date-time-input" value=${form.calendarStart}
                         disabled=${form.calendarAllDay}
                         onInput=${(e) => updateForm("calendarStart", e.target.value)}
                         style=${{ flex: 1, minWidth: 90, background: "var(--mrd-surf)", border: "1px solid var(--mrd-border)", borderRadius: 10, padding: "9px 10px", fontSize: 13, color: form.calendarAllDay ? "var(--mrd-fg3)" : "var(--mrd-fg)", outline: "none" }}

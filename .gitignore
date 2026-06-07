@@ -3,3 +3,18 @@ server.out.log
 server.err.log
 node_modules/
 .env
+
+# Build output
+dist/
+
+# Capacitor Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# Capacitor iOS build artifacts
+ios/App/Pods/
+ios/.xcode.env.local

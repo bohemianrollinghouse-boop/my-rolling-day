@@ -130,7 +130,7 @@ export function FamilyPanel({
               <div className="ncard">
                 <div className="miniTitle">Rejoindre une famille</div>
                 <div className="arow" style=${{ marginTop: "8px" }}>
-                  <input className="ainp" placeholder="Code d’invitation" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
+                  <input className="ainp" placeholder="ABC-123" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
                   <button className="aok" onClick=${() => onJoinFamily(joinCode)}>Rejoindre</button>
                 </div>
               </div>
@@ -141,7 +141,7 @@ export function FamilyPanel({
               <div className="ncard">
                 <div className="miniTitle">Famille active</div>
                 <div className="family-name">${safeCurrentFamily.name || "Famille"}</div>
-                <div className="mini">Code d’invitation : <strong>${safeCurrentFamily.inviteCode || "..."}</strong></div>
+                <div className="mini">Code d’invitation : <strong>${safeCurrentFamily.inviteCode ? safeCurrentFamily.inviteCode.replace(/-/g, "").slice(0, 3) + "-" + safeCurrentFamily.inviteCode.replace(/-/g, "").slice(3) : "..."}</strong></div>
                 <div className="mini">Mon rôle d’accès : <strong>${currentRole || "membre"}</strong></div>
                 ${currentRole === "admin"
                   ? html`

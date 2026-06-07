@@ -31,7 +31,7 @@ test("smoke HTTP: la page d entree est servie", async () => {
   const html = await response.text();
 
   assert.equal(response.status, 200);
-  assert.match(html, /<title>Planning Famille<\/title>/);
+  assert.match(html, /<title>My Rolling Day<\/title>/);
   assert.match(html, /src=\"\.\/src\/main\.js\?v=/);
 });
 

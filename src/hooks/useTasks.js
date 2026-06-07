@@ -1,4 +1,4 @@
-import { getCurrentAppDate, localDateKey, pad2 } from "../utils/date.js?v=2026-04-19-time-sim-2";
+import { getCurrentAppDate, localDateKey, pad2 } from "../utils/date.js";
 
 function logEntry(personId, text, icon) {
   const now = getCurrentAppDate();
@@ -44,14 +44,37 @@ function normalizeDuration(form) {
   return { duration: Number(form.calendarDurationPreset) || 0, allDay: false };
 }
 
+function normalizeTaskReminderChoice(form) {
+  const reminder = String(form.taskReminder || "").trim();
+  if (reminder === "none" || reminder === "at_time" || reminder === "1h_before" || reminder === "30m_before" || reminder === "custom_before" || reminder === "day_before") {
+    return reminder;
+  }
+  return "none";
+}
+
+function normalizeTaskNotificationChoice(form) {
+  const reminder = normalizeTaskReminderChoice(form);
+  if (reminder !== "custom_before") return { reminder };
+  const rawMinutes = Number(form.taskReminderCustomMinutes);
+  const customMinutes = Number.isFinite(rawMinutes) ? Math.round(rawMinutes) : 15;
+  return { reminder, customMinutes: Math.max(5, customMinutes) };
+}
+
 export function useTasks(updateState) {
   function handleAddTask(type, form) {
     updateState((previous) => {
       const taskKind = form.taskKind === "recurring" ? "recurring" : "single";
+      if (taskKind === "recurring" && form.dueDate) return previous;
       const isDeadlineTask = form.displayPeriod === "deadline";
       const targetType = isDeadlineTask ? "deadline" : form.displayPeriod || taskPeriodFromTab(type);
       const recurrenceFrequency = taskKind === "recurring" ? form.recurrenceFrequency || "daily" : targetType;
       const sameType = previous.tasks.filter((task) => task.type === targetType);
+      /* Dérive le jour de semaine / jour du mois depuis la date choisie */
+      const _refDateStr = form.calendarDateKey || form.dueDate || localDateKey(getCurrentAppDate());
+      const _refDate    = new Date(`${_refDateStr}T00:00`);
+      const _weekday    = _refDate.getDay();          // 0=dim … 6=sam
+      const _dayOfMonth = _refDate.getDate();         // 1-31
+
       const newTask = {
         id: `task-${Date.now()}`,
         text: form.text.trim(),
@@ -71,14 +94,15 @@ export function useTasks(updateState) {
         taskKind,
         recurrenceFrequency,
         recurrenceTime: "00:00",
-        recurrenceDaysOfWeek: recurrenceFrequency === "weekly" ? [1] : [],
-        recurrenceDayOfMonth: 1,
+        recurrenceDaysOfWeek: recurrenceFrequency === "weekly" ? [_weekday] : [],
+        recurrenceDayOfMonth: recurrenceFrequency === "monthly" ? _dayOfMonth : 1,
         completedByPersonId: "",
         completedAt: "",
         missedCount: 0,
         currentCycleKey: "",
         dueDate: isDeadlineTask ? form.dueDate || "" : "",
         dueTime: isDeadlineTask ? form.dueTime || "" : "",
+        notification: isDeadlineTask ? normalizeTaskNotificationChoice(form) : { reminder: "none" },
       };
       let nextState = { ...previous, tasks: reorderTasks([...previous.tasks, newTask]) };
 
@@ -160,7 +184,14 @@ export function useTasks(updateState) {
       const isDeadlineTask = form.displayPeriod === "deadline";
       const targetType = isDeadlineTask ? "deadline" : form.displayPeriod || currentTask.type;
       const taskKind = form.taskKind === "recurring" ? "recurring" : "single";
+      if (taskKind === "recurring" && form.dueDate) return previous;
       const recurrenceFrequency = taskKind === "recurring" ? form.recurrenceFrequency || currentTask.recurrenceFrequency || "daily" : targetType;
+
+      /* Dérive le jour de semaine / jour du mois depuis la date choisie */
+      const _refDateStr2 = form.calendarDateKey || form.dueDate || localDateKey(getCurrentAppDate());
+      const _refDate2    = new Date(`${_refDateStr2}T00:00`);
+      const _weekday2    = _refDate2.getDay();
+      const _dayOfMonth2 = _refDate2.getDate();
 
       const tasks = previous.tasks.map((task) => {
         if (task.id !== taskId) return task;
@@ -177,8 +208,11 @@ export function useTasks(updateState) {
           concernedPersonIds: Array.isArray(form.concernedPersonIds) ? form.concernedPersonIds.filter(Boolean) : [],
           taskKind,
           recurrenceFrequency,
+          recurrenceDaysOfWeek: recurrenceFrequency === "weekly" ? [_weekday2] : task.recurrenceDaysOfWeek || [],
+          recurrenceDayOfMonth: recurrenceFrequency === "monthly" ? _dayOfMonth2 : (task.recurrenceDayOfMonth || 1),
           dueDate: isDeadlineTask ? form.dueDate || "" : "",
           dueTime: isDeadlineTask ? form.dueTime || "" : "",
+          notification: isDeadlineTask ? normalizeTaskNotificationChoice(form) : { reminder: "none" },
         };
       });
 

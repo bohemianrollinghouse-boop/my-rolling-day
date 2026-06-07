@@ -1,4 +1,4 @@
-import { App } from "./App.js?v=2026-04-26-recipes-top-1";
+import { App } from "./App.js";
 import { createRoot, html } from "./lib.js";
 
 if (window.__pushBootLog) {
@@ -18,11 +18,17 @@ function showFatalError(message) {
 }
 
 window.addEventListener("error", (event) => {
+  // Cross-origin CDN errors (Firebase, gstatic, etc.) arrive with no error object
+  // and message = "Script error." — they can't be diagnosed and must not crash the UI.
+  if (!event.error && (!event.message || event.message === "Script error.")) return;
   showFatalError(event.error?.stack || event.message);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
-  showFatalError(event.reason?.stack || event.reason?.message || event.reason);
+  const reason = event.reason;
+  // Suppress Firebase / push-messaging rejections silently — they're non-fatal.
+  if (reason?.code?.startsWith?.("messaging/") || reason?.name === "FirebaseError") return;
+  showFatalError(reason?.stack || reason?.message || reason);
 });
 
 const root = createRoot(document.getElementById("root"));

@@ -1,12 +1,26 @@
+const FIREBASE_DEFAULT_AUTH_DOMAIN = "my-rolling-day.firebaseapp.com";
+
+export function resolveFirebaseAuthDomain() {
+  if (typeof window === "undefined") return FIREBASE_DEFAULT_AUTH_DOMAIN;
+  const { hostname = "", protocol = "" } = window.location || {};
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+  if (!hostname || localHosts.has(hostname) || protocol !== "https:") {
+    return FIREBASE_DEFAULT_AUTH_DOMAIN;
+  }
+  return hostname;
+}
+
 export const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD6B4xw8I507Zb7ZkLAmkUbCPTsnKVBjTE",
-  authDomain: "my-rolling-day.firebaseapp.com",
+  authDomain: resolveFirebaseAuthDomain(),
   projectId: "my-rolling-day",
   storageBucket: "my-rolling-day.firebasestorage.app",
   messagingSenderId: "543367828677",
   appId: "1:543367828677:web:6ff53808141b506ca30cac",
   measurementId: "G-VXTWHBKRNC",
 };
+
+export const FIREBASE_WEB_VAPID_KEY = "BKuKE9dA60y85KVR2cYuZ4PwNe3vBJSaeNO9wkEyk69baMYcclUSaXoqtb2FzmVwe27pIS9vyB00pxvunHUL99w";
 
 export const DAYS = [
   "Lundi",
@@ -41,4 +55,5 @@ export const TABS = [
   { id: "recipes", label: "Recettes", icon: "📚" },
   { id: "notes", label: "Notes", icon: "📝" },
   { id: "history", label: "Historique", icon: "📊" },
+  { id: "inbox", label: "Pense-bête", icon: "📥" },
 ];

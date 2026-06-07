@@ -112,12 +112,11 @@ class CDPSession {
   }
 }
 
-export async function launchBrowser() {
+export async function launchBrowser(debugPort = 9222) {
   const executablePath = await findAvailableBrowser();
   if (!executablePath) return null;
 
   const userDataDir = await mkdtemp(join(tmpdir(), "mrd-e2e-browser-"));
-  const debugPort = 9222;
   const processHandle = spawn(
     executablePath,
     [

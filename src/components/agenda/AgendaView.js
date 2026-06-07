@@ -1,9 +1,39 @@
 import { DAYS } from "../../constants.js";
-import { html, useEffect, useMemo, useState } from "../../lib.js";
-import { addMinutesToTime, frDateLabel, getCurrentAppDate, getWeekDays, localDateKey, localWeekStart, minutesToLabel, pad2 } from "../../utils/date.js?v=2026-04-19-time-sim-2";
-import { completedIds, TaskCard, urgencyBadge } from "../tasks/TaskCard.js?v=2026-04-19-time-sim-1";
-import { SegmentedTabs } from "../common/SegmentedTabs.js?v=2026-04-25-segmented-nav-1";
-import { EmojiPicker } from "../tasks/EmojiPicker.js?v=2026-04-24-emoji-picker-1";
+import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
+import { addMinutesToTime, frDateLabel, getCurrentAppDate, getWeekDays, localDateKey, localWeekStart, minutesToLabel, pad2 } from "../../utils/date.js";
+import { completedIds, TaskCard, urgencyBadge } from "../tasks/TaskCard.js";
+import { SegmentedTabs } from "../common/SegmentedTabs.js";
+import { EmojiPicker } from "../tasks/EmojiPicker.js";
+
+// Déduplication immédiate des notifications envoyées dans cette session.
+// Évite les doublons quand focus + visibilitychange se déclenchent simultanément
+// avant que l'état React (sentKeys) ait eu le temps de se propager.
+const _agendaSentThisSession = new Set();
+
+function sendAgendaNotification(event, onNotification) {
+  const min = Number(event.notification?.minutesBefore ?? 0);
+  const delay = min === 0 ? "maintenant" : min === 60 ? "dans 1h" : `dans ${min} min`;
+  const prefix = event.icon ? `${event.icon} ` : "";
+  const title = `${prefix}${event.text} — ${delay}`;
+  const body = event.notification?.customMessage || "";
+  const notifData = {
+    notifType: "event",
+    eventId: event.id || "",
+    tab: "agenda",
+    title,
+    body,
+  };
+  try {
+    const notif = new Notification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png" });
+    if (typeof onNotification === "function") {
+      notif.onclick = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        window.focus();
+        onNotification(notifData);
+      };
+    }
+  } catch (_) {}
+}
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -77,6 +107,10 @@ function createEmptyForm(tasks, people) {
     wholeFamily: false,
     childIds: [],
     repeatWeekly: false,
+    agendaNotifEnabled: false,
+    agendaNotifPreset: "30",
+    agendaNotifMinutes: "30",
+    agendaNotifMessage: "",
   };
 }
 
@@ -183,6 +217,65 @@ function viewLabel(mode, date, days) {
   return `${frDateLabel(days[0])} → ${frDateLabel(days[6])}`;
 }
 
+// Fonction pure : déplacée au niveau du module pour ne pas être recréée à chaque render.
+function layoutTimedEntries(entries) {
+  const prepared = entries
+    .map((entry) => {
+      const startMinutes = timeToMinutes(entry.start);
+      const duration = Math.max(15, Number(entry.duration) || 60);
+      return {
+        entry,
+        startMinutes,
+        endMinutes: startMinutes + duration,
+        duration,
+      };
+    })
+    .sort((left, right) => left.startMinutes - right.startMinutes || right.duration - left.duration);
+
+  const clusters = [];
+  let currentCluster = [];
+  let currentEnd = -1;
+
+  prepared.forEach((item) => {
+    if (currentCluster.length && item.startMinutes >= currentEnd) {
+      clusters.push(currentCluster);
+      currentCluster = [item];
+      currentEnd = item.endMinutes;
+      return;
+    }
+    currentCluster.push(item);
+    currentEnd = Math.max(currentEnd, item.endMinutes);
+  });
+
+  if (currentCluster.length) {
+    clusters.push(currentCluster);
+  }
+
+  return clusters.flatMap((cluster) => {
+    const active = [];
+    let columnCount = 1;
+
+    cluster.forEach((item) => {
+      for (let index = active.length - 1; index >= 0; index -= 1) {
+        if (active[index].endMinutes <= item.startMinutes) {
+          active.splice(index, 1);
+        }
+      }
+      const usedColumns = new Set(active.map((entry) => entry.column));
+      let column = 0;
+      while (usedColumns.has(column)) column += 1;
+      item.column = column;
+      active.push(item);
+      columnCount = Math.max(columnCount, active.length);
+    });
+
+    return cluster.map((item) => ({
+      ...item,
+      columnCount,
+    }));
+  });
+}
+
 export function AgendaView({
   tasks,
   people,
@@ -196,6 +289,7 @@ export function AgendaView({
   onDeleteRecurring,
   onDeleteTask = () => {},
   onToggleTask = () => {},
+  onNotification = null,
   activePersonId = "",
 }) {
   const activePeople = Array.isArray(people) ? people.filter((person) => person.active !== false) : [];
@@ -206,11 +300,13 @@ export function AgendaView({
   const recurringItems = Array.isArray(recurringEvents) ? recurringEvents : [];
   const peopleMap = useMemo(
     () =>
-      activePeople.reduce((accumulator, person) => {
-        accumulator[person.id] = person;
-        return accumulator;
-      }, {}),
-    [activePeople],
+      (Array.isArray(people) ? people : [])
+        .filter((person) => person.active !== false)
+        .reduce((accumulator, person) => {
+          accumulator[person.id] = person;
+          return accumulator;
+        }, {}),
+    [people],
   );
 
   const [viewMode, setViewMode] = useState("day");
@@ -223,6 +319,96 @@ export function AgendaView({
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [showConcernedPicker, setShowConcernedPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const agendaRef = useRef(agendaItems);
+  const recurringRef = useRef(recurringItems);
+  const onUpdateAgendaRef = useRef(onUpdateAgenda);
+  const onUpdateRecurringRef = useRef(onUpdateRecurring);
+  const onNotificationRef = useRef(onNotification);
+  useEffect(() => { agendaRef.current = agendaItems; }, [agendaItems]);
+  useEffect(() => { recurringRef.current = recurringItems; }, [recurringItems]);
+  useEffect(() => { onUpdateAgendaRef.current = onUpdateAgenda; }, [onUpdateAgenda]);
+  useEffect(() => { onUpdateRecurringRef.current = onUpdateRecurring; }, [onUpdateRecurring]);
+  useEffect(() => { onNotificationRef.current = onNotification; }, [onNotification]);
+
+  useEffect(() => {
+    function checkAgendaNotifications() {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const now = new Date();
+      const todayDateKey = localDateKey(now);
+
+      // ── Événements ponctuels ──────────────────────────────────────────────
+      agendaRef.current.forEach((event) => {
+        if (!event.notification?.enabled) return;
+        if (!event.dateKey || !event.start) return;
+        const eventDate = new Date(`${event.dateKey}T${event.start}`);
+        if (isNaN(eventDate.getTime())) return;
+        const notifyAt = new Date(eventDate.getTime() - (Number(event.notification.minutesBefore) || 0) * 60000);
+        if (Math.abs(now.getTime() - notifyAt.getTime()) > 60000) return;
+        const sentKey = `${event.id}-${event.dateKey}-${event.start}-${event.notification.minutesBefore}`;
+        const sentKeys = Array.isArray(event.notification.sentKeys) ? event.notification.sentKeys : [];
+        if (sentKeys.includes(sentKey) || _agendaSentThisSession.has(sentKey)) return;
+        _agendaSentThisSession.add(sentKey); // verrou immédiat avant l'update async
+        sendAgendaNotification(event, onNotificationRef.current);
+        onUpdateAgendaRef.current(event.id, {
+          ...event,
+          notification: { ...event.notification, sentKeys: [...sentKeys, sentKey] },
+        });
+      });
+
+      // ── Événements récurrents ─────────────────────────────────────────────
+      const todayWeekday = now.getDay();       // 0=dim, 1=lun, …, 6=sam
+      const todayDayOfMonth = now.getDate();
+
+      recurringRef.current.forEach((event) => {
+        if (!event.notification?.enabled) return;
+        if (!event.start) return;
+        if (event.startDateKey && todayDateKey < event.startDateKey) return;
+
+        // L'événement se produit-il aujourd'hui ?
+        const recType = event.recurrenceType || "weekly";
+        let occursToday = false;
+        if (recType === "daily") {
+          occursToday = true;
+        } else if (recType === "monthly") {
+          const dom = event.dayOfMonth != null
+            ? Number(event.dayOfMonth)
+            : event.dateKey ? new Date(`${event.dateKey}T00:00`).getDate() : null;
+          occursToday = dom != null && todayDayOfMonth === dom;
+        } else {
+          occursToday = Number(event.weekday) === todayWeekday;
+        }
+        if (!occursToday) return;
+
+        const eventDate = new Date(`${todayDateKey}T${event.start}`);
+        if (isNaN(eventDate.getTime())) return;
+        const notifyAt = new Date(eventDate.getTime() - (Number(event.notification.minutesBefore) || 0) * 60000);
+        if (Math.abs(now.getTime() - notifyAt.getTime()) > 60000) return;
+
+        // Anti-spam : clé incluant la date du jour pour ne notifier qu'une fois par occurrence
+        const sentKey = `recur-${event.id}-${todayDateKey}-${event.start}-${event.notification.minutesBefore}`;
+        const sentKeys = Array.isArray(event.notification.sentKeys) ? event.notification.sentKeys : [];
+        if (sentKeys.includes(sentKey) || _agendaSentThisSession.has(sentKey)) return;
+        _agendaSentThisSession.add(sentKey); // verrou immédiat avant l'update async
+
+        sendAgendaNotification(event, onNotificationRef.current);
+        onUpdateRecurringRef.current(event.id, {
+          ...event,
+          notification: { ...event.notification, sentKeys: [...sentKeys, sentKey] },
+        });
+      });
+    }
+
+    const intervalId = setInterval(checkAgendaNotifications, 30000);
+    function onVisible() { if (document.visibilityState === "visible") checkAgendaNotifications(); }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", checkAgendaNotifications);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", checkAgendaNotifications);
+    };
+  }, []);
 
   const focusDate = parseDateKey(focusDateKey);
   const todayKey = localDateKey(getCurrentAppDate());
@@ -274,6 +460,18 @@ export function AgendaView({
       wholeFamily: Boolean(entry.wholeFamily),
       childIds: Array.isArray(entry.childIds) ? entry.childIds : [],
       repeatWeekly: entryKind === "recurring",
+      agendaNotifEnabled: Boolean(entry.notification?.enabled),
+      agendaNotifPreset: (() => {
+        const m = entry.notification?.minutesBefore;
+        if (m == null) return "30";
+        if (m === 0) return "0";
+        if (m === 10) return "10";
+        if (m === 30) return "30";
+        if (m === 60) return "60";
+        return "custom";
+      })(),
+      agendaNotifMinutes: entry.notification?.minutesBefore != null ? String(entry.notification.minutesBefore) : "30",
+      agendaNotifMessage: entry.notification?.customMessage || "",
     });
     setShowModal(true);
   }
@@ -354,6 +552,18 @@ export function AgendaView({
       wholeFamily: Boolean(form.wholeFamily),
       childIds: form.childIds.filter(Boolean),
       sourceType: form.entryType,
+      notification: {
+        enabled: form.agendaNotifEnabled,
+        minutesBefore: Number(form.agendaNotifMinutes) || 30,
+        customMessage: form.agendaNotifMessage.trim(),
+        sentKeys: (() => {
+          if (!editing?.id) return [];
+          const existing = editing.entryKind === "recurring"
+            ? recurringItems.find((item) => item.id === editing.id)
+            : agendaItems.find((item) => item.id === editing.id);
+          return existing?.notification?.sentKeys || [];
+        })(),
+      },
     };
   }
 
@@ -497,11 +707,11 @@ function renderEntryCard(entry) {
                     className=${`task-person-chip ${isSelected ? "on" : ""}`}
                     style=${isSelected
                       ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" }
-                      : { background: "var(--mrd-white)", borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
+                      : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                     onClick=${() => onToggleTask(linkedTask.id, person.id)}
                     title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                   >
-                    <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { background: "var(--mrd-white)", color: person.color || "var(--mrd-fg3)" }}>
+                    <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { color: person.color || "var(--mrd-fg3)" }}>
                       ${person.shortId}
                     </span>
                   </button>
@@ -610,12 +820,12 @@ function renderEntryCard(entry) {
                             className=${`task-person-chip ${isSelected ? "on" : ""}`}
                             style=${isSelected
                               ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" }
-                              : { background: "var(--mrd-white)", borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
+                              : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                             onClick=${() => onToggleTask(linkedTask.id, person.id)}
                             title=${`Marquer ${person.label}`}
                           >
                             <span className="task-person-avatar"
-                              style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { background: "var(--mrd-white)", color: person.color || "var(--mrd-fg3)" }}>
+                              style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { color: person.color || "var(--mrd-fg3)" }}>
                               ${person.shortId}
                             </span>
                           </button>
@@ -870,64 +1080,6 @@ function renderEntryCard(entry) {
     `;
   }
 
-  function layoutTimedEntries(entries) {
-    const prepared = entries
-      .map((entry) => {
-        const startMinutes = timeToMinutes(entry.start);
-        const duration = Math.max(15, Number(entry.duration) || 60);
-        return {
-          entry,
-          startMinutes,
-          endMinutes: startMinutes + duration,
-          duration,
-        };
-      })
-      .sort((left, right) => left.startMinutes - right.startMinutes || right.duration - left.duration);
-
-    const clusters = [];
-    let currentCluster = [];
-    let currentEnd = -1;
-
-    prepared.forEach((item) => {
-      if (currentCluster.length && item.startMinutes >= currentEnd) {
-        clusters.push(currentCluster);
-        currentCluster = [item];
-        currentEnd = item.endMinutes;
-        return;
-      }
-      currentCluster.push(item);
-      currentEnd = Math.max(currentEnd, item.endMinutes);
-    });
-
-    if (currentCluster.length) {
-      clusters.push(currentCluster);
-    }
-
-    return clusters.flatMap((cluster) => {
-      const active = [];
-      let columnCount = 1;
-
-      cluster.forEach((item) => {
-        for (let index = active.length - 1; index >= 0; index -= 1) {
-          if (active[index].endMinutes <= item.startMinutes) {
-            active.splice(index, 1);
-          }
-        }
-        const usedColumns = new Set(active.map((entry) => entry.column));
-        let column = 0;
-        while (usedColumns.has(column)) column += 1;
-        item.column = column;
-        active.push(item);
-        columnCount = Math.max(columnCount, active.length);
-      });
-
-      return cluster.map((item) => ({
-        ...item,
-        columnCount,
-      }));
-    });
-  }
-
   function renderTimeline(date) {
     const items = itemsForDate(date);
     const allDayItems = items.filter((entry) => entry.allDay);
@@ -1118,9 +1270,9 @@ function renderEntryCard(entry) {
         <${SegmentedTabs}
           ariaLabel="Navigation de l’agenda"
           options=${[
-            { id: "day", label: "☀️ Jour" },
-            { id: "week", label: "📅 Semaine" },
-            { id: "month", label: "🗓️ Mois" },
+            { id: "day",   emoji: "☀️",  label: "Jour" },
+            { id: "week",  emoji: "📅",  label: "Semaine" },
+            { id: "month", emoji: "🗓️", label: "Mois" },
           ]}
           activeId=${viewMode}
           onChange=${setViewMode}
@@ -1358,6 +1510,75 @@ function renderEntryCard(entry) {
                         <span style=${{ position: "absolute", top: 3, left: form.repeatWeekly ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "var(--mrd-white)", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.18)" }}></span>
                       </span>
                     </label>
+
+                    <!-- 6.5 Rappel agenda -->
+                    <div>
+                        <label style=${{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: "var(--mrd-surf2)", border: "1px solid var(--mrd-borderSoft)", borderRadius: 14, cursor: "pointer" }}>
+                          <span style=${{ fontSize: 18, flexShrink: 0 }}>🔔</span>
+                          <span style=${{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--mrd-fg)" }}>Activer un rappel</span>
+                          <span style=${{ position: "relative", width: 44, height: 24, display: "inline-block", flexShrink: 0 }}>
+                            <input type="checkbox"
+                              checked=${form.agendaNotifEnabled}
+                              onChange=${(e) => setForm({ ...form, agendaNotifEnabled: e.target.checked })}
+                              style=${{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                            <span style=${{ position: "absolute", inset: 0, borderRadius: 99, background: form.agendaNotifEnabled ? "var(--mrd-a)" : "var(--mrd-switchOff)", transition: "background 0.2s" }}></span>
+                            <span style=${{ position: "absolute", top: 3, left: form.agendaNotifEnabled ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "var(--mrd-white)", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.18)" }}></span>
+                          </span>
+                        </label>
+
+                        ${form.agendaNotifEnabled ? html`
+                          <div style=${{ marginTop: 8, padding: "14px", background: "var(--mrd-surf2)", borderRadius: 14, border: "1px solid var(--mrd-borderSoft)", display: "flex", flexDirection: "column", gap: 12 }}>
+
+                            <div>
+                              <span style=${{ fontSize: 11, fontWeight: 700, color: "var(--mrd-fg3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "block" }}>Rappel</span>
+                              <div style=${{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                ${[
+                                  { id: "0",      label: "À l'heure" },
+                                  { id: "10",     label: "10 min" },
+                                  { id: "30",     label: "30 min" },
+                                  { id: "60",     label: "1h" },
+                                  { id: "custom", label: "Personnalisé" },
+                                ].map((preset) => {
+                                  const on = form.agendaNotifPreset === preset.id;
+                                  return html`
+                                    <button key=${preset.id} type="button"
+                                      onClick=${() => setForm({
+                                        ...form,
+                                        agendaNotifPreset: preset.id,
+                                        agendaNotifMinutes: preset.id !== "custom" ? preset.id : form.agendaNotifMinutes,
+                                      })}
+                                      style=${{ padding: "8px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: on ? "var(--mrd-a)" : "var(--mrd-surf)", color: on ? "#fff" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                                    >${preset.label}</button>
+                                  `;
+                                })}
+                              </div>
+                            </div>
+
+                            ${form.agendaNotifPreset === "custom" ? html`
+                              <div style=${{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <input
+                                  type="number" min="1" max="1440"
+                                  value=${form.agendaNotifMinutes}
+                                  onInput=${(e) => setForm({ ...form, agendaNotifMinutes: String(Math.max(1, Number(e.target.value) || 1)) })}
+                                  style=${{ width: 80, padding: "10px 12px", background: "var(--mrd-surf)", border: "1.5px solid var(--mrd-a)", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "var(--mrd-fg)", outline: "none", textAlign: "center", fontFamily: "inherit" }}
+                                />
+                                <span style=${{ fontSize: 13, color: "var(--mrd-fg2)" }}>minutes avant</span>
+                              </div>
+                            ` : null}
+
+                            <div>
+                              <span style=${{ fontSize: 11, fontWeight: 700, color: "var(--mrd-fg3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "block" }}>Message du rappel</span>
+                              <input
+                                type="text"
+                                value=${form.agendaNotifMessage}
+                                onInput=${(e) => setForm({ ...form, agendaNotifMessage: e.target.value })}
+                                placeholder="Ex : penser aux serviettes, gourdes, papiers…"
+                                style=${{ width: "100%", padding: "11px 14px", background: "var(--mrd-surf)", border: "1.5px solid var(--mrd-border)", borderRadius: 12, fontSize: 13, color: "var(--mrd-fg)", outline: "none", fontFamily: "inherit", transition: "border-color 0.15s", boxSizing: "border-box" }}
+                              />
+                            </div>
+                          </div>
+                        ` : null}
+                      </div>
 
                     <!-- 7. Actions -->
                     <div style=${{ display: "flex", gap: 10, paddingTop: 4 }}>

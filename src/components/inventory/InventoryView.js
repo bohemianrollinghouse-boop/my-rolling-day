@@ -1,7 +1,7 @@
-﻿import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
-import { getCurrentAppDate } from "../../utils/date.js?v=2026-04-19-time-sim-2";
+import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
+import { getCurrentAppDate } from "../../utils/date.js";
 import { findSimilarItem, formatQuantityUnit, normalizeProductName, suggestItems } from "../../utils/productUtils.js";
-import { EmojiPicker } from "../tasks/EmojiPicker.js?v=2026-04-24-emoji-picker-1";
+import { EmojiPicker } from "../tasks/EmojiPicker.js";
 
 // ─── constants ────────────────────────────────────────────────────
 

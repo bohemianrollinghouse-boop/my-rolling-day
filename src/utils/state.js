@@ -1,20 +1,62 @@
 import { DAYS } from "../constants.js";
-import { normalizeProductName } from "./productUtils.js?v=2026-04-19-meals-stock-3";
-import { getCurrentAppDate, utcDateKey, utcMonthKey, utcWeekKey } from "./date.js?v=2026-04-19-time-sim-2";
+import { normalizeProductName } from "./productUtils.js";
+import { getCurrentAppDate, utcDateKey, utcMonthKey, utcWeekKey } from "./date.js";
 
-export function createMealShell(day, index) {
+export function createMealShell(day, index, weekKey) {
+  const wk = weekKey || "";
   return {
-    id: `meal-${day}-${index}`,
+    id: wk ? `meal-${wk}-${day}` : `meal-${day}-${index}`,
     day,
+    weekKey: wk,
     lunchText: "",
     lunchRecipeId: "",
+    lunchStarterRecipeId: "",
+    lunchDessertRecipeId: "",
+    lunchExtra: "",
     lunchCooked: false,
+    lunchStarterCooked: false,
+    lunchDessertCooked: false,
     lunchMode: "",
     dinnerText: "",
     dinnerRecipeId: "",
+    dinnerStarterRecipeId: "",
+    dinnerDessertRecipeId: "",
+    dinnerExtra: "",
     dinnerCooked: false,
+    dinnerStarterCooked: false,
+    dinnerDessertCooked: false,
     dinnerMode: "",
   };
+}
+
+function normalizeTaskNotificationLog(entries) {
+  const safeEntries = Array.isArray(entries)
+    ? [...new Set(entries.map((entry) => String(entry || "").trim()).filter(Boolean))]
+    : [];
+  if (!safeEntries.length) return [];
+  const today = getCurrentAppDate();
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  cutoff.setDate(cutoff.getDate() - 7);
+  return safeEntries.filter((entry) => {
+    const match = entry.match(/(\d{4}-\d{2}-\d{2})$/);
+    if (!match) return true;
+    const parsed = new Date(`${match[1]}T00:00`);
+    if (Number.isNaN(parsed.getTime())) return true;
+    return parsed >= cutoff;
+  });
+}
+
+function normalizeTaskNotification(notification, task) {
+  const reminder = String(notification?.reminder || "").trim();
+  if (reminder === "custom_before") {
+    const rawMinutes = Number(notification?.customMinutes);
+    const customMinutes = Number.isFinite(rawMinutes) ? Math.round(rawMinutes) : 15;
+    return { reminder, customMinutes: Math.max(5, customMinutes) };
+  }
+  if (reminder === "none" || reminder === "at_time" || reminder === "1h_before" || reminder === "30m_before" || reminder === "day_before") {
+    return { reminder };
+  }
+  return { reminder: "none" };
 }
 
 function normalizeTask(task, index) {
@@ -64,21 +106,34 @@ function normalizeTask(task, index) {
     currentCycleKey: task.currentCycleKey || "",
     dueDate: task.dueDate || "",
     dueTime: task.dueTime || "",
+    notification: normalizeTaskNotification(task.notification, task),
+    notificationLog: normalizeTaskNotificationLog(task.notificationLog),
   };
 }
 
 function normalizeMeal(meal, index) {
-  const base = createMealShell(meal?.day || DAYS[index] || `Jour ${index + 1}`, index);
+  const base = createMealShell(meal?.day || DAYS[index] || `Jour ${index + 1}`, index, meal?.weekKey || "");
   return {
     ...base,
     ...meal,
+    weekKey: meal?.weekKey || "",
     lunchText: meal?.lunchText || "",
     lunchRecipeId: meal?.lunchRecipeId || "",
+    lunchStarterRecipeId: meal?.lunchStarterRecipeId || "",
+    lunchDessertRecipeId: meal?.lunchDessertRecipeId || "",
+    lunchExtra: meal?.lunchExtra || "",
     lunchCooked: Boolean(meal?.lunchCooked),
+    lunchStarterCooked: Boolean(meal?.lunchStarterCooked),
+    lunchDessertCooked: Boolean(meal?.lunchDessertCooked),
     lunchMode: meal?.lunchMode || (meal?.lunchRecipeId ? "recipe" : meal?.lunchText ? "free" : ""),
     dinnerText: meal?.dinnerText || "",
     dinnerRecipeId: meal?.dinnerRecipeId || "",
+    dinnerStarterRecipeId: meal?.dinnerStarterRecipeId || "",
+    dinnerDessertRecipeId: meal?.dinnerDessertRecipeId || "",
+    dinnerExtra: meal?.dinnerExtra || "",
     dinnerCooked: Boolean(meal?.dinnerCooked),
+    dinnerStarterCooked: Boolean(meal?.dinnerStarterCooked),
+    dinnerDessertCooked: Boolean(meal?.dinnerDessertCooked),
     dinnerMode: meal?.dinnerMode || (meal?.dinnerRecipeId ? "recipe" : meal?.dinnerText ? "free" : ""),
   };
 }
@@ -241,6 +296,11 @@ function normalizeRecipe(recipe, index) {
     id: recipe?.id || `recipe-${Date.now()}-${index}`,
     name: String(recipe?.name || recipe?.title || "").trim() || "Recette",
     servings,
+    category: String(recipe?.category || ""),
+    quick: Boolean(recipe?.quick),
+    prepTime: String(recipe?.prepTime || ""),
+    cookTime: String(recipe?.cookTime || ""),
+    photo: String(recipe?.photo || ""),
     availabilityMode,
     season,
     seasons,
@@ -266,6 +326,8 @@ function normalizeListItem(item, index) {
     unit: String(item?.unit || "").trim(),
     done: Boolean(item?.done),
     purchasedAt: item?.purchasedAt || "",
+    price: String(item?.price || "").trim(),
+    note: String(item?.note || "").trim(),
   };
 }
 
@@ -369,6 +431,18 @@ function normalizeStorageLocation(location, index) {
   };
 }
 
+function normalizeAgendaNotification(notification) {
+  if (!notification || typeof notification !== "object") return null;
+  return {
+    enabled: Boolean(notification.enabled),
+    minutesBefore: Math.max(0, Number(notification.minutesBefore) || 0),
+    customMessage: String(notification.customMessage || "").trim(),
+    sentKeys: Array.isArray(notification.sentKeys)
+      ? [...new Set(notification.sentKeys.map((value) => String(value || "").trim()).filter(Boolean))]
+      : [],
+  };
+}
+
 function normalizeAgendaItem(item, index) {
   const oldChildIds = item?.child ? [item.child] : [];
   const personIds = Array.isArray(item?.personIds) ? item.personIds.filter(Boolean) : item?.personId || item?.user ? [item.personId || item.user] : [];
@@ -389,6 +463,7 @@ function normalizeAgendaItem(item, index) {
       ? item.concernedPersonIds.filter(Boolean)
       : (Array.isArray(item?.childIds) ? item.childIds.filter(Boolean) : oldChildIds.filter(Boolean)),
     sourceType: item?.sourceType || item?.mode || "custom",
+    notification: normalizeAgendaNotification(item?.notification),
   };
 }
 
@@ -416,6 +491,7 @@ function normalizeRecurringItem(item, index) {
       ? item.concernedPersonIds.filter(Boolean)
       : (Array.isArray(item?.childIds) ? item.childIds.filter(Boolean) : oldChildIds.filter(Boolean)),
     sourceType: item?.sourceType || item?.mode || "custom",
+    notification: normalizeAgendaNotification(item?.notification),
   };
 }
 
@@ -522,11 +598,28 @@ export function normalizeState(rawState = {}) {
       }))
     : [];
   state.history = Array.isArray(state.history) ? state.history.slice(0, 400) : [];
+  state.inbox = Array.isArray(state.inbox)
+    ? state.inbox.map((item, idx) => ({
+        id: item.id || `inbox-${Date.now()}-${idx}`,
+        text: item.text || "",
+        hint: ["task", "event", "note"].includes(item.hint) ? item.hint : null,
+        createdAt: item.createdAt || "",
+        createdBy: item.createdBy || "",
+      }))
+    : [];
   state.agenda = Array.isArray(state.agenda) ? state.agenda.map(normalizeAgendaItem) : [];
   state.recurringEvents = Array.isArray(state.recurringEvents) ? state.recurringEvents.map(normalizeRecurringItem) : [];
   state.lastResetDaily = state.lastResetDaily || "";
   state.lastResetWeekly = state.lastResetWeekly || "";
   state.lastResetMonthly = state.lastResetMonthly || "";
+  state.taskNotifications = {
+    enabled: Boolean(state.taskNotifications?.enabled),
+    endOfDay: state.taskNotifications?.endOfDay !== false,
+    endOfDayTime: state.taskNotifications?.endOfDayTime || "18:00",
+    urgent: state.taskNotifications?.urgent !== false,
+    due: state.taskNotifications?.due !== false,
+    weeklyReminder: state.taskNotifications?.weeklyReminder !== false,
+  };
   return state;
 }
 

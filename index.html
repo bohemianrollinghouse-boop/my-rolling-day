@@ -2,22 +2,41 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#3E2C1C" />
-    <title>Planning Famille</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#FAF4ED" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1F1A17" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Rolling Day" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="./src/assets/brand/favicon.svg" />
+    <link rel="alternate icon" type="image/png" sizes="32x32" href="./src/assets/brand/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./src/assets/brand/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Applique la bonne theme-color dès le boot selon le thème enregistré -->
+    <script>(function(){try{var d=localStorage.getItem('mrd-theme')==='dark';var c=d?'#1F1A17':'#FAF4ED';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c)});var sb=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');if(sb)sb.setAttribute('content',d?'black':'default')}catch(e){}}())</script>
+    <title>My Rolling Day</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=DM+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-  <link rel="stylesheet" href="./src/styles.css?v=2026-04-26-recipes-top-1" />
+  <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
     <div id="root">
       <div class="ldr">
-        <div class="spin"></div>
-        Chargement...
+        <div class="ldr-mark">
+          <svg viewBox="0 0 96 96" width="96" height="96" fill="none">
+            <circle class="spl-ring" cx="48" cy="48" r="34" stroke="#B85F4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 8" opacity="0.55"></circle>
+            <circle class="spl-inner" cx="48" cy="48" r="22" stroke="#B85F4A" stroke-width="3" stroke-linecap="round"></circle>
+            <circle class="spl-dot" cx="48" cy="14" r="5" fill="#B85F4A"></circle>
+          </svg>
+        </div>
+        <div class="ldr-wordmark">my <em>rolling</em> day</div>
+        <div class="ldr-tag">Le foyer, jour après jour</div>
+        <div class="ldr-text">On prépare ta journée…</div>
       </div>
     </div>
     <script>
@@ -46,7 +65,7 @@
             '<h1 style="margin:0 0 10px 0;font-size:24px">Démarrage bloqué</h1>' +
             '<p style="margin:0 0 12px 0;line-height:1.5">L’application n’a pas terminé son chargement. Voici l’erreur visible :</p>' +
             '<pre style="white-space:pre-wrap;background:#fff7f7;border-radius:10px;padding:12px">' + String(message || "Erreur inconnue") + "</pre>" +
-            '<button onclick="window.location.reload()" style="margin-top:14px;border:none;border-radius:10px;padding:10px 14px;background:#C4607A;color:#fff;cursor:pointer">Réessayer</button>' +
+            '<button onclick="window.location.reload()" style="margin-top:14px;border:none;border-radius:10px;padding:10px 14px;background:#B85F4A;color:#fff;cursor:pointer">Réessayer</button>' +
             "</div></div>";
         }
 
@@ -55,12 +74,22 @@
 
         window.addEventListener("error", function (event) {
           pushLog("window-error", event.message || "");
+          // Erreurs cross-origin (Firebase CDN, gstatic…) : pas d'objet error, message = "Script error."
+          // — aucune info disponible, on ignore silencieusement.
+          if (!event.error && (!event.message || event.message === "Script error.")) return;
+          // Une fois React monté, il gère ses propres erreurs — on ne remplace plus l'UI.
+          if (window.__APP_BOOT_STATE__ === "react-mounted") return;
           renderBootstrapError(event.error && event.error.stack ? event.error.stack : event.message);
         });
 
         window.addEventListener("unhandledrejection", function (event) {
           var reason = event.reason && event.reason.stack ? event.reason.stack : event.reason && event.reason.message ? event.reason.message : event.reason;
           pushLog("unhandled-rejection", reason || "");
+          // Rejets Firebase / push : non fatals, on ignore.
+          if (event.reason && event.reason.name === "FirebaseError") return;
+          if (event.reason && event.reason.code && String(event.reason.code).startsWith("messaging/")) return;
+          // Une fois React monté, il gère ses propres erreurs.
+          if (window.__APP_BOOT_STATE__ === "react-mounted") return;
           renderBootstrapError(reason || "Promesse rejetée pendant le démarrage.");
         });
 
@@ -74,6 +103,6 @@
         }, 8000);
       })();
     </script>
-  <script type="module" src="./src/main.js?v=2026-04-26-recipes-top-1"></script>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>

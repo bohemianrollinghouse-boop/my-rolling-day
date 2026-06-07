@@ -1,4 +1,4 @@
-import { createMealShell } from "../utils/state.js?v=2026-04-26-storage-location-fix-1";
+import { createMealShell } from "../utils/state.js";
 import { DEMO_RECIPES } from "../data/demoRecipes.js";
 
 function normalizeRecipeIngredient(item, index) {
@@ -18,6 +18,10 @@ function normalizeIncomingRecipe(recipe) {
     id: recipe.id || `recipe-${Date.now()}`,
     name: String(recipe.name || "").trim(),
     servings: Math.max(1, Math.min(24, Number(recipe.servings || recipe.peopleCount || recipe.serves || 4) || 4)),
+    category: String(recipe.category || ""),
+    quick: Boolean(recipe.quick),
+    prepTime: String(recipe.prepTime || ""),
+    cookTime: String(recipe.cookTime || ""),
     availabilityMode: recipe.availabilityMode || "all_year",
     season: recipe.season || "",
     seasons: Array.isArray(recipe.seasons) ? [...new Set(recipe.seasons.map((value) => String(value || "").trim()).filter(Boolean))] : [],
@@ -27,42 +31,67 @@ function normalizeIncomingRecipe(recipe) {
     ingredientsLegacy: typeof recipe.ingredients === "string" ? String(recipe.ingredients).trim() : String(recipe.ingredientsLegacy || "").trim(),
     condiments: Array.isArray(recipe.condiments) ? recipe.condiments.map((s) => String(s).trim()).filter(Boolean) : [],
     method: String(recipe.method || "").trim(),
+    photo: String(recipe.photo || ""),
   };
 }
 
+function matchMeal(meal, day, weekKey) {
+  if (meal.day !== day) return false;
+  const mwk = meal.weekKey || "";
+  const wk = weekKey || "";
+  // Compat : anciens repas sans weekKey → semaine courante (weekKey vide ou non)
+  return mwk === wk || (mwk === "" && wk !== "");
+}
+
 export function useMeals(updateState) {
-  function handleUpdateMeal(day, slot, values) {
+  function handleUpdateMeal(day, slot, values, weekKey) {
+    const wk = weekKey || "";
     updateState((previous) => {
-      const existing = previous.meals.find((meal) => meal.day === day);
-      const meals = existing ? [...previous.meals] : [...previous.meals, createMealShell(day, previous.meals.length)];
+      const existing = previous.meals.find((meal) => matchMeal(meal, day, wk));
+      const meals = existing
+        ? [...previous.meals]
+        : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
       return {
         ...previous,
         meals: meals.map((meal) => {
-          if (meal.day !== day) return meal;
-          const recipeKey = slot === "lunch" ? "lunchRecipeId" : "dinnerRecipeId";
-          const textKey = slot === "lunch" ? "lunchText" : "dinnerText";
-          const modeKey = slot === "lunch" ? "lunchMode" : "dinnerMode";
+          if (!matchMeal(meal, day, wk)) return meal;
+          const recipeKey  = slot === "lunch" ? "lunchRecipeId"        : "dinnerRecipeId";
+          const textKey    = slot === "lunch" ? "lunchText"            : "dinnerText";
+          const modeKey    = slot === "lunch" ? "lunchMode"            : "dinnerMode";
+          const cookedKey  = slot === "lunch" ? "lunchCooked"          : "dinnerCooked";
+          const starterKey = slot === "lunch" ? "lunchStarterRecipeId" : "dinnerStarterRecipeId";
+          const dessertKey = slot === "lunch" ? "lunchDessertRecipeId" : "dinnerDessertRecipeId";
+          const extraKey   = slot === "lunch" ? "lunchExtra"           : "dinnerExtra";
+          const clearingRecipe = values.recipeId === "";
           return {
             ...meal,
-            [recipeKey]: values.recipeId ?? meal[recipeKey],
-            [textKey]: values.text ?? meal[textKey],
-            [modeKey]: values.recipeId ? "recipe" : values.text ? "free" : meal[modeKey],
+            weekKey: wk,
+            [recipeKey]:  values.recipeId  ?? meal[recipeKey],
+            [textKey]:    values.text      ?? meal[textKey],
+            [modeKey]:    values.recipeId ? "recipe" : values.text ? "free" : meal[modeKey],
+            [cookedKey]:  clearingRecipe ? false : meal[cookedKey],
+            [starterKey]: values.starterRecipeId ?? meal[starterKey],
+            [dessertKey]: values.dessertRecipeId ?? meal[dessertKey],
+            [extraKey]:   values.extra     ?? meal[extraKey],
           };
         }),
       };
     });
   }
 
-  function handleToggleCook(day, slot) {
+  function handleToggleCook(day, slot, weekKey) {
+    const wk = weekKey || "";
     updateState((previous) => {
-      const existing = previous.meals.find((meal) => meal.day === day);
-      const meals = existing ? [...previous.meals] : [...previous.meals, createMealShell(day, previous.meals.length)];
+      const existing = previous.meals.find((meal) => matchMeal(meal, day, wk));
+      const meals = existing
+        ? [...previous.meals]
+        : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
       return {
         ...previous,
         meals: meals.map((meal) => {
-          if (meal.day !== day) return meal;
+          if (!matchMeal(meal, day, wk)) return meal;
           const cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
-          return { ...meal, [cookedKey]: !meal[cookedKey] };
+          return { ...meal, weekKey: wk, [cookedKey]: !meal[cookedKey] };
         }),
       };
     });

@@ -104,8 +104,10 @@ export function collectKnownProducts({ inventory = [], lists = [], recipes = [] 
 export function formatQuantityUnit(quantity, unit) {
   const q = String(quantity || "").trim();
   const u = String(unit || "").trim();
-  if (!q && !u) return "";
-  if (!q) return u;
+  const numQ = Number(q);
+  const hasQ = q && !(Number.isFinite(numQ) && numQ === 0);
+  if (!hasQ && !u) return "";
+  if (!hasQ) return u;
   if (!u) return q;
   if (u === "unité") return `${q} unité${Number(q) > 1 ? "s" : ""}`;
   return `${q} ${u}`;

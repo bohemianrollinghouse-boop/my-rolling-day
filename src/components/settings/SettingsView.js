@@ -8,6 +8,7 @@ import {
 } from "./SettingsUI.js";
 import { EditMemberModal, AddPersonModal, NewMemberInviteModal } from "./SettingsModals.js";
 import { SettingsSupportPage } from "./SettingsSupportPage.js";
+import { NewHouseholdWizard } from "./NewHouseholdWizard.js";
 
 export function SettingsView({
   isOnboarding = false,
@@ -34,6 +35,7 @@ export function SettingsView({
   importText = "",
   showImport = false,
   onCreateFamily,
+  onCreateFamilyWizard,
   onJoinFamily,
   onSwitchFamily,
   onRenameFamily,
@@ -45,6 +47,8 @@ export function SettingsView({
   onChangeEmail,
   onChangePassword,
   onLeaveFamily,
+  onDeleteFamily,
+  onDeleteFamilyById,
   onDeleteAccount,
   onChangeActivePerson,
   onChangeDeviceMode,
@@ -81,6 +85,9 @@ export function SettingsView({
   const safePeople = Array.isArray(people) ? people : [];
   const safeInvitations = Array.isArray(invitations) ? invitations : [];
   const safeMemberDirectory = memberDirectory && typeof memberDirectory === "object" ? memberDirectory : {};
+  const [showNewHouseholdWizard, setShowNewHouseholdWizard] = useState(false);
+  const [renamingHouseholdId, setRenamingHouseholdId] = useState("");
+  const [renamingHouseholdValue, setRenamingHouseholdValue] = useState("");
   const [createName, setCreateName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [rename, setRename] = useState(currentFamily?.name || "");
@@ -163,9 +170,14 @@ export function SettingsView({
 
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute("data-theme", appearanceMode === "dark" ? "dark" : "light");
+    const isDark = appearanceMode === "dark";
+    root.setAttribute("data-theme", isDark ? "dark" : "light");
     try {
       localStorage.setItem("mrd-theme", appearanceMode);
+      const themeColor = isDark ? "#1F1A17" : "#FAF4ED";
+      document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", themeColor));
+      const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+      if (sb) sb.setAttribute("content", isDark ? "black" : "default");
     } catch (error) {
       console.warn("[settings] impossible d enregistrer le theme", error);
     }
@@ -300,6 +312,20 @@ export function SettingsView({
     setShowBadgePalette(false);
   }
 
+  async function submitCreateFamily() {
+    const name = createName.trim();
+    if (!name) return;
+    await onCreateFamily(name);
+    setCreateName("");
+  }
+
+  async function submitJoinFamily() {
+    const code = joinCode.trim();
+    if (!code) return;
+    await onJoinFamily(code);
+    setJoinCode("");
+  }
+
   async function handleLeaveFamilyClick() {
     if (!onLeaveFamily || !currentFamily) return;
     const confirmed = window.confirm(
@@ -307,6 +333,16 @@ export function SettingsView({
     );
     if (!confirmed) return;
     await onLeaveFamily();
+  }
+
+  async function handleDeleteFamilyClick() {
+    if (!onDeleteFamily || !currentFamily) return;
+    const name = currentFamily.name || "ce foyer";
+    const confirmed = window.confirm(
+      `Supprimer definitivement le foyer "${name}" ?\n\nToutes les donnees (taches, agenda, repas, listes, membres...) seront effacees pour tous les membres. Cette action est irreversible.`,
+    );
+    if (!confirmed) return;
+    await onDeleteFamily();
   }
 
   async function handleDeleteAccountClick() {
@@ -359,7 +395,9 @@ export function SettingsView({
   const editModalHasPendingCode = editModalPerson ? Boolean(pendingInvitationsByMember[editModalPerson.id]) : false;
   const editModalLinkedAccount = editModalPerson?.linkedAccountId ? safeMemberDirectory[editModalPerson.linkedAccountId] || null : null;
   const editModalRole = editModalLinkedAccount?.role || editModalPerson?.role || "member";
-  const editModalCanInvite = editModalPerson && editModalPerson.type !== "animal" && !editModalPerson.linkedAccountId;
+  // Autorise la re-génération même si le compte est déjà lié : utile si le membre perd l'accès
+  // au foyer (ex. currentFamilyId réinitialisé). Seul le même uid peut ré-accepter le code.
+  const editModalCanInvite = editModalPerson && editModalPerson.type !== "animal";
   const supportUserId = String(userProfile?.uid || linkedPerson?.linkedAccountId || "");
 
   function openSupportPage(page) {
@@ -372,11 +410,13 @@ export function SettingsView({
     endOfDayTime: taskNotifications?.endOfDayTime || "18:00",
     urgent: taskNotifications?.urgent !== false,
     due: taskNotifications?.due !== false,
+    weeklyReminder: taskNotifications?.weeklyReminder !== false,
   };
   const activeNotificationItems = [
     notif.endOfDay ? `fin de journee ${notif.endOfDayTime}` : null,
     notif.urgent ? "taches urgentes" : null,
     notif.due ? "taches avec echeance" : null,
+    notif.weeklyReminder ? "rappel hebdo 3 jours" : null,
   ].filter(Boolean);
 
   function updateNotif(key, value) {
@@ -420,6 +460,149 @@ export function SettingsView({
             disabled=${!canSubmitLinkedName && !canSubmitLinkedColor}
             onClick=${() => { if (canSubmitLinkedName) submitLinkedName(); if (canSubmitLinkedColor) submitLinkedColor(); }}
           >Valider</button>
+        </div>
+      `;
+    }
+
+    if (settingsPage === "households") {
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="Mes foyers" />
+
+          <!-- Liste des foyers -->
+          <section className="settings-subpage-group">
+            <div className="settings-subpage-title-row">
+              <div className="settings-subpage-group-title">${safeFamilies.length} foyer${safeFamilies.length !== 1 ? "s" : ""}</div>
+            </div>
+            <div className="settings-subpage-group-card">
+              ${safeFamilies.length === 0 ? html`
+                <div className="settings-empty-row">Aucun foyer pour le moment.</div>
+              ` : safeFamilies.map((family, index) => {
+                const isActive   = family.id === currentFamily?.id;
+                const isRenaming = renamingHouseholdId === family.id;
+                const isLast     = index === safeFamilies.length - 1;
+
+                return html`
+                  <div key=${family.id} className=${`households-row${isActive ? " households-row--active" : ""}${isLast ? " is-last" : ""}`}>
+
+                    <!-- En-tête de la carte foyer -->
+                    <div className="households-row-head">
+                      <div className="households-row-icon">🏠</div>
+                      <div className="households-row-info">
+                        <span className="households-row-name">${family.name}</span>
+                        ${isActive ? html`<span className="households-row-badge households-row-badge--active">Actif</span>` : null}
+                      </div>
+                    </div>
+
+                    <!-- Champ de renommage inline (foyer actif + admin seulement) -->
+                    ${isRenaming ? html`
+                      <div className="households-rename-row">
+                        <input
+                          className="ainp households-rename-input"
+                          value=${renamingHouseholdValue}
+                          autoFocus
+                          placeholder="Nouveau nom…"
+                          onInput=${(e) => setRenamingHouseholdValue(e.target.value)}
+                          onKeyDown=${(e) => {
+                            if (e.key === "Enter" && renamingHouseholdValue.trim() && renamingHouseholdValue.trim() !== family.name) {
+                              onRenameFamily(renamingHouseholdValue.trim());
+                              setRenamingHouseholdId("");
+                            }
+                            if (e.key === "Escape") setRenamingHouseholdId("");
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="settings-valider-btn${renamingHouseholdValue.trim() && renamingHouseholdValue.trim() !== family.name ? " active" : ""}"
+                          disabled=${!renamingHouseholdValue.trim() || renamingHouseholdValue.trim() === family.name || busy}
+                          onClick=${() => {
+                            onRenameFamily(renamingHouseholdValue.trim());
+                            setRenamingHouseholdId("");
+                          }}
+                        >Valider</button>
+                      </div>
+                    ` : null}
+
+                    <!-- Actions -->
+                    <div className="households-row-actions">
+                      <div className="households-row-actions-left">
+                        ${!isActive ? html`
+                          <button
+                            type="button"
+                            className="households-switch-btn"
+                            disabled=${busy}
+                            onClick=${() => onSwitchFamily(family.id)}
+                          >Changer de foyer</button>
+                        ` : html`
+                          <button
+                            type="button"
+                            className="households-switch-btn households-switch-btn--add"
+                            disabled=${busy}
+                            onClick=${openAddMemberFromSubpage}
+                          >+ Ajouter un membre</button>
+                        `}
+                      </div>
+                      ${isActive && canManageHousehold ? html`
+                        <div className="households-row-actions-right">
+                          <button
+                            type="button"
+                            className="households-switch-btn households-switch-btn--edit"
+                            onClick=${() => {
+                              if (isRenaming) {
+                                setRenamingHouseholdId("");
+                              } else {
+                                setRenamingHouseholdId(family.id);
+                                setRenamingHouseholdValue(family.name);
+                              }
+                            }}
+                          >${isRenaming ? "✕ Annuler" : "✏️ Renommer"}</button>
+                          <button
+                            type="button"
+                            className="households-switch-btn households-switch-btn--danger"
+                            disabled=${busy}
+                            onClick=${async () => {
+                              const name = family.name || "ce foyer";
+                              const ok = window.confirm(
+                                `Supprimer definitivement "${name}" ?\n\nToutes les donnees (taches, agenda, repas, listes, membres...) seront effacees. Action irreversible.`
+                              );
+                              if (!ok) return;
+                              await (onDeleteFamilyById || onDeleteFamily)(family.id);
+                            }}
+                          >Supprimer</button>
+                        </div>
+                      ` : null}
+                    </div>
+
+                  </div>
+                `;
+              })}
+            </div>
+          </section>
+
+          <!-- Actions bas de page -->
+          <${SettingsGroup} title="Ajouter un foyer">
+            <div className="settings-subpage-field">
+              <button
+                type="button"
+                className="foyer-add-btn foyer-add-btn--detail"
+                onClick=${() => setShowNewHouseholdWizard(true)}
+                disabled=${busy}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+                Nouveau foyer…
+              </button>
+            </div>
+            <div className="settings-subpage-field">
+              <div className="miniTitle">Rejoindre un foyer avec un code</div>
+              <div className="arow">
+                <input className="ainp" placeholder="ABC-123" value=${joinCode} onInput=${(e) => setJoinCode(e.target.value)} />
+                <button className="aok" onClick=${submitJoinFamily} disabled=${!joinCode.trim() || busy}>Rejoindre</button>
+              </div>
+              <div className="mini">Le code d'invitation rattache ton compte au bon membre du foyer.</div>
+            </div>
+          <//>
         </div>
       `;
     }
@@ -490,7 +673,10 @@ export function SettingsView({
           <//>
           <${SettingsGroup} title="Zone sensible">
             <${SettingsRow} icon="🚪" label="Quitter le foyer" onClick=${handleLeaveFamilyClick} danger=${true} />
-            <${SettingsRow} icon="🗑" label="Supprimer mon compte" onClick=${handleDeleteAccountClick} danger=${true} last=${true} />
+            ${canManageHousehold ? html`
+              <${SettingsRow} icon="🗑️" label="Supprimer le foyer" onClick=${handleDeleteFamilyClick} danger=${true} />
+            ` : null}
+            <${SettingsRow} icon="⛔" label="Supprimer mon compte" onClick=${handleDeleteAccountClick} danger=${true} last=${true} />
           <//>
         </div>
       `;
@@ -539,7 +725,8 @@ export function SettingsView({
               </div>
             ` : null}
             <${SettingsToggleRow} icon="⚠️" label="Taches urgentes" sub="Maximum un rappel par tache urgente et par jour." value=${notif.urgent} onChange=${(value) => updateNotif("urgent", value)} />
-            <${SettingsToggleRow} icon="📅" label="Taches avec echeance" sub="Utilise le rappel choisi dans la tache." value=${notif.due} onChange=${(value) => updateNotif("due", value)} last=${true} />
+            <${SettingsToggleRow} icon="📅" label="Taches avec echeance" sub="Utilise le rappel choisi dans la tache." value=${notif.due} onChange=${(value) => updateNotif("due", value)} />
+            <${SettingsToggleRow} icon="📆" label="Taches hebdomadaires en attente" sub="Rappel si une tache de la semaine n'a pas ete faite apres 3 jours." value=${notif.weeklyReminder} onChange=${(value) => updateNotif("weeklyReminder", value)} last=${true} />
           <//>
           <div className="settings-summary-card">
             <strong>Resume actif</strong>
@@ -758,6 +945,7 @@ export function SettingsView({
           role=${editModalRole}
           hasPendingCode=${editModalHasPendingCode}
           canInvite=${editModalCanInvite}
+          linkedAccount=${editModalLinkedAccount}
           onClose=${() => setEditPersonModalId("")}
           onUpdateMemberRole=${onUpdateMemberRole}
           onUpdatePerson=${onUpdatePerson}
@@ -779,6 +967,20 @@ export function SettingsView({
         <${NewMemberInviteModal}
           invite=${newMemberInvite}
           onClose=${() => setNewMemberInvite(null)}
+        />
+      ` : null}
+
+      ${showNewHouseholdWizard ? html`
+        <${NewHouseholdWizard}
+          onClose=${() => setShowNewHouseholdWizard(false)}
+          onSubmit=${async (payload) => {
+            await (onCreateFamilyWizard || onCreateFamily)(payload);
+            setShowNewHouseholdWizard(false);
+          }}
+          busy=${busy}
+          errorMessage=${""}
+          linkedPerson=${linkedPerson}
+          userProfile=${userProfile}
         />
       ` : null}
     `;
@@ -958,38 +1160,30 @@ export function SettingsView({
                 `;
               }) : html`<div className="empty">Aucun membre pour l’instant.</div>`}
             </div>
-<!-- Changer de foyer -->
-            ${safeFamilies.length > 1 ? html`
-              <div className="settings-actions">
-                <div className="miniTitle">Changer de foyer</div>
-                <div className="arow">
-                  ${safeFamilies.map((family) => html`
-                    <button key=${family.id} className=${`family-chip ${currentFamily?.id === family.id ? "on" : ""}`} onClick=${() => onSwitchFamily(family.id)}>
-                      ${family.name}
-                    </button>
-                  `)}
-                </div>
-              </div>
-            ` : null}
+            <${SeeMoreLink} onClick=${() => goSettingsPage("households")}>
+              ${safeFamilies.length > 1 ? `Mes foyers (${safeFamilies.length}) →` : "Gérer mes foyers →"}
+            <//>
 
           ` : html`
-            <!-- Pas encore de foyer -->
+            <div className="empty">Aucun foyer actif pour l'instant.</div>
+          `}
+          ${!currentFamily ? html`
             <div className="settings-actions">
-              <div className="miniTitle">Créer un foyer</div>
+              <div className="miniTitle">Creer un foyer</div>
               <div className="arow">
                 <input className="ainp" placeholder="Nom du foyer" value=${createName} onInput=${(event) => setCreateName(event.target.value)} />
-                <button className="aok" onClick=${() => onCreateFamily(createName)} disabled=${!canCreateFamily}>Créer</button>
+                <button className="aok" onClick=${submitCreateFamily} disabled=${!canCreateFamily || busy}>Creer</button>
               </div>
             </div>
             <div className="settings-actions">
               <div className="miniTitle">Rejoindre un foyer existant</div>
               <div className="arow">
                 <input className="ainp" placeholder="ABC-123" value=${joinCode} onInput=${(event) => setJoinCode(event.target.value)} />
-                <button className="aok" onClick=${() => onJoinFamily(joinCode)} disabled=${!canJoinFamily}>Rejoindre</button>
+                <button className="aok" onClick=${submitJoinFamily} disabled=${!canJoinFamily || busy}>Rejoindre</button>
               </div>
               <div className="mini">Le code d’invitation rattache ton compte au bon membre du foyer.</div>
             </div>
-          `}
+          ` : null}
           ${canManageHousehold ? html`<${SeeMoreLink} onClick=${() => goSettingsPage("household")}>Gerer le foyer en detail<//>` : null}
         <//>
 

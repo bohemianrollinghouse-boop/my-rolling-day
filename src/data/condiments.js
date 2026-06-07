@@ -25,12 +25,17 @@ export const CONDIMENTS = [
   { id: "basilic",        label: "Basilic" },
   { id: "origan",         label: "Origan" },
   { id: "persil",         label: "Persil" },
+  { id: "ciboulette",     label: "Ciboulette" },
   { id: "coriandre",      label: "Coriandre" },
   { id: "menthe",         label: "Menthe" },
   { id: "sauge",          label: "Sauge" },
   { id: "vinaigre",       label: "Vinaigre" },
   { id: "sauce_soja",     label: "Sauce soja" },
   { id: "moutarde",       label: "Moutarde" },
+  { id: "beurre",         label: "Beurre" },
+  { id: "miel",           label: "Miel" },
+  { id: "huile_sesame",   label: "Huile de sésame" },
+  { id: "citron",         label: "Jus de citron" },
 ];
 
 /**

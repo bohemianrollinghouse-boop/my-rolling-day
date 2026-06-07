@@ -2,6 +2,357 @@
 
 ---
 
+## [2026-06-07] — Migration Capacitor (Vite + Android + iOS)
+
+Ajout de Vite comme bundler et intégration Capacitor pour produire des apps natives Android et iOS.
+
+| Fichier / Dossier | Changement |
+|---|---|
+| `package.json` | Ajout deps : `react`, `react-dom`, `htm`, `firebase`, `@capacitor/core`, `@capacitor/android`, `@capacitor/ios` ; devDeps : `vite`, `@capacitor/cli` ; scripts : `dev`, `build`, `preview`, `cap:sync`. |
+| `vite.config.js` | Nouveau fichier — configuration Vite minimale (`publicDir: "public"`, `build.outDir: "dist"`). |
+| `capacitor.config.json` | Nouveau fichier — `appId: "com.myrollingday.app"`, `webDir: "dist"`, `androidScheme: "https"`. |
+| `src/lib.js` | Imports CDN esm.sh → npm `react`, `react-dom/client`, `htm`. |
+| `src/firebase/*.js` (7 fichiers) | Imports CDN gstatic.com → npm `firebase/app`, `firebase/auth`, `firebase/firestore`, `firebase/messaging`. |
+| Tous les `.js` de `src/` (32 fichiers) | Suppression des suffixes `?v=xxx` sur les imports locaux (Vite gère le versioning à la build). |
+| `index.html` | Suppression des `?v=xxx` sur les attributs `href` / `src`. |
+| `android/` | Projet Android Studio généré par `npx cap add android`. |
+| `ios/` | Projet Xcode généré par `npx cap add ios` (CocoaPods à installer sur macOS). |
+
+**Notes :**
+- Build actuel : `dist/assets/index-*.js` ~1,4 MB — code-splitting à envisager plus tard.
+- iOS : `pod install` doit être relancé depuis macOS (`npx cap sync ios` sur Mac).
+- Auth Google (`signInWithPopup`) à remplacer par `@capacitor/google-auth` ou `signInWithRedirect` pour le contexte natif WebView.
+
+---
+
+## [2026-05-28] — Notification : tâche hebdomadaire non effectuée après 3 jours
+
+Si une tâche de l'onglet **Semaine** (non récurrente) n'est pas cochée 3 jours après sa création, tous les membres du foyer reçoivent une push.
+
+| Fichier | Changement |
+|---------|------------|
+| `functions/index.js` | Ajout du helper `extractTimestampFromId` (extrait le timestamp du champ `id` de la forme `task-{ms}`). Section 4 dans `checkTasksForFamily` : filtre `type === "weekly"` + `taskKind !== "recurring"` + non terminée + âge ≥ 3 jours. Anti-spam `srv-task-weekly-3d-{taskId}` (expire 3 jours → relance si toujours en attente). Contrôlé par `settings.weeklyReminder !== false`. |
+| `src/utils/state.js` | `normalizeState` → `taskNotifications.weeklyReminder: state.taskNotifications?.weeklyReminder !== false` (activé par défaut). Version `?v=2026-05-28-weekly-notif-1`. |
+| `src/components/settings/SettingsView.js` | Ajout de `weeklyReminder` dans l'objet `notif` et dans `activeNotificationItems`. Nouveau toggle 📆 "Taches hebdomadaires en attente" dans la section "Types d'alertes" (en dernier, avec `last`). Version `?v=2026-05-28-weekly-notif-1`. |
+| `src/App.js` | Mise à jour des versions d'import `state.js` et `SettingsView.js`. |
+
+---
+
+## [2026-05-27] — Notification foyer : nouvelle tâche ajoutée
+
+Chaque fois qu'une tâche est créée dans le planner, tous les membres du foyer qui ont accordé la permission de notification reçoivent une push.
+
+| Fichier | Changement |
+|---------|------------|
+| `functions/index.js` | Ajout de `exports.onTaskCreated` : trigger `onDocumentUpdated` sur `families/{familyId}/planner/state`. Compare les tableaux `tasks` avant/après pour détecter les IDs nouveaux. Envoie via `sendToFamily` à **tous** les membres du foyer. Titre : `{emoji} Nouvelle tâche` (ou `Nouvelle tâche` si pas d'emoji). Corps : texte de la tâche. Anti-spam via `serverNotificationLog` avec clé `srv-task-created-{taskId}`. |
+
+---
+
+## [2026-05-26] — Fix : re-génération de code + email lié affiché dans la modal membre
+
+| Fichier | Changement |
+|---------|------------|
+| `src/firebase/clientFamily.js` | `createHouseholdInvitation` : supprime la garde `if (person.linkedAccountId)` qui bloquait la création d'un code pour un membre dont le compte était déjà lié. La sécurité reste assurée côté `acceptHouseholdInvitation` : seul le même uid peut ré-accepter le code. Utile quand un membre perd l'accès au foyer (ex. `currentFamilyId` réinitialisé ou document membre manquant) — le ré-accept recrée le document membre et remet `currentFamilyId` à jour. Version `?v=2026-05-26-reinvite-linked-1`. |
+| `src/firebase/client.js` | Mise à jour du numéro de version de `clientFamily.js`. |
+| `src/components/settings/SettingsView.js` | (1) `editModalCanInvite` : retire `!editModalPerson.linkedAccountId` → bouton visible même si compte déjà lié. (2) Passe `linkedAccount={editModalLinkedAccount}` à `EditMemberModal`. Version `?v=2026-05-26-reinvite-linked-1`. |
+| `src/components/settings/SettingsModals.js` | `EditMemberModal` : (1) nouveau prop `linkedAccount` ; (2) affiche l'email du compte lié sous le nom dans l'en-tête de la modal ; (3) label du bouton → `"Recréer l'accès"` si compte déjà lié, sinon `"Recreer un code"` / `"Creer un code"`. |
+| `src/styles.css` | Ajout de `.foyer-modal-member-info`, `.foyer-modal-member-email`, `.foyer-modal-member-email--unknown` pour l'affichage de l'email sous le nom. |
+| `src/App.js` | Mise à jour du numéro de version de `SettingsView.js`. |
+
+---
+
+## [2026-05-26] — Manifest : short_name changé en "Rappel"
+
+Chrome affiche "from Rolling Day" sous les notifications push — texte tiré du `short_name` du manifest. Changé en "Rappel" pour que Chrome affiche désormais "from Rappel".
+
+| Fichier | Changement |
+|---------|------------|
+| `manifest.json` | `"short_name": "Rolling Day"` → `"short_name": "Rappel"` |
+
+---
+
+## [2026-05-26] — Agenda : toggle 🔔 visible et fonctionnel pour les événements récurrents
+
+Le formulaire de création/édition d'événement masquait complètement la section rappel quand "Répéter" était activé (`!form.repeatWeekly`), et le payload forçait `enabled: false` pour les récurrents. Le rappel ne pouvait donc jamais être sauvegardé sur un événement récurrent.
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/agenda/AgendaView.js` | Suppression du `!form.repeatWeekly ?` qui cachait le toggle 🔔 ; `enabled: agendaNotifEnabled && !repeatWeekly` → `enabled: agendaNotifEnabled` ; `sentKeys` lookup utilise `recurringItems` quand `editing.entryKind === "recurring"` |
+
+---
+
+## [2026-05-26] — Notifications : événements récurrents du calendrier
+
+Les événements récurrents (hebdomadaires, quotidiens, mensuels) avec une notification activée ne déclenchaient aucune push ni aucune notif locale — ils étaient complètement ignorés côté Cloud Function et côté client.
+
+| Fichier | Changement |
+|---------|------------|
+| `functions/index.js` | `checkAgendaForFamily` accepte maintenant `recurringEvents` en paramètre. Pour chaque récurrent avec `notification.enabled`, calcule si l'événement se produit aujourd'hui (`daily` / `weekday` / `dayOfMonth`), puis applique la même logique de fenêtre 5 min et d'anti-spam que les événements ponctuels. Clé anti-spam : `srv-recur-{id}-{dateKey}-{start}-{min}`. Appel mis à jour pour passer `recurringEvents`. |
+| `src/components/agenda/AgendaView.js` | Ajout de `recurringRef` + `onUpdateRecurringRef`. Le `checkAgendaNotifications` (vérifié toutes les 30 s) parcourt maintenant aussi les récurrents, calcule si l'occurrence est aujourd'hui, et stocke la `sentKey` dans `event.notification.sentKeys` via `onUpdateRecurring` pour l'anti-spam. |
+
+---
+
+## [2026-05-26] — Notifications : rappel fin de journée amélioré
+
+Rappel à 18 h (heure configurable dans les réglages) si des tâches du jour ne sont pas faites.
+
+**Avant :** comptait uniquement les tâches de type `daily` — message « X tâche(s) du foyer encore en attente »
+**Après :** compte toutes les tâches du jour (`daily` + tâches dont `dueDate` = aujourd'hui) — message « Il vous reste X tâche(s) avant la fin de journée » + liste des 3 premières tâches en corps de notif.
+
+La notification est active par défaut. L'heure se règle dans Réglages → Notifications → Rappel fin de journée.
+
+| Fichier | Changement |
+|---------|------------|
+| `functions/index.js` | `checkTasksForFamily` : filtre `t.type === "daily"` → `daily OU dueDate === aujourd'hui` ; nouveau message |
+| `src/hooks/useTaskNotifications.js` | Même correctif pour la notif client (app ouverte) |
+
+---
+
+## [2026-05-26] — Notifications : rejoindre un foyer déclenche une push même app fermée
+
+### Contexte
+
+La Cloud Function `onMemberJoined` et le `joinEvent` côté client existaient déjà, mais deux bugs bloquants empêchaient toute notification de s'envoyer.
+
+### Bugs corrigés
+
+**Bug 1 — Règle Firestore bloquait l'écriture du `joinEvent`** :
+La règle `allow write: if false` pour `families/{id}/joinEvents` refusait silencieusement l'écriture du client après qu'un utilisateur accepte une invitation (erreur absorbée par un `console.warn`). La Cloud Function ne se déclenchait donc jamais.
+→ Remplacé par `allow create: if isFamilyMember(familyId) && request.resource.data.joinerUid == request.auth.uid` : seul le nouvel entrant peut créer son propre événement.
+
+**Bug 2 — Service worker sans SDK Firebase** :
+Le service worker `firebase-messaging-sw.js` n'utilisait qu'un gestionnaire `push` brut sans le SDK Firebase Messaging. Firebase ne pouvait pas router les messages en arrière-plan vers `onBackgroundMessage`.
+→ Ajout de `importScripts` pour `firebase-app-compat` et `firebase-messaging-compat`, initialisation du SDK, gestionnaire `onBackgroundMessage` propre.
+
+### ⚠️ Action requise — Clé VAPID incorrecte
+
+La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractères** alors qu'une vraie clé VAPID Firebase (P-256 non compressée) en fait **87–88**. La validation dans `messaging.js` refuse les clés < 80 caractères → aucun token FCM n'est jamais enregistré → aucune push ne peut être livrée.
+
+**Récupérer la vraie clé** : Firebase Console → projet `my-rolling-day` → Paramètres du projet → Cloud Messaging → Web Push certificates → copier la clé publique (87–88 chars, commence par `B`). La coller dans `constants.js` ligne 23.
+
+| Fichier | Changement |
+|---------|------------|
+| `firestore.rules` | `joinEvents` : `allow write: if false` → `allow create: if isFamilyMember && joinerUid == auth.uid` |
+| `public/firebase-messaging-sw.js` | Remplacement du gestionnaire `push` brut par le SDK Firebase Messaging compat + `onBackgroundMessage` |
+
+---
+
+## [2026-05-26] — Feature : tâche agendée aujourd'hui → remonte dans les tâches quotidiennes
+
+| Fichier | Changement |
+|---------|------------|
+| `src/App.js` | `taskAppearsInTab` : si `tab === "daily"` et que la tâche a une entrée agenda (`planning.dateKey`) correspondant à la date du jour (`localDateKey(getCurrentAppDate())`), la tâche apparaît dans l'onglet quotidien quelle que soit son `type` (hebdo, mensuel, etc.). Les tâches "daily" restent toujours visibles. Les tâches deadline gardent leur section dédiée. Pas d'impact sur l'onglet "Mes tâches". |
+
+---
+
+## [2026-05-26] — UI : boutons stylo/corbeille harmonisés avec les autres boutons foyer
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/settings/SettingsView.js` | Suppression des boutons ronds ✏️ (dans l'en-tête) et 🗑️ (rond dans actions). Remplacement par deux boutons texte `households-switch-btn--edit` (« ✏️ Renommer » / « ✕ Annuler ») et `households-switch-btn--danger` (« Supprimer ») dans une nouvelle div `.households-row-actions-right`, cohérents avec « Changer de foyer » / « + Ajouter un membre ». |
+| `src/styles.css` | Suppression de `.households-row-edit-btn` et `.households-delete-btn`. Ajout de `.households-row-actions-right`, `.households-switch-btn--edit`, `.households-switch-btn--danger` et leurs variantes dark mode. |
+
+---
+
+## [2026-05-26] — Fix : renommage de foyer inline non fonctionnel (input écrasé à 0px)
+
+| Fichier | Changement |
+|---------|------------|
+| `src/styles.css` | Dans `.households-rename-row` (flex row), le bouton Valider héritait de `.settings-valider-btn { width: 100% }` prévu pour les contextes flex-column. Cela écrasait l'input (flex: 1) à une largeur quasi nulle, rendant la saisie impossible. Ajout de `.households-rename-input { min-width: 0 }` et override `.households-rename-row .settings-valider-btn { width: auto; flex-shrink: 0; padding-left/right: 16px }` pour que l'input prenne tout l'espace disponible et le bouton sa taille naturelle. |
+
+---
+
+## [2026-05-25] — Fix : auto-fallback si le foyer courant est inaccessible après reconnexion
+
+| Fichier | Changement |
+|---------|------------|
+| `src/hooks/useAuth.js` | Nouvel effet `auto-fallback` : quand `familiesReady = true`, que `currentFamilyId` est défini, mais que `currentFamily === null` (foyer introuvable dans la liste chargée — accès refusé, document supprimé, etc.), bascule automatiquement sur le premier foyer accessible dans `safeFamilies`. Évite qu'un utilisateur ayant rejoint un nouveau foyer soit bloqué en mode onboarding après déconnexion/reconnexion si son `currentFamilyId` pointait encore sur l'ancien foyer. Version `?v=2026-05-25-auto-fallback-1`. |
+| `src/App.js` | Mise à jour du numéro de version de `useAuth.js`. |
+
+---
+
+## [2026-05-25] — Fix : switcher multi-foyers bloqué si un snapshot Firestore échoue
+
+| Fichier | Changement |
+|---------|------------|
+| `src/firebase/clientFamily.js` | `watchFamilies` : (1) déduplique les IDs avec `[...new Set(...)]` pour éviter le stall si `familyIds` contient des doublons ; (2) dans le callback d'erreur de `onSnapshot`, appelle désormais `cacheStates.set(familyId, false)` puis `fireIfReady()` — sans ça, si un foyer renvoie une erreur Firestore (ex. règle de sécurité refusée), la garde `cacheStates.size < ids.length` restait bloquée et le callback principal n'était jamais appelé, laissant `families` figé sur l'ancien foyer unique. Version `?v=2026-05-25-watch-families-fix-1`. |
+| `src/firebase/client.js` | Mise à jour du numéro de version de `clientFamily.js`. |
+| `src/hooks/useAuth.js` | Mise à jour du numéro de version de `client.js`. |
+
+---
+
+## [2026-05-25] — Repas : vérification inventaire pour entrée/dessert + bouton "Marquer cuisiné" sur les extras
+
+| Fichier | Changement |
+|---------|------------|
+| `src/utils/state.js` | Ajout de `lunchStarterCooked`, `lunchDessertCooked`, `dinnerStarterCooked`, `dinnerDessertCooked` dans `createMealShell` et `normalizeMeal`. Version `?v=2026-05-25-extras-inventory-cook-1`. |
+| `src/App.js` | `computeMealCookState` accepte un 5e param `subSlot` (`"main"` / `"starter"` / `"dessert"`) pour choisir la bonne clé recette et cuisiné. `handleToggleCookWithInventory` accepte un 4e param `subSlot` et passe la bonne `cookedKey` dans l'annulation toast. Version `MealsView.js` et `state.js` → `?v=2026-05-25-extras-inventory-cook-1`. |
+| `src/components/meals/MealsView.js` | Extraction de `checkInventoryAfterPick(recipe)` pour factoriser la vérification inventaire. `selectRecipe()` appelle cette fonction aussi pour entrée et dessert. `renderSlotExtras()` lit `starterCooked`/`dessertCooked` et passe un bouton 🍳 compact à `extraRecipeRow` qui appelle `onToggleCook(day, slot, wk, "starter"|"dessert")`. |
+| `src/styles.css` | Ajout de `.mrd-meals-cook-btn--sm` et `.mrd-meals-cook-btn--sm.on` : variante compacte du bouton cuisiné pour les extras (entrée/dessert). |
+
+---
+
+## [2026-05-24] — "Mes foyers" : suppression réservée aux admins
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/settings/SettingsView.js` | Bouton 🗑️ conditionnel : visible uniquement si `isActive && canManageHousehold` (foyer courant + rôle admin). Pour les autres foyers (rôle inconnu côté client), le bouton est masqué — l'utilisateur doit d'abord basculer sur ce foyer puis supprimer. |
+| `src/App.js` | Version `SettingsView.js` → `?v=2026-05-24-households-manage-2`. |
+
+---
+
+## [2026-05-24] — "Mes foyers" : suppression par foyer + ajout de membres
+
+| Fichier | Changement |
+|---------|------------|
+| `src/hooks/useAuth.js` | Ajout de `handleDeleteFamilyById(familyId)` : peut supprimer n'importe quel foyer de la liste (pas seulement le foyer actif), calcule le `nextFamilyId` automatiquement. Exporté. |
+| `src/components/settings/SettingsView.js` | Prop `onDeleteFamilyById` ajoutée. Dans la page **"Mes foyers"** : pour le foyer actif → bouton "➕ Ajouter un membre" (ouvre `settingsPage === "household"`) + 🗑️ ; pour les autres foyers → bouton "Changer de foyer". Dans la page **"Gérer le foyer"** : section "Autres foyers" entièrement supprimée (wizard + code d'invitation). |
+| `src/styles.css` | Ajout de `.households-row-actions`, `.households-row-actions-left`, `.households-delete-btn`, `.households-switch-btn`, `.households-switch-btn--add` + variantes dark. |
+| `src/App.js` | Destructure `handleDeleteFamilyById` depuis `useAuth`, prop `onDeleteFamilyById` passée au `<SettingsView>`. Version `SettingsView.js` → `?v=2026-05-24-households-manage-1`. |
+
+---
+
+## [2026-05-24] — Page "Mes foyers" dans les Réglages
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/settings/SettingsView.js` | Nouvelle page `settingsPage === "households"` : liste de tous les foyers avec statut actif, switch, renommage inline (foyer actif + admin). La section "Changer de foyer" (chips) est remplacée par un lien "Mes foyers (N) →". |
+| `src/styles.css` | Ajout des classes `.households-row`, `.households-row--active`, `.households-row-name`, `.households-row-badge`, `.households-row-edit-btn`, `.households-rename-row`, `.households-switch-btn`, `.households-manage-link` + variantes dark. |
+| `src/App.js` | Version `SettingsView.js` → `?v=2026-05-24-households-page-1`. |
+
+---
+
+## [2026-05-24] — Wizard création de foyer depuis les Réglages
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/settings/NewHouseholdWizard.js` | **Nouveau fichier** — wizard multi-étapes (nom du foyer → membres → invitations). Réutilise les classes CSS de l'onboarding (`.onboarding-step`, `.onb-step-dots`, `.onb-kind-tab`, `.onb-member-*`, etc.). S'ouvre en modal overlay. |
+| `src/components/settings/SettingsView.js` | Import de `NewHouseholdWizard`, nouvelle prop `onCreateFamilyWizard`, état `showNewHouseholdWizard`. Le bouton "Créer un nouveau foyer" remplace l'ancien champ texte + bouton. |
+| `src/App.js` | Prop `onCreateFamilyWizard` → `handleCreateHouseholdOnboarding` (crée le foyer + membres + invitations). Version `SettingsView.js` → `?v=2026-05-24-household-wizard-1`. |
+
+**Flux wizard :**
+1. **Nom du foyer** — champ texte + 4 suggestions rapides
+2. **Membres** — onglets Personne / Enfant / Animal, ajout à la liste, suppression
+3. **Qui aura l'app ?** — sélection des membres qui recevront un code d'invitation *(étape visible seulement si des membres ont été ajoutés)*
+
+---
+
+## [2026-05-24] — Suppression de foyer
+
+| Fichier | Changement |
+|---------|------------|
+| `src/firebase/clientFamily.js` | Ajout de `deleteFamily({ familyId, user, nextFamilyId })` : vérifie le rôle admin, charge members/people/invitations/joinEvents, met à jour chaque profil utilisateur membre (retire familyId, vide currentFamilyId, supprime linkedMemberIdsByHousehold), supprime tous les docs en batch. |
+| `src/firebase/client.js` | Version `clientFamily.js` → `?v=2026-05-24-delete-household-1`. |
+| `src/hooks/useAuth.js` | Import de `deleteFamily` + version → `?v=2026-05-24-delete-household-1`. Nouveau `handleDeleteFamily()` (vérifie admin, calcule nextFamilyId, appelle `deleteFamily`, affiche un message de confirmation). Exporté. |
+| `src/components/settings/SettingsView.js` | Prop `onDeleteFamily` + handler `handleDeleteFamilyClick` avec double confirmation. Bouton "Supprimer le foyer" dans "Zone sensible", visible uniquement pour les admins (`canManageHousehold`). |
+| `src/App.js` | Destructure `handleDeleteFamily` depuis `useAuth`, versions `useAuth.js` et `SettingsView.js` → `?v=2026-05-24-delete-household-1`, prop `onDeleteFamily` passée au `<SettingsView>`. |
+
+---
+
+## [2026-05-24] — Multi-foyers : picker enrichi + UX créer/rejoindre
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/home/HomeView.js` | Picker de foyer entièrement revu : cartes avec nom + membres + avatars pour le foyer actif, boutons "Créer un foyer" / "Rejoindre un foyer" en bas avec formulaire inline (mode `create`/`join` avec `← Retour`). Le bouton ▾ est maintenant **toujours visible** (même avec un seul foyer). Nouveaux props : `onCreateFamily`, `onJoinFamily`. |
+| `src/App.js` | Passage de `onCreateFamily` et `onJoinFamily` à `HomeView`. |
+| `src/components/settings/SettingsView.js` | **Carte principale Foyer** : blocs "Créer" et "Rejoindre" désormais masqués si un foyer actif existe (gardés uniquement pour l'onboarding). **Sous-page "Gérer le foyer en détail"** : nouveau groupe "Autres foyers" (créer + rejoindre) ajouté juste avant "Zone sensible". |
+| `src/styles.css` | Nouveaux styles : `.mrd-family-picker-card`, `.mrd-family-picker-action`, `.mrd-family-picker-back`, `.mrd-family-picker-form`, `.mrd-family-picker-input`, `.mrd-family-picker-submit`, etc. |
+| `tests/unit/multi-family-source.test.js` | Test mis à jour pour refléter le nouveau comportement (create/join masqués dans la carte principale, présents dans la sous-page). |
+
+**Tests :** 18/18 ✅
+
+---
+
+## [2026-05-24] — Tests E2E : module des tâches
+
+| Fichier | Changement |
+|---------|------------|
+| `tests/e2e/tasks.test.js` | **Nouveau fichier** — suite complète pour le module des tâches. |
+| `tests/e2e.test.js` | Ajout de `import "./e2e/tasks.test.js"`. |
+
+**Section 1 — logique pure (37 tests, toujours exécutée) :** `reorderTasks` (tri daily < weekly < monthly < deadline, renumérotation), `taskPeriodFromTab`, `normalizeDuration` (allDay / none / preset / custom), `normalizeTaskReminderChoice` / `normalizeTaskNotificationChoice`, `defaultTaskForm` (valeurs par défaut par onglet), `getDueDateTime` (avec/sans heure, chaîne invalide), `isPastDue`, `isTaskLate`, `urgencyBadge`, `taskSortValue` (en retard=0, incomplète=1-3, complétée=10), `getDeadlineTasksForTab` (mine / daily / weekly / monthly).
+
+**Section 2 — CDP browser (port 9226, 9 sous-tests, skippée si pas de navigateur headless) :** onboarding → onglet Tâches, FAB ouvre la modale, créer une tâche quotidienne, créer une tâche hebdomadaire, créer une tâche deadline avec date, basculer une tâche en terminé, fermer la modale sans créer, onglet "Mes tâches", tous les sous-onglets sans crash.
+
+---
+
+## [2026-05-24] — Bugfix : double initialisation Firebase → "Script error." au démarrage
+
+| Fichier | Changement |
+|---------|------------|
+| `src/hooks/usePlannerSync.js` | Imports `firebase/client.js` mis à jour de `?v=2026-05-08-offline-cache-1` → `?v=2026-05-24-multi-family-1` (ligne 1 et 5 fusionnées en 1 import). |
+| `src/hooks/usePushMessaging.js` | Idem. |
+| `src/components/feedback/FeedbackWidget.js` | Idem. |
+| `src/components/settings/SettingsSupportPage.js` | Idem. |
+| `src/components/settings/SettingsView.js` | Import de `SettingsSupportPage.js` versionné (`?v=2026-05-24-multi-family-1`) pour invalider le cache. |
+| `src/App.js` | Versions mises à jour pour `usePlannerSync`, `usePushMessaging`, `FeedbackWidget`, `SettingsView`. |
+
+**Cause :** Lors de la refactorisation de `firebase/client.js` en sous-modules (`core.js`, `clientAuth.js`, etc.), `initializeApp(FIREBASE_CONFIG)` a été déplacé dans `core.js`. Mais plusieurs fichiers importaient encore `client.js` avec l'ancienne version `?v=2026-05-08-offline-cache-1`. Si le navigateur avait cette URL en cache avec l'**ancien** `client.js` monolithique (qui appelait aussi `initializeApp` directement), Firebase levait une erreur "App '[DEFAULT]' already exists" depuis gstatic.com (cross-origin) → `event.error` sans stack → handler bootstrap affichait **"Script error."** → écran "Démarrage bloqué" avant que React soit monté.
+
+---
+
+## [2026-05-24] — Bugfix : crash "Script error." + tâche + Google PWA
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/auth/AuthScreen.js` | Suppression du blocage Google en mode PWA standalone. Le bouton "Continuer avec Google" est affiché sur toutes les pages (welcome, login, signup). `clientAuth.js` gère déjà le redirect vs popup automatiquement. |
+| `index.html` | Handler `window.addEventListener("error")` : ajout du filtre "Script error." (erreurs cross-origin CDN Firebase/gstatic sans info diagnostic) et d'un guard `__APP_BOOT_STATE__ === "react-mounted"` (ne remplace plus l'UI React). Même correction pour `unhandledrejection` : ignore FirebaseError et messaging/\*. |
+| `src/App.js` | `onAddTask` lambda : `(task) =>` → `(tab, form) =>` — passait seulement le 1er argument au lieu des 2 (`handleAddTask(type, form)`), causant `form = undefined` → crash à chaque création de tâche. |
+| `src/hooks/useAuth.js` | Ajout de `setCurrentFamily` aux imports Firebase. Utilisé par `handleSwitchFamily` mais manquant dans la liste. |
+
+**Cause "démarrage bloqué / Script error." :** Une erreur cross-origin levée par Firebase CDN pendant l'usage (p.ex. lors d'une sauvegarde Firestore) se propageait au handler HTML inline qui ne filtrait pas ces messages — remplaçait toute l'UI par la page d'erreur bootstrap même en plein milieu d'une session.
+
+---
+
+## [2026-05-24] — Inbox : formulaires de dispatch complets (modales complètes)
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/inbox/InboxView.js` | Refonte des formulaires de dispatch : les mini-forms inline sont remplacés par des **modales complètes** identiques aux formulaires natifs. Tâche : emoji picker, texte, période (aujourd'hui/semaine/mois/avant…), type (unique/récurrente), urgence, attribué à. Agenda : emoji picker, titre, date+heure, durée, attribué à, personne concernée, répéter. Note : texte, visibilité (Foyer/Privée), partage avec membres. Nouvelles props : `people`, `childProfiles`. |
+| `src/App.js` | Handlers `handleDispatchToTask`, `handleDispatchToAgenda`, `handleDispatchToNote` mis à jour pour accepter le payload complet (au lieu des paramètres individuels). `handleDispatchToAgenda` gère maintenant `repeatWeekly` → appelle `handleAddRecurring`. Props `people` et `childProfiles` ajoutées à `<InboxView>`. |
+
+**Avant :** tap "→ Tâche" ouvrait 3 chips quotidien/semaine/mois. **Après :** ouvre une modale complète avec toutes les options de `TasksView`. Idem pour agenda (toutes les options de `AgendaView`) et notes (visibilité + partage comme dans `NotesView`).
+
+---
+
+## [2026-05-24] — Inbox : capture rapide avec dispatch vers tâches/agenda/notes
+
+| Fichier | Changement |
+|---------|------------|
+| `src/utils/state.js` | Ajout de `state.inbox = []` dans `normalizeState()` avec normalisation des champs `id`, `text`, `hint`, `createdAt`, `createdBy`. |
+| `src/constants.js` | Ajout de `{ id: "inbox", label: "Inbox", icon: "📥" }` dans `TABS`. |
+| `src/components/inbox/InboxView.js` | **Nouveau composant.** Écran de capture rapide : textarea + chips de type optionnel (Tâche/Événement/Note) + liste d'items avec dispatch inline vers tâches (choix quotidien/semaine/mois), agenda (date picker + heure) ou notes (instantané). |
+| `src/styles.css` | Ajout des styles `.ibx-*` : add card, hint chips, items list, dispatch buttons, inline forms, section home. Dark mode inclus. |
+| `src/components/home/HomeView.js` | Nouveau prop `inbox`. Section "📥 Inbox" insérée entre "À venir" et "Accès rapide" — affiche jusqu'à 3 items avec badge de comptage et lien "Voir tout →". Masquée si inbox vide. |
+| `src/App.js` | Import `InboxView`. Ajout de `"inbox"` dans `secondaryScreens` et dans la map des titres. Handlers : `handleAddInboxItem`, `handleDeleteInboxItem`, `handleDispatchToTask`, `handleDispatchToAgenda`, `handleDispatchToNote`. Rendu `<InboxView>` dans `plannerContent`. Prop `inbox` passée à `HomeView`. |
+
+**Fonctionnement :** L'inbox est accessible depuis l'accueil (section dédiée visible dès le 1er item) et depuis `onNavigate("inbox")`. Chaque item peut être dispatchée en 2 taps (choisir destination → confirmer), puis est automatiquement retirée de l'inbox. Les données persistent via Firebase (sync `usePlannerSync`).
+
+---
+
+## [2026-05-24] — Fix Google Sign-in localhost + logs d'erreur complets
+
+| Fichier | Changement |
+|---------|------------|
+| `src/constants.js` | `authDomain` corrigé : `"myrollingday.netlify.app"` → `"my-rolling-day.firebaseapp.com"`. L'ancienne valeur dirigeait le handler OAuth vers Netlify (404), ce qui cassait `signInWithPopup` en local. |
+| `src/firebase/clientAuth.js` | `console.error` du bloc popup enrichi avec `error?.message` et `error?.customData` (en plus de `error?.code` et `error` déjà présents). |
+| `src/hooks/useAuth.js` | Ajout de `console.error("[auth] runAuth error", ...)` avant `setAuthError(formatAuthError(error))` dans `runAuth()`. Ajout de `console.error("[auth] getGoogleRedirectResult error", ...)` avant `setAuthError` dans le catch du redirect. Les erreurs brutes ne sont plus masquées silencieusement par `formatAuthError`. |
+
+**Note Firebase Console** (non vérifiable en code) : s'assurer que `localhost` et `127.0.0.1` sont dans *Authentication → Authorized domains* et que le provider Google est activé sur https://console.firebase.google.com/project/my-rolling-day/authentication
+
+---
+
+## [2026-05-23] — Notifications : re-proposition après "Plus tard" + nettoyage
+
+| Fichier | Changement |
+|---------|------------|
+| `src/utils/storage.js` | Nouveau système `mrd_notif_prompt` (JSON) remplaçant le booléen `mrd_notifications_prompt_seen`. Fonctions : `shouldShowNotifPrompt()`, `markNotifPromptGranted()`, `markNotifPromptDismissed()`, `getNotifPromptDismissCount()`. Délais : 3j après 1er refus, 7j après 2e. Arrêt après 3 refus. Migration automatique de l'ancien booléen. |
+| `src/App.js` | Import des nouvelles fonctions storage. Récupération de `pushPermission` depuis `usePushMessaging`. Remplacement des 3× `alreadySeen` par `shouldShowNotifPrompt()`. `onActivate` → `markNotifPromptGranted()`, `onLater` → `markNotifPromptDismissed()`. Ajout d'une vérification au lancement de l'app (re-proposition si délai écoulé). |
+| `src/components/modals/AppModals.js` | `NotifPromptModal` reçoit `dismissCount` : titre et corps adaptés au 2e rappel, bouton "Non merci" au 3e. |
+| `src/components/agenda/AgendaView.js` | Suppression de la fonction morte `requestNotificationPermission()` (jamais appelée, sans FCM). |
+
+---
+
 ## [2026-05-23] — HistoryView : retour à la vue par personne + bouton + agrandi
 
 | Fichier | Changement |

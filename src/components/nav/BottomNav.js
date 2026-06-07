@@ -80,21 +80,28 @@ function toTabId(id) {
   return id;
 }
 
-export function BottomNav({ activeTab, onChange }) {
+export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
   const active = getBottomId(activeTab);
 
   return html`
     <nav className="mrd-bnav">
       ${NAV_TABS.map(({ id, label, Icon }) => {
         const isOn = active === id;
+        const badge = id === "tasks" && overdueTaskCount > 0 ? overdueTaskCount : 0;
         return html`
           <button
             key=${id}
+            type="button"
             className=${`mrd-bnav-btn ${isOn ? "on" : ""}`}
+            aria-label=${badge ? `${label} — ${badge} en retard` : label}
+            aria-current=${isOn ? "page" : null}
             onClick=${() => onChange(toTabId(id))}
           >
-            <${Icon} active=${isOn} />
-            <span className="mrd-bnav-label">${label}</span>
+            <div className="mrd-bnav-icon-wrap">
+              <${Icon} active=${isOn} />
+              ${badge ? html`<span className="mrd-bnav-badge" aria-hidden="true">${badge > 9 ? "9+" : badge}</span>` : null}
+            </div>
+            <span className="mrd-bnav-label" aria-hidden="true">${label}</span>
             ${isOn ? html`<div className="mrd-bnav-dot"></div>` : null}
           </button>
         `;

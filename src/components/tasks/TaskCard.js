@@ -1,5 +1,5 @@
 import { html } from "../../lib.js";
-import { getCurrentAppDate, getCurrentAppTimestamp } from "../../utils/date.js?v=2026-04-19-time-sim-2";
+import { getCurrentAppDate, getCurrentAppTimestamp } from "../../utils/date.js";
 
 const URGENCY_META = {
   normal: { label: "Normale", className: "normal", score: 2 },
@@ -59,6 +59,21 @@ function dueLabel(task) {
   return task.dueTime ? `À faire avant ${dateLabel} ${task.dueTime}` : `À faire avant ${dateLabel}`;
 }
 
+export function daysLeft(task) {
+  if (task.priority !== "deadline" || completedIds(task).length > 0) return null;
+  const dueDate = getDueDateTime(task);
+  if (!dueDate) return null;
+  const now = getCurrentAppDate();
+  now.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const diff = Math.round((due - now) / 86400000);
+  if (diff < 0) return null; // déjà en retard — le badge "Retard" suffit
+  if (diff === 0) return "Aujourd'hui";
+  if (diff === 1) return "Demain";
+  return `J-${diff}`;
+}
+
 export function urgencyBadge(task) {
   if (task.priority === "deadline") {
     return {
@@ -104,6 +119,7 @@ export function TaskCard({
     : "";
   const taskUrgency = urgencyBadge(task);
   const isDone = doneIds.length > 0;
+  const daysLeftLabel = daysLeft(task);
 
   return html`
     <article className=${`task-card ${isDone ? "done" : ""} ${isTaskLate(task) && !isDone ? "overdue" : ""}`} key=${task.id}>
@@ -117,6 +133,7 @@ export function TaskCard({
                 <span className=${`ttag task-priority ${taskUrgency.className || "normal"}`}>${taskUrgency.label}</span>
                 ${task.taskKind === "recurring" ? html`<span className="ttag recTag">${recurrenceLabel(task)}</span>` : null}
                 ${isTaskLate(task) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
+                ${daysLeftLabel && !isDone ? html`<span className="ttag days-left-tag">${daysLeftLabel}</span>` : null}
               </div>
               ${assignedPerson ? html`<div className="task-assignee">Attribuée à : ${assignedPerson.label}</div>` : null}
               ${planning ? html`<div className="task-assignee">${planningLabel}${planningPeople ? ` · ${planningPeople}` : ""}</div>` : null}
@@ -137,11 +154,11 @@ export function TaskCard({
                     <button
                       key=${`${task.id}-${person.id}`}
                       className=${`task-person-chip ${isSelected ? "on" : ""}`}
-                      style=${isSelected ? { background: person.color, borderColor: person.color, color: "#fff" } : { background: "#fff", borderColor: person.color || "#D8CEBF", color: person.color || "#8A7868" }}
+                      style=${isSelected ? { background: person.color, borderColor: person.color, color: "#fff" } : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                       onClick=${() => onToggleTask(task.id, person.id)}
                       title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                     >
-                      <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { background: "#fff", color: person.color || "#8A7868" }}>
+                      <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { color: person.color || "var(--mrd-fg3)" }}>
                         ${person.shortId}
                       </span>
                     </button>
