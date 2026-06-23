@@ -58,12 +58,25 @@ function IcoList({ active }) {
     </svg>`;
 }
 
+function IcoKids({ active }) {
+  const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
+  const sw = active ? "2.2" : "1.8";
+  return html`
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="9" cy="7" r="3" stroke=${c} stroke-width=${sw}/>
+      <circle cx="17" cy="8" r="2.5" stroke=${c} stroke-width=${sw}/>
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
+      <path d="M17 14c1.7 0 3 1.3 3 3v3" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
+    </svg>`;
+}
+
 const NAV_TABS = [
-  { id: "home", label: "Accueil", Icon: IcoHome },
-  { id: "tasks", label: "Tâches", Icon: IcoCheck },
-  { id: "agenda", label: "Agenda", Icon: IcoCal },
-  { id: "meals", label: "Repas", Icon: IcoFork },
-  { id: "lists", label: "Listes", Icon: IcoList },
+  { id: "home",      label: "Accueil", Icon: IcoHome  },
+  { id: "tasks",     label: "Tâches",  Icon: IcoCheck },
+  { id: "agenda",    label: "Agenda",  Icon: IcoCal   },
+  { id: "meals",     label: "Repas",   Icon: IcoFork  },
+  { id: "lists",     label: "Listes",  Icon: IcoList  },
+  { id: "childcare", label: "Suivi",   Icon: IcoKids  },
 ];
 
 function getBottomId(tab) {
@@ -71,6 +84,7 @@ function getBottomId(tab) {
   if (tab === "agenda") return "agenda";
   if (tab === "meals") return "meals";
   if (tab === "lists") return "lists";
+  if (tab === "childcare") return "childcare";
   if (tab === "home") return "home";
   return "home";
 }

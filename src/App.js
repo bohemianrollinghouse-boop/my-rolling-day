@@ -1,4 +1,5 @@
 import { BottomNav } from "./components/nav/BottomNav.js";
+import { ChildcareView } from "./components/childcare/ChildcareView.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
 import { HomeView } from "./components/home/HomeView.js";
@@ -1087,6 +1088,8 @@ export function App() {
         onDeleteNote=${(id) => { handleDeleteNote(id); showToast("Note supprimée"); }}
         onUpdateNote=${(id, updates) => { handleUpdateNote(id, updates); showToast("✓ Note mise à jour"); }}
       />`;
+    } else if (activeTab === "childcare") {
+      plannerContent = html`<${ChildcareView} />`;
     } else if (activeTab === "history") {
       plannerContent = html`<${HistoryView} history=${state.history} users=${householdPeople} onClearHistory=${handleClearHistory} />`;
     } else if (activeTab === "inbox") {
@@ -1315,7 +1318,7 @@ export function App() {
               `
             : html`
                 ${/* Screen header for main tabs */null}
-                ${!isSecondaryScreen && activeTab !== "lists" ? html`
+                ${!isSecondaryScreen && activeTab !== "lists" && activeTab !== "childcare" ? html`
                   <div className="mrd-screen-hdr">
                     <div className="mrd-screen-hdr-row">
                       <span className="mrd-screen-hdr-title">
@@ -1340,7 +1343,7 @@ export function App() {
                     ` : null}
                   </div>
                 ` : null}
-                <main className="cnt">
+                <main className=${`cnt${activeTab === "childcare" ? " cnt--childcare" : ""}`}>
                   ${plannerContent}
                 </main>
               `}
