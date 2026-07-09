@@ -1,4 +1,4 @@
-import { html } from "../../lib.js";
+import { html, useEffect, useRef, useState } from "../../lib.js";
 
 function IcoHome({ active }) {
   const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
@@ -46,15 +46,12 @@ function IcoFork({ active }) {
     </svg>`;
 }
 
-function IcoList({ active }) {
+function IcoPlus({ active }) {
   const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
   const sw = active ? "2.2" : "1.8";
   return html`
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M9 6h11M9 12h11M9 18h11" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
-      <circle cx="4" cy="6" r="1.5" fill=${c}/>
-      <circle cx="4" cy="12" r="1.5" fill=${c}/>
-      <circle cx="4" cy="18" r="1.5" fill=${c}/>
+      <path d="M12 5v14M5 12h14" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
     </svg>`;
 }
 
@@ -63,14 +60,22 @@ const NAV_TABS = [
   { id: "tasks", label: "Tâches", Icon: IcoCheck },
   { id: "agenda", label: "Agenda", Icon: IcoCal },
   { id: "meals", label: "Repas", Icon: IcoFork },
-  { id: "lists", label: "Listes", Icon: IcoList },
+  { id: "quick", label: "Plus", Icon: IcoPlus },
+];
+
+const QUICK_MENU_ITEMS = [
+  { id: "lists", label: "Listes", emoji: "🛒" },
+  { id: "notes", label: "Notes", emoji: "📝" },
+  { id: "inventory", label: "Inventaire", emoji: "🧺" },
+  { id: "recipes", label: "Recettes", emoji: "📚" },
+  { id: "history", label: "Historique", emoji: "📊" },
 ];
 
 function getBottomId(tab) {
   if (["mine", "daily", "weekly", "monthly"].includes(tab)) return "tasks";
   if (tab === "agenda") return "agenda";
   if (tab === "meals") return "meals";
-  if (tab === "lists") return "lists";
+  if (QUICK_MENU_ITEMS.some((item) => item.id === tab)) return "quick";
   if (tab === "home") return "home";
   return "home";
 }
@@ -82,12 +87,59 @@ function toTabId(id) {
 
 export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
   const active = getBottomId(activeTab);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const quickWrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!showQuickMenu) return;
+    function onDocClick(e) {
+      if (quickWrapRef.current && !quickWrapRef.current.contains(e.target)) {
+        setShowQuickMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [showQuickMenu]);
 
   return html`
     <nav className="mrd-bnav">
       ${NAV_TABS.map(({ id, label, Icon }) => {
         const isOn = active === id;
         const badge = id === "tasks" && overdueTaskCount > 0 ? overdueTaskCount : 0;
+        if (id === "quick") {
+          return html`
+            <div key=${id} className="mrd-bnav-quick-wrap" ref=${quickWrapRef}>
+              ${showQuickMenu ? html`
+                <div className="mrd-bnav-quick-menu">
+                  ${QUICK_MENU_ITEMS.map((item) => html`
+                    <button
+                      key=${item.id}
+                      type="button"
+                      className="mrd-bnav-quick-item"
+                      onClick=${() => { setShowQuickMenu(false); onChange(item.id); }}
+                    >
+                      <span className="mrd-bnav-quick-item-emoji" aria-hidden="true">${item.emoji}</span>
+                      <span>${item.label}</span>
+                    </button>
+                  `)}
+                </div>
+              ` : null}
+              <button
+                type="button"
+                className=${`mrd-bnav-btn ${isOn ? "on" : ""}`}
+                aria-label=${label}
+                aria-expanded=${showQuickMenu ? "true" : "false"}
+                onClick=${() => setShowQuickMenu((v) => !v)}
+              >
+                <div className="mrd-bnav-icon-wrap">
+                  <${Icon} active=${isOn || showQuickMenu} />
+                </div>
+                <span className="mrd-bnav-label" aria-hidden="true">${label}</span>
+                ${isOn ? html`<div className="mrd-bnav-dot"></div>` : null}
+              </button>
+            </div>
+          `;
+        }
         return html`
           <button
             key=${id}
@@ -95,7 +147,7 @@ export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
             className=${`mrd-bnav-btn ${isOn ? "on" : ""}`}
             aria-label=${badge ? `${label} — ${badge} en retard` : label}
             aria-current=${isOn ? "page" : null}
-            onClick=${() => onChange(toTabId(id))}
+            onClick=${() => { setShowQuickMenu(false); onChange(toTabId(id)); }}
           >
             <div className="mrd-bnav-icon-wrap">
               <${Icon} active=${isOn} />

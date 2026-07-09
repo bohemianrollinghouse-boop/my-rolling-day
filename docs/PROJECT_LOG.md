@@ -2,6 +2,49 @@
 
 ---
 
+## [2026-07-09] — Repas : bouton valider entrée/dessert affichait toujours ✓ + toast de déduction silencieux
+
+L'utilisateur voulait un vrai bouton de validation (coche/croix) sur les lignes entrée/dessert des repas, qui déclenche la déduction d'inventaire comme le fait déjà le bouton "Marquer cuisiné" du plat principal, et un message visible confirmant la déduction. La logique de déduction (`computeMealCookState` dans `App.js`) gérait déjà les sous-slots entrée/dessert — le vrai problème était double : (1) le petit bouton ✓ affichait `"✓"` dans les deux états (validé et non validé), donc rien ne distinguait visuellement l'état ; (2) le toast de confirmation ne s'affichait que si `deductedAny` était vrai (au moins un ingrédient trouvé en stock) — si la recette n'avait aucun ingrédient en inventaire, aucun message n'apparaissait, donnant l'impression que rien ne s'était passé.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/meals/MealsView.js` | `extraRecipeRow()` : le bouton affiche désormais `"○"` quand non validé et `"✓"` (style `.on`, vert) une fois validé, au lieu de `"✓"` dans les deux cas. |
+| `src/App.js` | `handleToggleCookWithInventory()` : le toast s'affiche désormais systématiquement quand un repas lié à l'inventaire est marqué cuisiné — "Les ingrédients ont bien été déduits de votre inventaire" (avec Annuler) si `deductedAny`, sinon "Aucun ingrédient de cette recette n'a été trouvé dans l'inventaire". |
+
+Vérifié en preview (accessibilité + `preview_inspect` sur `.app-toast` + logs console) : ajout d'un dessert ("Compote pomme poire maison") avec "Lié à l'inventaire" actif → clic sur le bouton passe de ○ à ✓ (fond vert) et le toast apparaît en bas de l'écran à chaque validation.
+
+## [2026-07-09] — Pense-bête : retrait des chips Tâche/Événement/Note à la saisie
+
+L'utilisateur classe ses items de pense-bête après coup (via les boutons ✅ Tâche / 📅 Agenda / 📝 Note sur chaque item déjà capturé), donc proposer ces mêmes choix au moment de la saisie (ligne de chips sous le textarea) était redondant et sans effet utile.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/inbox/InboxView.js` | Suppression de la `ibx-hint-row` (les 3 chips "Tâche/Événement/Note" affichés sous le champ de saisie) et de l'état `selectedHint` associé. `handleAdd()` appelle désormais `onAddInboxItem(text, null)` — le hint n'est plus choisi à la capture, seulement au tri via les boutons de dispatch existants sur chaque item. |
+
+Vérifié en preview : le champ de saisie du pense-bête n'affiche plus que le textarea et "+ Capturer" ; le tri par item (✅/📅/📝) fonctionne toujours normalement.
+
+## [2026-07-09] — HistoryView : flux trié par jour (cartes par personne sous chaque date)
+
+Premier essai : garder les colonnes par personne et juste ajouter un en-tête de jour à l'intérieur de chaque colonne — rejeté par l'utilisateur, ce n'était pas le classement voulu. Le besoin réel : le classement doit être par date en premier niveau ("Aujourd'hui" tout en haut, puis les jours précédents en dessous), et sous chaque date, une carte par personne avec ce qu'elle a fait ce jour-là.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/history/HistoryView.js` | Restructuration complète. `groupByDay()` regroupe tout `history` (déjà trié plus récent → plus ancien via `unshift`) par `entry.date`. Pour chaque jour, `groupByUser()` sous-groupe les entrées par personne. Rendu : une section par jour (`.history-day`, titre via `dayLabel()` = "Aujourd'hui"/"Hier"/date), contenant une grille de cartes personne (`.history-person-card`, réutilise `.history-column-head`/`.history-column-body`/`.history-entry*`). |
+| `src/styles.css` | `.history-columns`/`.history-column` renommés `.history-day-cards`/`.history-person-card` (et leurs variantes dark mode / `.mrd-shell`). Nouvelles classes `.history-feed` (colonne verticale des jours) et `.history-day-title` (titre de section par date). |
+
+## [2026-07-09] — Nav du bas : bouton "Plus" (accès rapide) à la place de "Listes"
+
+L'onglet "Listes" de la nav du bas était le seul accès direct à Notes/Inventaire/Recettes/Historique en plus de la section "Accès rapide" de l'accueil, jugée pas assez visible par l'utilisateur.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/nav/BottomNav.js` | Remplacement de l'onglet "Listes" par un bouton "Plus" (icône +) qui ouvre un menu popup au-dessus de la nav avec 5 accès : Listes, Notes, Inventaire, Recettes, Historique. Fermeture au clic extérieur (`mousedown` sur `document`) ou après sélection d'un item. |
+| `src/styles.css` | Nouvelles classes `.mrd-bnav-quick-wrap`, `.mrd-bnav-quick-menu`, `.mrd-bnav-quick-item(-emoji)` (+ variantes dark mode), inspirées du pattern `task-menu-*` déjà utilisé ailleurs (ex. kebab menu de `ListsView.js`). |
+
+Vérifié en preview : ouverture/fermeture du menu et navigation vers chacun des 5 items fonctionnent.
+
+---
+
 ## [2026-07-09] — Mise en prod infra Firebase + fix package ID + build Android OK
 
 Déploiement de l'infra Firebase (créée mais jamais déployée depuis la migration Capacitor du 2026-06-07), découverte et correction d'un mismatch d'identifiant d'app, et build Android qui compile enfin.

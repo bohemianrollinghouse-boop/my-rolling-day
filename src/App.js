@@ -756,37 +756,40 @@ export function App() {
         : previous;
     });
 
-    if (Boolean(state.linkMealsToInventory) && computed.nextCooked && computed.recipeId && computed.deductedAny) {
-      showToast(
-        "Les ingrédients ont bien été déduits de votre inventaire",
-        {
-          label: "Annuler",
-          onClick: () => {
-            updateState((previous) => {
-              const matchFn = (meal) => { if (meal.day !== day) return false; const mwk = meal.weekKey || ""; return mwk === wk || (mwk === "" && wk !== ""); };
-              const existing = previous.meals.find(matchFn);
-              const baseMeals = existing
-                ? [...previous.meals]
-                : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
-              let cookedKey;
-              if (sub === "starter") {
-                cookedKey = slot === "lunch" ? "lunchStarterCooked" : "dinnerStarterCooked";
-              } else if (sub === "dessert") {
-                cookedKey = slot === "lunch" ? "lunchDessertCooked" : "dinnerDessertCooked";
-              } else {
-                cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
-              }
-              return {
-                ...previous,
-                meals: baseMeals.map((meal) => (matchFn(meal) ? { ...meal, [cookedKey]: false } : meal)),
-                inventory: beforeInventory,
-              };
-            });
-            setToast(null);
-          },
-        },
-        3000,
-      );
+    if (Boolean(state.linkMealsToInventory) && computed.nextCooked && computed.recipeId) {
+      function undoCook() {
+        updateState((previous) => {
+          const matchFn = (meal) => { if (meal.day !== day) return false; const mwk = meal.weekKey || ""; return mwk === wk || (mwk === "" && wk !== ""); };
+          const existing = previous.meals.find(matchFn);
+          const baseMeals = existing
+            ? [...previous.meals]
+            : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
+          let cookedKey;
+          if (sub === "starter") {
+            cookedKey = slot === "lunch" ? "lunchStarterCooked" : "dinnerStarterCooked";
+          } else if (sub === "dessert") {
+            cookedKey = slot === "lunch" ? "lunchDessertCooked" : "dinnerDessertCooked";
+          } else {
+            cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
+          }
+          return {
+            ...previous,
+            meals: baseMeals.map((meal) => (matchFn(meal) ? { ...meal, [cookedKey]: false } : meal)),
+            inventory: beforeInventory,
+          };
+        });
+        setToast(null);
+      }
+
+      if (computed.deductedAny) {
+        showToast(
+          "Les ingrédients ont bien été déduits de votre inventaire",
+          { label: "Annuler", onClick: undoCook },
+          3000,
+        );
+      } else {
+        showToast("Aucun ingrédient de cette recette n'a été trouvé dans l'inventaire", null, 3000);
+      }
     }
   }
 

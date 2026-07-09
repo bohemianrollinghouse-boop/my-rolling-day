@@ -97,7 +97,6 @@ export function InboxView({
   onDispatchToNote,
 }) {
   const [inputText, setInputText]     = useState("");
-  const [selectedHint, setSelectedHint] = useState(null);
 
   /* ── Modal state ── */
   const [dispatchItem, setDispatchItem] = useState(null);
@@ -128,9 +127,8 @@ export function InboxView({
   function handleAdd() {
     const text = inputText.trim();
     if (!text) return;
-    onAddInboxItem(text, selectedHint);
+    onAddInboxItem(text, null);
     setInputText("");
-    setSelectedHint(null);
   }
 
   function handleKeyDown(e) {
@@ -730,18 +728,6 @@ export function InboxView({
           rows="3"
           aria-label="Saisir un item d'inbox"
         />
-
-        <div className="ibx-hint-row">
-          ${HINTS.map((h) => html`
-            <button
-              key=${h.id}
-              type="button"
-              className=${`ibx-hint-chip${selectedHint === h.id ? " active" : ""}`}
-              onClick=${() => setSelectedHint(selectedHint === h.id ? null : h.id)}
-              aria-pressed=${selectedHint === h.id ? "true" : "false"}
-            >${h.emoji} ${h.label}</button>
-          `)}
-        </div>
 
         <div className="ibx-add-row">
           <button

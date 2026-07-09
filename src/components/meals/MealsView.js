@@ -393,7 +393,7 @@ export function MealsView({
             <span className="mrd-meals-slot-label">${isLunch ? "DÉJEUNER" : "DÎNER"}</span>
           </div>
           <button className=${`mrd-meals-cook-btn ${cooked ? "on" : ""}`} onClick=${() => onToggleCook(meal.day, slot, meal.weekKey || targetWeekKey)}>
-            ${cooked ? "✓ Cuisiné" : "Marquer cuisiné"}
+            ${cooked ? "✓ Cuisiné" : "○ Marquer cuisiné"}
           </button>
         </div>
         <div className="mrd-meals-slot-body">
@@ -463,7 +463,7 @@ export function MealsView({
           <span className="mrd-meals-selected-name">${recipe.name}</span>
           <div className="mrd-meals-selected-btns">
             <button type="button" className=${`mrd-meals-cook-btn mrd-meals-cook-btn--sm ${cooked ? "on" : ""}`} onClick=${onCook} title=${cooked ? "Démarquer" : "Marquer cuisiné"}>
-              ${cooked ? "✓" : "✓"}
+              ${cooked ? "✓" : "○"}
             </button>
             <button type="button" className="mrd-meals-icon-btn" onClick=${() => setViewModal(recipe)} aria-label="Voir">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
