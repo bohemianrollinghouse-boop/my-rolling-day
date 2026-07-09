@@ -722,7 +722,7 @@ html[data-theme="dark"] .auth-cta-secondary { background: var(--mrd-surf2); bord
 .task-card.done { opacity: 1; background: var(--mrd-surf2); border-color: var(--mrd-border); box-shadow: 0 6px 18px oklch(27% 0.05 48 / 0.06); }
 .task-card.overdue { border-color: var(--mrd-dangerMd); box-shadow: 0 0 0 1px oklch(90% 0.07 15 / 0.35), 0 10px 28px oklch(42% 0.17 17 / 0.08); }
 .task-card-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
-.task-main { min-width: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.task-main { min-width: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
 .task-main, .task-main * { user-select: none; -webkit-user-select: none; }
 .task-headline { display: flex; align-items: flex-start; gap: 10px; }
 .task-headline.no-emoji { gap: 0; }
@@ -793,6 +793,7 @@ html[data-theme="dark"] .auth-cta-secondary { background: var(--mrd-surf2); bord
 .profile-message-input { min-height: 88px; resize: vertical; }
 .task-modal { padding: 16px; }
 .task-modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.task-modal-head-bare { justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 8px; }
 .task-create-form { display: flex; flex-direction: column; gap: 14px; }
 .calendar-shell { display: flex; flex-direction: column; gap: 14px; }
 .calendar-toolbar { display: flex; align-items: center; justify-content: center; width: 100%; gap: 12px; margin: 0; }
@@ -4619,6 +4620,13 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Titre complet dans les popups de détail (assez de place pour ne pas tronquer) */
+.mrd-shell .task-modal .task-name,
+.mrd-shell .task-modal-redesign .task-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
 /* Repas semaine : conserver line-height */
 .mrd-shell .mrd-meal-name {
   line-height: 1.3;
@@ -6380,6 +6388,153 @@ html[data-theme="dark"] .onb-code-dash { color: #6B5A50; }
   font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase;
   color: var(--mrd-fg3); font-weight: 600; margin-bottom: 8px;
 }
+
+/* ─── ANDROID EMULATOR (desktop preview) ─────────────────── */
+.emu-bg {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 55% 45% at 20% 65%, oklch(42% 0.10 245 / 0.22) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 55% at 78% 28%, oklch(38% 0.08 195 / 0.16) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 60% 80%, oklch(45% 0.07 30 / 0.10) 0%, transparent 60%),
+    oklch(14% 0.015 250);
+}
+
+.emu-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.emu-phone {
+  position: relative;
+  width: 412px;
+}
+
+/* Side buttons */
+.emu-btn {
+  position: absolute;
+  border-radius: 3px;
+  background: linear-gradient(90deg, oklch(20% 0.01 0) 0%, oklch(26% 0.01 0) 100%);
+}
+.emu-vol-up {
+  left: -4px;
+  top: 118px;
+  width: 4px;
+  height: 56px;
+  border-radius: 2px 0 0 2px;
+  background: linear-gradient(180deg, oklch(28% 0 0) 0%, oklch(20% 0 0) 100%);
+  box-shadow: -2px 0 5px oklch(0% 0 0 / 0.5), inset 1px 0 0 oklch(36% 0 0);
+}
+.emu-vol-dn {
+  left: -4px;
+  top: 186px;
+  width: 4px;
+  height: 48px;
+  border-radius: 2px 0 0 2px;
+  background: linear-gradient(180deg, oklch(28% 0 0) 0%, oklch(20% 0 0) 100%);
+  box-shadow: -2px 0 5px oklch(0% 0 0 / 0.5), inset 1px 0 0 oklch(36% 0 0);
+}
+.emu-pwr {
+  right: -4px;
+  top: 152px;
+  width: 4px;
+  height: 68px;
+  border-radius: 0 2px 2px 0;
+  background: linear-gradient(180deg, oklch(30% 0 0) 0%, oklch(20% 0 0) 100%);
+  box-shadow: 2px 0 5px oklch(0% 0 0 / 0.5), inset -1px 0 0 oklch(36% 0 0);
+}
+
+/* Phone frame (body) */
+.emu-frame {
+  width: 412px;
+  height: 904px;
+  border-radius: 52px;
+  padding: 14px;
+  background: linear-gradient(155deg, oklch(23% 0.01 260) 0%, oklch(11% 0.005 0) 60%, oklch(15% 0.01 30) 100%);
+  box-shadow:
+    0 0 0 1.5px oklch(30% 0.01 260),
+    inset 0 0 0 1px oklch(26% 0.01 0),
+    inset 0 1px 0 oklch(44% 0 0 / 0.6),
+    inset 0 -1px 0 oklch(8% 0 0 / 0.8),
+    0 50px 120px oklch(4% 0 0 / 0.95),
+    0 16px 40px oklch(4% 0 0 / 0.65),
+    0 4px 12px oklch(4% 0 0 / 0.4);
+}
+
+/* Screen (inside frame) */
+.emu-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 40px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--mrd-bg, #FAF4ED);
+  box-shadow: inset 0 0 0 1px oklch(0% 0 0 / 0.12);
+}
+
+/* Camera punch-hole */
+.emu-punch {
+  position: absolute;
+  top: 19px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, oklch(22% 0 0), oklch(5% 0 0));
+  box-shadow:
+    0 0 0 1.5px oklch(18% 0 0),
+    0 0 0 3px oklch(12% 0 0 / 0.35),
+    inset 0 1px 2px oklch(50% 0 0 / 0.15);
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* App content area */
+.emu-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Android gesture navbar */
+.emu-navbar {
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+}
+.emu-pill {
+  width: 120px;
+  height: 5px;
+  border-radius: 99px;
+  background: oklch(40% 0 0 / 0.22);
+}
+
+/* Label under the phone */
+.emu-label {
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: oklch(52% 0.02 250);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* Dark theme: gesture pill becomes lighter */
+html[data-theme="dark"] .emu-pill { background: oklch(70% 0 0 / 0.20); }
 .onb-join-preview-card {
   padding: 26px 22px 22px;
   border-radius: 26px;

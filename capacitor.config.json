@@ -1,5 +1,5 @@
 {
-  "appId": "com.myrollingday.app",
+  "appId": "fr.myrollingday.app",
   "appName": "My Rolling Day",
   "webDir": "dist",
   "server": {
@@ -8,7 +8,7 @@
   "plugins": {
     "GoogleAuth": {
       "scopes": ["profile", "email"],
-      "serverClientId": "REMPLACE_PAR_TON_WEB_CLIENT_ID.apps.googleusercontent.com",
+      "serverClientId": "543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
     }
   }

@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "543367828677",
+    "project_id": "my-rolling-day",
+    "storage_bucket": "my-rolling-day.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:543367828677:android:8e8716c40a681f41a30cac",
+        "android_client_info": {
+          "package_name": "fr.myrollingday.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXjWmtKeTV9BgwsJenVCm3vNC_R-RBtco"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "543367828677-3ehl9p5tftqfn343cspvrt108s7ckglv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "fr.myrollingday.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

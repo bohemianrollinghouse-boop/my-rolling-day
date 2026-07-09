@@ -1,0 +1,21 @@
+[[redirects]]
+  from = "/__/auth/*"
+  to = "https://my-rolling-day.firebaseapp.com/__/auth/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/__/firebase/*"
+  to = "https://my-rolling-day.firebaseapp.com/__/firebase/:splat"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

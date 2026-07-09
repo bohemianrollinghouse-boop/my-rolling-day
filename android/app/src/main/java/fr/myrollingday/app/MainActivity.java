@@ -1,4 +1,4 @@
-package com.myrollingday.app;
+package fr.myrollingday.app;
 
 import com.getcapacitor.BridgeActivity;
 

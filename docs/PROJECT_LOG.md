@@ -2,6 +2,53 @@
 
 ---
 
+## [2026-07-09] — Mise en prod infra Firebase + fix package ID + build Android OK
+
+Déploiement de l'infra Firebase (créée mais jamais déployée depuis la migration Capacitor du 2026-06-07), découverte et correction d'un mismatch d'identifiant d'app, et build Android qui compile enfin.
+
+**1. Déploiement Firebase (projet `my-rolling-day`) :**
+| Action | Détail |
+|---|---|
+| `firebase deploy --only firestore:rules` | Règles Firestore déployées en prod, compilées sans erreur. |
+| `firebase deploy --only functions` | 4 Cloud Functions déployées : `sendScheduledNotifications` (europe-west1), `onMemberJoined`, `onTaskCreated`, `onTaskAssigned` (us-central1). 1er essai : les 3 dernières ont échoué (erreur Eventarc Service Agent — normal lors de la 1ère utilisation des functions 2nd gen sur un projet, permissions IAM pas encore propagées). Réessai quelques minutes après → succès. |
+| `firebase functions:artifacts:setpolicy` | Politique de nettoyage auto configurée (supprime les images de conteneurs Artifact Registry > 1 jour dans us-central1) pour éviter un coût résiduel. |
+
+**2. Bug trouvé : mismatch de package ID `com.myrollingday.app` vs `fr.myrollingday.app`**
+
+`google-services.json` et `GoogleService-Info.plist` (générés dans la Console Firebase) étaient enregistrés sous `fr.myrollingday.app`, alors que tout le reste du projet (`capacitor.config.json`, `android/app/build.gradle`, `ios/App/App.xcodeproj`) utilisait `com.myrollingday.app` depuis la migration Capacitor. Confirmé avec l'utilisateur : **`fr.myrollingday.app` est le bon identifiant** — tout le reste a été renommé pour matcher.
+
+| Fichier | Changement |
+|---|---|
+| `capacitor.config.json` | `appId` → `fr.myrollingday.app`. Aussi : `serverClientId` du plugin GoogleAuth (placeholder `REMPLACE_PAR_TON_WEB_CLIENT_ID` non résolu) → vrai Web Client ID `543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com` (trouvé dans `google-services.json`, `client_type: 3`). |
+| `android/app/build.gradle` | `namespace` + `applicationId` → `fr.myrollingday.app`. |
+| `android/app/src/main/java/com/myrollingday/app/MainActivity.java` | Déplacé vers `android/app/src/main/java/fr/myrollingday/app/MainActivity.java`, `package` mis à jour. |
+| `android/app/src/main/res/values/strings.xml` | `package_name` et `custom_url_scheme` → `fr.myrollingday.app` (non régénéré automatiquement par `npx cap sync`, édité à la main). |
+| `ios/App/App.xcodeproj/project.pbxproj` | `PRODUCT_BUNDLE_IDENTIFIER` (Debug + Release) → `fr.myrollingday.app`. |
+| `google-services.json` | Copié depuis la racine vers `android/app/google-services.json` (emplacement attendu par le plugin Gradle `com.google.gms.google-services`, sinon appliqué silencieusement en no-op). |
+
+**3. Build Android : succès**
+
+`cd android && ./gradlew.bat assembleDebug` → `BUILD SUCCESSFUL`. APK généré : `android/app/build/outputs/apk/debug/app-debug.apk`. Modifs Gradle déjà présentes (non liées à cette session) qui ont aidé : AGP `8.2.1` → `8.13.2`, Gradle wrapper `8.2.1` → `8.13`, `org.gradle.java.home` pointé vers un JDK 21 installé localement.
+
+**4. iOS : préparé mais build non vérifiable (pas de Mac dans cette session)**
+
+Le plugin `capacitor-google-auth` (`node_modules/@codetrix-studio/capacitor-google-auth/ios/Plugin/Plugin.swift`) lit le `CLIENT_ID` depuis `GoogleService-Info.plist` bundlé dans l'app si aucun `iosClientId`/`clientId` n'est fourni dans la config du plugin (ce qui est le cas ici — seul `serverClientId` est défini).
+
+| Fichier | Changement |
+|---|---|
+| `ios/App/App/GoogleService-Info.plist` | Copié depuis la racine (bon emplacement conventionnel dans le projet Xcode). |
+| `ios/App/App/Info.plist` | Ajout de `CFBundleURLTypes` avec le schéma `com.googleusercontent.apps.543367828677-3ehl9p5tftqfn343cspvrt108s7ckglv` (= `REVERSED_CLIENT_ID` de `GoogleService-Info.plist`) — nécessaire pour que le redirect OAuth Google Sign-In revienne dans l'app native. |
+
+### ⚠️ Action requise sur Mac (à faire avant tout build/run iOS)
+
+1. **Ajouter `GoogleService-Info.plist` au target Xcode** — le fichier est bien placé sur le disque (`ios/App/App/GoogleService-Info.plist`) mais n'est **pas référencé** dans `ios/App/App.xcodeproj/project.pbxproj`. Sans ça, Xcode ne l'embarque pas dans le bundle et `Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")` retournera `nil` côté plugin Google Auth → login natif cassé. Dans Xcode : clic droit sur le groupe "App" → *Add Files to "App"...* → sélectionner le fichier → cocher *Copy items if needed* + target *App*. (Non fait par edit manuel du `.pbxproj` : format fragile à UUIDs, trop risqué de le bricoler à l'aveugle sans Xcode pour vérifier.)
+2. `cd ios/App && pod install` (CocoaPods ne tourne pas sur Windows).
+3. Ouvrir `ios/App/App.xcworkspace` (pas le `.xcodeproj`) et builder pour vérifier que ça compile, comme pour Android.
+
+**5. Rien n'est committé** — `.firebaserc` / `firebase.json` / `firestore.rules` / tous les changements Android/iOS de cette session restent en attente d'un commit groupé une fois le chantier natif (Android + iOS) entièrement vérifié.
+
+---
+
 ## [2026-06-07] — Migration Capacitor (Vite + Android + iOS)
 
 Ajout de Vite comme bundler et intégration Capacitor pour produire des apps natives Android et iOS.

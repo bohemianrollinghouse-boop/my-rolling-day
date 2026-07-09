@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper : l'utilisateur est bien authentifié
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper : l'utilisateur fait partie d'une famille (a un doc member)
+    function isFamilyMember(familyId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+
+      match /messagingTokens/{tokenId} {
+        allow read, write: if isAuth() && request.auth.uid == uid;
+      }
+    }
+
+    // ── Families ───────────────────────────────────────────────────────────
+    match /families/{familyId} {
+      allow read: if isFamilyMember(familyId);
+      allow write: if isFamilyMember(familyId);
+
+      match /members/{uid} {
+        allow read: if isFamilyMember(familyId);
+        allow write: if isAuth() && request.auth.uid == uid;
+
+        // Tokens FCM par appareil — chaque user écrit uniquement ses propres devices
+        match /devices/{deviceId} {
+          allow read, write: if isAuth() && request.auth.uid == uid;
+        }
+      }
+
+      match /people/{personId} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      match /planner/{document=**} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      match /invitations/{invitationId} {
+        allow read: if isAuth();
+        allow write: if isFamilyMember(familyId);
+      }
+
+      match /serverNotificationLog/{logId} {
+        allow read: if isFamilyMember(familyId);
+        allow write: if false; // écrit uniquement par Cloud Functions
+      }
+
+      match /joinEvents/{eventId} {
+        allow read: if isFamilyMember(familyId);
+        // Le nouvel entrant écrit son propre joinEvent (son UID doit correspondre)
+        // après que le batch d'acceptation l'a rendu membre. La Cloud Function
+        // onMemberJoined écoute cette création et notifie les autres membres.
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.joinerUid == request.auth.uid;
+      }
+    }
+  }
+}
