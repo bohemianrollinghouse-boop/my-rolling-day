@@ -279,6 +279,7 @@ export function TasksView({
   const [form, setForm] = useState(() => defaultTaskForm(tab));
   const [dragState, setDragState] = useState(null);
   const [openMenuTaskId, setOpenMenuTaskId] = useState("");
+  const [detailMenuOpen, setDetailMenuOpen] = useState(false);
   const taskNodeRefs = useRef(new Map());
   const pressStateRef = useRef(null);
   const dragStateRef = useRef(null);
@@ -454,6 +455,7 @@ export function TasksView({
 
   function closeTaskDetails() {
     setSelectedTaskId("");
+    setDetailMenuOpen(false);
   }
 
   function openEditTask(task) {
@@ -717,6 +719,7 @@ export function TasksView({
                   <div
                     className="task-main"
                     onPointerDown=${(event) => handleTaskMainPointerDown(event, task, moveGroupKey, list.map((item) => item.id))}
+                    onClick=${() => handleTaskMainClick(task.id)}
                     onSelectStart=${preventTaskSelection}
                     onDragStart=${preventTaskSelection}
                   >
@@ -880,7 +883,7 @@ export function TasksView({
     return html`
         <article className=${`task-card ${isDone ? "done" : ""} ${isTaskLate(task) && !isDone ? "overdue" : ""}`} key=${task.id}>
         <div className="task-card-top">
-          <div className="task-main">
+          <div className="task-main" onClick=${() => openTaskDetails(task.id)}>
             <div className=${`task-headline ${task.icon ? "" : "no-emoji"}`}>
               ${task.icon ? html`<span className="task-emoji has-emoji">${task.icon}</span>` : null}
               <div className="task-content">
@@ -1400,14 +1403,19 @@ export function TasksView({
             return html`
               <div className="modal-backdrop" onClick=${closeTaskDetails}>
                 <div className="modal-card task-modal" onClick=${(event) => event.stopPropagation()}>
-                  <div className="task-modal-head">
-                    <div>
-                      <div className="miniTitle">Tâche</div>
-                      <div className="st">${selectedTask.text}</div>
+                  <div className="task-modal-head task-modal-head-bare">
+                    <div className="task-menu-wrap">
+                      <button className="task-menu-btn" onClick=${() => setDetailMenuOpen((open) => !open)} title="Actions">⋮</button>
+                      ${detailMenuOpen ? html`
+                        <div className="task-menu-dropdown" onClick=${(e) => e.stopPropagation()}>
+                          <button className="task-menu-item" onClick=${() => { setDetailMenuOpen(false); openEditTask(selectedTask); }}>Modifier</button>
+                          <button className="task-menu-item task-menu-item-danger" onClick=${() => { onDeleteTask(selectedTask.id); closeTaskDetails(); }}>Supprimer</button>
+                        </div>
+                      ` : null}
                     </div>
                     <button className="delbtn" onClick=${closeTaskDetails}>X</button>
                   </div>
-                  <div style=${{ marginBottom: "14px" }}>
+                  <div>
                     <${SharedTaskCard}
                       task=${selectedTask}
                       people=${activePeople}
@@ -1417,11 +1425,6 @@ export function TasksView({
                       showDelete=${false}
                       showOrder=${false}
                     />
-                  </div>
-                  <div className="task-modal-actions">
-                    <button type="button" className="acn" onClick=${() => openEditTask(selectedTask)}>Modifier</button>
-                    <button type="button" className="ghost-btn" onClick=${() => { onDeleteTask(selectedTask.id); closeTaskDetails(); }}>Supprimer</button>
-                    <button type="button" className="aok" onClick=${closeTaskDetails}>Fermer</button>
                   </div>
                 </div>
               </div>

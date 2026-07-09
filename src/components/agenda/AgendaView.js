@@ -873,7 +873,24 @@ function renderEntryCard(entry) {
               </div>
               <div className="st">${entry.icon ? `${entry.icon} ` : ""}${isDeadline ? linkedTask?.text || entry.text : entry.text}</div>
             </div>
-            <button className="delbtn" onClick=${() => setViewEntry(null)}>×</button>
+            <div style=${{ display: "flex", alignItems: "center", gap: "6px" }}>
+              ${!isDeadline ? html`
+                <div className="task-menu-wrap">
+                  <button className="task-menu-btn" onClick=${() => setViewEntryMenuOpen((v) => !v)} title="Actions">⋮</button>
+                  ${viewEntryMenuOpen ? html`
+                    <div className="task-menu-dropdown" onClick=${(e) => e.stopPropagation()}>
+                      <button className="task-menu-item" onClick=${() => { setViewEntryMenuOpen(false); setViewEntry(null); openEditModal(entry, entry.entryKind); }}>Modifier</button>
+                      <button className="task-menu-item task-menu-item-danger" onClick=${() => {
+                        setViewEntryMenuOpen(false);
+                        entry.entryKind === "recurring" ? onDeleteRecurring(entry.id) : onDeleteAgenda(entry.id);
+                        setViewEntry(null);
+                      }}>Supprimer</button>
+                    </div>
+                  ` : null}
+                </div>
+              ` : null}
+              <button className="delbtn" onClick=${() => { setViewEntryMenuOpen(false); setViewEntry(null); }}>×</button>
+            </div>
           </div>
 
           <div style=${{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "14px" }}>
@@ -916,17 +933,6 @@ function renderEntryCard(entry) {
               ` : null}
             </div>
           ` : null}
-
-          <div style=${{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-            ${!isDeadline ? html`
-              <button className="clrbtn" onClick=${() => { setViewEntry(null); openEditModal(entry, entry.entryKind); }}>Modifier</button>
-              <button className="ghost-btn" onClick=${() => {
-                entry.entryKind === "recurring" ? onDeleteRecurring(entry.id) : onDeleteAgenda(entry.id);
-                setViewEntry(null);
-              }}>Supprimer</button>
-            ` : null}
-            <button className="aok" style=${{ background: "var(--surface2)", color: "var(--text)" }} onClick=${() => setViewEntry(null)}>Fermer</button>
-          </div>
         </div>
       </div>
     `;

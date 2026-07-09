@@ -128,7 +128,7 @@ export function TaskCard({
           <div className=${`task-headline ${task.icon ? "" : "no-emoji"}`}>
             ${task.icon ? html`<span className="task-emoji has-emoji">${task.icon}</span>` : null}
             <div className="task-content">
-              <div className="task-name">${task.text}</div>
+              <div className="task-name" title=${task.text}>${task.text}</div>
               <div className="task-badges">
                 <span className=${`ttag task-priority ${taskUrgency.className || "normal"}`}>${taskUrgency.label}</span>
                 ${task.taskKind === "recurring" ? html`<span className="ttag recTag">${recurrenceLabel(task)}</span>` : null}
