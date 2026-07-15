@@ -245,6 +245,7 @@ export function MealsView({
   });
 
   const [selectedDayIdx, setSelectedDayIdx] = useState(todayIdx);
+  const [selectedMonthDayKey, setSelectedMonthDayKey] = useState(null);
   const [accordionOpen, setAccordionOpen] = useState({});
   const [pickModal, setPickModal] = useState(null);
   const [viewModal, setViewModal] = useState(null);
@@ -906,9 +907,20 @@ export function MealsView({
       weeks.push(wMonday);
     }
 
+    // La semaine dans laquelle on est réellement (aujourd'hui) remonte tout en haut,
+    // le reste des semaines du mois reste affiché, dans l'ordre chronologique.
+    const todayWeekKey = dateToKey(todayMonday);
+    const orderedWeeks = [...weeks].sort((a, b) => {
+      const aIsCurrent = dateToKey(a) === todayWeekKey;
+      const bIsCurrent = dateToKey(b) === todayWeekKey;
+      if (aIsCurrent && !bIsCurrent) return -1;
+      if (bIsCurrent && !aIsCurrent) return 1;
+      return a - b;
+    });
+
     return html`
       <div className="mrd-month-view">
-        ${weeks.map((wMonday) => {
+        ${orderedWeeks.map((wMonday) => {
           const wKey = dateToKey(wMonday);
           const wSunday = addDays(wMonday, 6);
           const isActiveWeek = wKey === targetWeekKey;
@@ -929,14 +941,27 @@ export function MealsView({
               </button>
               ${DAYS.map((day, idx) => {
                 const date = addDays(wMonday, idx);
+                const dateKey = dateToKey(date);
                 const isCurrentMonth = date.getMonth() === refMonth;
-                const isToday = dateToKey(date) === dateToKey(today);
+                const isToday = dateKey === dateToKey(today);
+                const isSelected = selectedMonthDayKey === dateKey;
                 const wMeal = safeMeals.find((m) => m.day === day && (m.weekKey === wKey || (wKey === dateToKey(todayMonday) && (!m.weekKey || m.weekKey === ""))));
                 const lr = wMeal?.lunchRecipeId ? safeRecipes.find((r) => r.id === wMeal.lunchRecipeId) : null;
                 const dr = wMeal?.dinnerRecipeId ? safeRecipes.find((r) => r.id === wMeal.dinnerRecipeId) : null;
                 return html`
-                  <div key=${idx} className=${`mrd-meals-overview-row${isToday ? " today" : ""}${!isCurrentMonth ? " out-of-month" : ""}`}
-                    style=${{ cursor: "default" }}>
+                  <button type="button" key=${idx}
+                    className=${`mrd-meals-overview-row${isToday ? " today" : ""}${!isCurrentMonth ? " out-of-month" : ""}${isSelected ? " selected" : ""}`}
+                    onClick=${() => {
+                      if (isSelected) {
+                        const diff = Math.round((wMonday - todayMonday) / (7 * 86400000));
+                        setWeekOffset(diff);
+                        setSelectedDayIdx(idx);
+                        setViewMode("week");
+                        setSelectedMonthDayKey(null);
+                      } else {
+                        setSelectedMonthDayKey(dateKey);
+                      }
+                    }}>
                     <div className="mrd-meals-overview-day">
                       <span className="mrd-meals-overview-abbr">${DAY_ABBR[idx]}</span>
                       <span className="mrd-meals-overview-date">${date.getDate()}</span>
@@ -951,7 +976,7 @@ export function MealsView({
                         <span className=${`mrd-meals-overview-slot-name${dr ? "" : " empty"}`}>${dr ? dr.name : "—"}</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 `;
               })}
             </div>

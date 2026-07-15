@@ -611,6 +611,15 @@ export function renameFamily(familyId, name) {
   });
 }
 
+// Interrupteur premium de test — en attendant le vrai statut d'abonnement
+// (RevenueCat/Stripe), écrit directement sur le foyer.
+export function setFamilyPremiumOverride(familyId, value) {
+  return updateDoc(doc(db, "families", familyId), {
+    premiumOverride: Boolean(value),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export function watchFamilyMembers(familyId, callback, onError) {
   return onSnapshot(
     collection(db, "families", familyId, "members"),

@@ -111,14 +111,6 @@ function filterTasksByMode(tasks, mode, activePersonId) {
   return tasks.filter((t) => t.assignedPersonId === activePersonId);
 }
 
-/* ─── QUICK ACCESS ITEMS ─────────────────────────────────── */
-const QUICK_ITEMS = [
-  { label: "Notes",      emoji: "📝", tab: "notes"     },
-  { label: "Inventaire", emoji: "🧺", tab: "inventory" },
-  { label: "Recettes",   emoji: "📚", tab: "recipes"   },
-  { label: "Historique", emoji: "📊", tab: "history"   },
-];
-
 /* ─── MAIN COMPONENT ─────────────────────────────────────── */
 /* Calcule la prochaine date d'occurrence d'un événement récurrent à partir de fromDate */
 function nextRecurringDateKey(ev, fromDate) {
@@ -900,7 +892,7 @@ export function HomeView({
       ` : null}
 
       ${/* ── Inbox ── */null}
-      <div className="mrd-section">
+      <div className="mrd-section" style=${{ marginBottom: 24 }}>
         <button type="button" className="ibx-home-section"
           onClick=${() => onNavigate("inbox")}
           aria-label="Ouvrir le pense-bête"
@@ -927,32 +919,6 @@ export function HomeView({
             </div>
           `}
         </button>
-      </div>
-
-      ${/* ── Accès rapide ── */null}
-      <div className="mrd-section" style=${{ marginBottom: 24 }}>
-        <div className="mrd-section-head">
-          <span className="mrd-section-title">Accès rapide</span>
-        </div>
-        <div className="mrd-quick-grid">
-          ${QUICK_ITEMS.map((item) => {
-            const badge =
-              item.tab === "lists" && pendingShoppingCount > 0 ? pendingShoppingCount
-              : item.tab === "inbox" && safeInbox.length > 0 ? safeInbox.length
-              : 0;
-            return html`
-              <button key=${item.tab} className="mrd-quick-btn" onClick=${() => onNavigate(item.tab)}
-                aria-label=${badge ? `${item.label} — ${badge} en attente` : item.label}
-              >
-                <div className="mrd-quick-btn-icon-wrap">
-                  <span className="mrd-quick-btn-icon" aria-hidden="true">${item.emoji}</span>
-                  ${badge ? html`<span className="mrd-quick-badge" aria-hidden="true">${badge > 99 ? "99+" : badge}</span>` : null}
-                </div>
-                <span className="mrd-quick-btn-label" aria-hidden="true">${item.label}</span>
-              </button>
-            `;
-          })}
-        </div>
       </div>
 
     </div>

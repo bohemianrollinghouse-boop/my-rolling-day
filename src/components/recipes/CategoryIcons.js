@@ -1,12 +1,18 @@
 import { html } from "../../lib.js";
+import entreeIcon from "../../assets/icons/entree.svg";
+import platIcon from "../../assets/icons/plat.svg";
+import dessertIcon from "../../assets/icons/dessert.svg";
+import petitDejeunerIcon from "../../assets/icons/petit-dejeuner.svg";
+import boissonIcon from "../../assets/icons/boisson.svg";
+import faitMaisonIcon from "../../assets/icons/fait-maison.svg";
 
 const CATEGORY_CONFIG = {
-  starter:   { color: "var(--recipe-cat-starter)", bg: "var(--recipe-cat-starter-bg)", src: "./src/assets/icons/entree.svg" },
-  main:      { color: "var(--recipe-cat-main)", bg: "var(--recipe-cat-main-bg)", src: "./src/assets/icons/plat.svg" },
-  dessert:   { color: "var(--recipe-cat-dessert)", bg: "var(--recipe-cat-dessert-bg)", src: "./src/assets/icons/dessert.svg" },
-  breakfast: { color: "var(--recipe-cat-breakfast)", bg: "var(--recipe-cat-breakfast-bg)", src: "./src/assets/icons/petit-dejeuner.svg" },
-  drink:     { color: "var(--recipe-cat-drink)", bg: "var(--recipe-cat-drink-bg)", src: "./src/assets/icons/boisson.svg" },
-  base:      { color: "var(--recipe-cat-base)", bg: "var(--recipe-cat-base-bg)", src: "./src/assets/icons/fait-maison.svg" },
+  starter:   { color: "var(--recipe-cat-starter)", bg: "var(--recipe-cat-starter-bg)", src: entreeIcon },
+  main:      { color: "var(--recipe-cat-main)", bg: "var(--recipe-cat-main-bg)", src: platIcon },
+  dessert:   { color: "var(--recipe-cat-dessert)", bg: "var(--recipe-cat-dessert-bg)", src: dessertIcon },
+  breakfast: { color: "var(--recipe-cat-breakfast)", bg: "var(--recipe-cat-breakfast-bg)", src: petitDejeunerIcon },
+  drink:     { color: "var(--recipe-cat-drink)", bg: "var(--recipe-cat-drink-bg)", src: boissonIcon },
+  base:      { color: "var(--recipe-cat-base)", bg: "var(--recipe-cat-base-bg)", src: faitMaisonIcon },
 };
 
 function maskedIconStyle(src, size, color) {

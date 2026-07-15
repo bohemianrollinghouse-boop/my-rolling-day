@@ -1,4 +1,5 @@
 import { html, useEffect, useRef, useState } from "../../lib.js";
+import { isPremiumTab } from "../../utils/premium.js";
 
 function IcoHome({ active }) {
   const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
@@ -85,7 +86,7 @@ function toTabId(id) {
   return id;
 }
 
-export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
+export function BottomNav({ activeTab, onChange, overdueTaskCount = 0, isPremium = false }) {
   const active = getBottomId(activeTab);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const quickWrapRef = useRef(null);
@@ -106,12 +107,15 @@ export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
       ${NAV_TABS.map(({ id, label, Icon }) => {
         const isOn = active === id;
         const badge = id === "tasks" && overdueTaskCount > 0 ? overdueTaskCount : 0;
+        const premiumLocked = isPremiumTab(id) && !isPremium;
         if (id === "quick") {
           return html`
             <div key=${id} className="mrd-bnav-quick-wrap" ref=${quickWrapRef}>
               ${showQuickMenu ? html`
                 <div className="mrd-bnav-quick-menu">
-                  ${QUICK_MENU_ITEMS.map((item) => html`
+                  ${QUICK_MENU_ITEMS.map((item) => {
+                    const premiumLocked = isPremiumTab(item.id) && !isPremium;
+                    return html`
                     <button
                       key=${item.id}
                       type="button"
@@ -120,8 +124,10 @@ export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
                     >
                       <span className="mrd-bnav-quick-item-emoji" aria-hidden="true">${item.emoji}</span>
                       <span>${item.label}</span>
+                      ${premiumLocked ? html`<span className="mrd-bnav-premium-star" aria-hidden="true">⭐</span>` : null}
                     </button>
-                  `)}
+                  `;
+                  })}
                 </div>
               ` : null}
               <button
@@ -152,6 +158,7 @@ export function BottomNav({ activeTab, onChange, overdueTaskCount = 0 }) {
             <div className="mrd-bnav-icon-wrap">
               <${Icon} active=${isOn} />
               ${badge ? html`<span className="mrd-bnav-badge" aria-hidden="true">${badge > 9 ? "9+" : badge}</span>` : null}
+              ${premiumLocked ? html`<span className="mrd-bnav-premium-star mrd-bnav-premium-star-tab" aria-hidden="true">⭐</span>` : null}
             </div>
             <span className="mrd-bnav-label" aria-hidden="true">${label}</span>
             ${isOn ? html`<div className="mrd-bnav-dot"></div>` : null}

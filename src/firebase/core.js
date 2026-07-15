@@ -97,6 +97,8 @@ export function formatAuthError(error) {
   if (code === "auth/weak-password") return "Le nouveau mot de passe est trop faible.";
   if (code === "auth/requires-recent-login") return "Pour changer ce mot de passe, reconnecte-toi puis réessaie.";
   if (code === "auth/no-password-provider") return "Ce compte utilise Google. Le mot de passe ne se change pas ici.";
+  if (code === "auth/expired-action-code") return "Ce lien a expiré. Redemande une réinitialisation.";
+  if (code === "auth/invalid-action-code") return "Ce lien n'est plus valide. Redemande une réinitialisation.";
   if (code === "permission-denied" || code === "firestore/permission-denied") return "Connexion réussie, mais Firestore refuse l'accès. Vérifie les règles Firebase.";
   return error?.message || "Erreur d'authentification inconnue.";
 }

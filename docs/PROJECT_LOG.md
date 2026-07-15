@@ -2,6 +2,86 @@
 
 ---
 
+## [2026-07-14] — Espace Premium : verrouillage Inventaire/Recettes/Repas + mise en avant visuelle
+
+L'utilisateur veut transformer l'app en modèle freemium : les modules Inventaire, Recettes et Repas, ainsi que le bouton "Lié à l'inventaire" des Listes, deviennent des fonctionnalités Premium. Discussion préalable sur la stratégie de paiement (distribution à la fois stores + web → RevenueCat pour unifier IAP Apple/Google et Stripe, à mettre en place par l'utilisateur lui-même via des comptes externes). Cette étape met en place uniquement la mécanique de verrouillage, pilotée par un statut premium simulé/manuel (`premiumOverride` sur le document foyer), activable depuis les Réglages pour tester — le vrai statut d'abonnement remplacera ce flag plus tard, le calcul de `isPremium` étant centralisé au même endroit.
+
+| Fichier | Changement |
+|---|---|
+| `src/firebase/clientFamily.js` | Nouvelle fonction `setFamilyPremiumOverride(familyId, value)` (même forme que `renameFamily`), écrit `premiumOverride` sur `/families/{familyId}`. Aucune règle Firestore à modifier (le foyer est déjà écrit par tout membre) — limite connue à durcir (écriture réservée aux Cloud Functions) une fois le vrai paiement branché. |
+| `src/utils/premium.js` (nouveau) | `PREMIUM_TABS` (`meals`, `inventory`, `recipes`) et `isPremiumTab(tab)`, point central réutilisé par `App.js` et `BottomNav.js`. |
+| `src/components/premium/PremiumLockScreen.js` (nouveau) | Écran d'accroche (étoile, titre/texte selon `feature`, bouton "Découvrir Premium") affiché à la place du contenu des modules verrouillés. |
+| `src/App.js` | `isPremium` dérivé de `currentFamily?.premiumOverride` ; les branches `activeTab === "meals"/"inventory"/"recipes"` affichent `PremiumLockScreen` si `!isPremium` ; `ListsView` reçoit `isPremium` + `onRequirePremium` (toast) ; `SettingsView` reçoit `isPremium` + `onSetPremiumOverride` ; `BottomNav` reçoit `isPremium`. |
+| `src/components/lists/ListsView.js` | Bouton "Lié à l'inventaire" (liste existante + formulaire de création) verrouillé si `!isPremium` : icône 🔒, clic déclenche `onRequirePremium` au lieu de basculer `addToInventory`. |
+| `src/components/settings/SettingsView.js` | Nouvelle section "Premium" (toggle de test `SettingsToggleRow`), enveloppée dans `.premium-section-highlight` pour un style dégradé ambre→rouge-brique tant que non actif (état `.is-active` plus sobre une fois le premium activé). |
+| `src/components/nav/BottomNav.js` | Petite étoile ⭐ (`.mrd-bnav-premium-star`) sur l'onglet "Repas" et sur les entrées "Inventaire"/"Recettes" du menu "Plus" quand `!isPremium` (Listes/Notes/Historique restent sans étoile). |
+| `src/styles.css` | Classes `.premium-lock-*`, `.mrd-inv-badge.locked`, `.mrd-bnav-premium-star(-tab)`, `.premium-section-highlight(.is-active)`. |
+
+Vérifié en preview (`preview_click`/`preview_eval`/`preview_snapshot`) : bascule du toggle "Premium actif (test)" → écriture Firestore confirmée par lecture directe du document et persistance après rechargement complet de la page ; écran d'accroche affiché sur Repas/Inventaire/Recettes quand non premium, contenu normal une fois actif ; étoiles présentes uniquement sur Repas (nav) et Inventaire/Recettes (menu Plus), absentes sur Listes/Notes/Historique ; dégradé de la carte "Premium" confirmé via `getComputedStyle`. Aucune erreur console liée au nouveau code (seuls des warnings React pré-existants, sans rapport).
+
+## [2026-07-14] — Réinitialisation de mot de passe : écran dédié dans l'app + Firebase Hosting
+
+L'utilisateur ne voulait plus que le lien "mot de passe oublié" reçu par mail renvoie vers la page générique `*.firebaseapp.com/__/auth/action` : il voulait un écran à ses propres couleurs. Comme l'app est distribuée en natif via Capacitor (Android/iOS) et n'avait aucune version web hébergée (`firebase.json` ne contenait que `firestore`/`functions`), il fallait d'abord publier le build Vite existant en tant que site (Firebase Hosting) pour disposer d'une URL HTTPS à donner à Firebase Auth, puis y ajouter un écran de réinitialisation. L'app n'a pas de router (navigation par état React dans `App.js`) : le lien Firebase (`?mode=resetPassword&oobCode=...`) est donc détecté en query string sur l'URL racine, avant toute autre branche de rendu (erreur/splash/auth), pour ne pas dépendre du chargement de l'auth/planner.
+
+| Fichier | Changement |
+|---|---|
+| `firebase.json` | Ajout d'un bloc `hosting` (`public: "dist"`, rewrite `**` → `/index.html`), en plus de `firestore`/`functions` déjà présents. |
+| `src/firebase/clientAuth.js` | Ajout de `verifyResetCode(oobCode)` (`verifyPasswordResetCode`) et `confirmReset(oobCode, newPassword)` (`confirmPasswordReset`), importés depuis `firebase/auth`. |
+| `src/firebase/core.js` | `formatAuthError` : nouveaux cas `auth/expired-action-code` et `auth/invalid-action-code` (messages français). |
+| `src/components/auth/ResetPasswordScreen.js` (nouveau) | Écran autonome : vérifie le `oobCode` au montage, affiche un formulaire nouveau mot de passe + confirmation (validation ≥6 caractères, correspondance), appelle `confirmReset`, puis écran de succès. Réutilise entièrement les classes CSS existantes (`auth-shell`, `auth-card`, `aform`, `ainp`, `aok`, `error-box`) — aucun nouveau CSS. |
+| `src/App.js` | Import de `ResetPasswordScreen` ; ajout d'une branche de routing prioritaire (avant même l'écran d'erreur de démarrage) qui détecte `?mode=resetPassword&oobCode=...` dans `window.location.search` et affiche l'écran dédié. |
+
+Vérifié en preview (`preview_eval` pour naviguer vers `?mode=resetPassword&oobCode=...` + `preview_screenshot`) : avec un `oobCode` invalide, l'écran "Lien invalide" s'affiche correctement, aux couleurs de l'app, sans erreur console liée au nouveau code.
+
+Reste à faire (actions manuelles, pas encore effectuées) : déployer le hosting (`npm run build` + `firebase deploy --only hosting`), puis dans la console Firebase (Authentication → Templates → Réinitialisation du mot de passe) renseigner l'URL d'action personnalisée vers le domaine Hosting obtenu.
+
+## [2026-07-14] — Inventaire : ajout d'article — unité en placeholder grisé + sélection du rangement à la création
+
+Deux ajustements demandés sur la modale "Ajouter un article" : (1) le select "Unité" (dans "Plus d'informations") affichait un simple tiret "—" comme option vide, sans indiquer que le champ concerne l'unité — remplacé par le mot "Unité" affiché en grisé (même couleur que les placeholders des champs texte) tant qu'aucune unité n'est choisie. (2) Quand le mode Organiser est actif, il n'existait aucun moyen de choisir le rangement d'un article directement à la création — il fallait ajouter l'article (qui atterrissait dans "Non rangé"), puis le déplacer via "Ranger". Un item ajouté depuis l'onglet d'un rangement (ex. "SM") n'y était même pas rattaché automatiquement.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/inventory/InventoryView.js` | `UNITS[0].label` : `"—"` → `"Unité"` (valeur `""` inchangée). Le `<select>` unité applique `color: var(--mrd-fg3)` tant que `form.unit` est vide, `var(--mrd-fg)` une fois une unité choisie. Nouveau bloc "Lieu de rangement" (select, visible uniquement si `organiserMode`) inséré juste sous "Nom de l'article", avec la même présentation que le select du Ranger (flèche ▼, option "Non classé"). `form.storageLocationId` ajouté à `emptyForm()`, pré-rempli avec `activeLocation.id` dans `openCreateModal()` (si on est déjà dans l'onglet d'un rangement) et avec `item.storageLocationId` dans `openEditModal()`. `submitInventory()` inclut désormais `storageLocationId: form.storageLocationId || ""` dans le payload envoyé à `onAddInventoryItem`/`onUpdateInventoryItem`. |
+| `src/hooks/useLists.js` | `handleAddInventoryItem` : l'objet créé inclut désormais `storageLocationId: item.storageLocationId || ""` (auparavant toujours absent, donc l'article atterrissait systématiquement dans "Non rangé"). |
+
+## [2026-07-14] — Repas : vue mois — semaine en cours en haut + clic sur un jour renvoie vers le choix des repas
+
+Dans l'aperçu "Mois" des repas, les semaines étaient affichées dans l'ordre chronologique brut. L'utilisateur voulait que la semaine réelle en cours remonte tout en haut (sans que les autres semaines du mois disparaissent), et que cliquer sur un jour dans cette vue mois permette d'aller choisir ses repas : un 1er clic sélectionne juste le jour (surlignage), un 2e clic sur le même jour bascule vers la vue "semaine" avec ce jour sélectionné (où les boutons "Choisir un repas" sont visibles).
+
+| Fichier | Changement |
+|---|---|
+| `src/components/meals/MealsView.js` | `renderMonthView()` : les `weeks` calculées sont triées (`orderedWeeks`) pour placer en premier la semaine dont la clé correspond à `todayMonday` (semaine réelle actuelle), le reste restant dans l'ordre chronologique — toutes les semaines du mois restent affichées. Les lignes de jour (`div` non cliquable) sont devenues des `<button>` avec un état `selectedMonthDayKey` : 1er clic → sélectionne le jour (classe `.selected`), 2e clic sur le jour déjà sélectionné → `setWeekOffset` sur la semaine correspondante + `setSelectedDayIdx` + `setViewMode("week")`, ce qui renvoie sur la vue semaine avec le bon jour actif. |
+
+Vérifié en preview (`preview_click` + `preview_eval` + `preview_snapshot`) : depuis "Cette semaine" → clic "Mois" → la semaine "13 – 19 JUILLET" apparaît bien en tête, suivie de toutes les autres semaines de juillet ; clic sur "Mer 15" ajoute la classe `selected`, un second clic bascule vers la vue semaine avec le pill "Mer15" actif (`on`).
+
+---
+
+## [2026-07-14] — Inventaire : stepper −/+ sur la quantité (au lieu d'un bouton "−1" dans la barre d'actions)
+
+L'utilisateur voulait pouvoir augmenter/diminuer la quantité d'un produit sans passer par le menu ⋮ → Modifier. Premier essai : bouton "−1" isolé dans la barre d'actions (`inv-item-action-row`, à côté de "À racheter"/"Fini") — repositionné à la demande de l'utilisateur : la quantité affichée devient elle-même un stepper, avec "−" à gauche et "+" à droite du nombre, et un vrai bouton d'incrément a été ajouté (seul le décrément existait avant).
+
+| Fichier | Changement |
+|---|---|
+| `src/components/inventory/InventoryView.js` | Nouvelle fonction `incrementItemQuantity(item)` (ajoute 1 à `item.quantity`), en plus de `decrementItemQuantity(item)` (soustrait 1, bascule en `stockState: "empty"` si le résultat atteint 0 — même comportement que le bouton "Fini"). Suppression du bouton "−1" de `inv-item-action-row`. À la place, la ligne où s'affichait la quantité (`qtyLabel`) est remplacée par un `.inv-qty-stepper` (`− valeur +`) quand l'article n'est pas fini et a une quantité numérique (`canStepQty`) ; sinon la quantité reste affichée en texte simple comme avant. |
+| `src/styles.css` | Nouvelles classes `.inv-qty-stepper`, `.inv-qty-step-btn` (petit bouton rond 22px), `.inv-qty-step-value`. |
+
+Vérifié en preview (`preview_eval` + `preview_screenshot`) : clic sur "+" incrémente bien l'article ciblé (ex. Balayette 4→5) sans affecter les autres lignes ; clic sur "−" décrémente (5→4) ; le stepper est bien positionné à l'endroit où était affichée la quantité, avec "−" à gauche et "+" à droite.
+
+---
+
+## [2026-07-09] — Publication Netlify : erreur "Unable to read file nestedResourcesValidationReport.txt" + icônes de catégorie manquantes en prod
+
+L'utilisateur publie sur Netlify par glisser-déposer. Deux problèmes distincts détectés :
+
+1. **Erreur au dépôt** : il glissait le dossier du projet entier (au lieu du dossier `dist/` généré par le build), ce qui incluait `node_modules/` et `android/app/build/` — dont un fichier Gradle verrouillé/introuvable (`nestedResourcesValidationReport.txt`) qui faisait échouer l'upload. Nettoyage des artefacts Gradle obsolètes (`android/app/build`, `android/build`, `android/.gradle`, et les `build/` dans les packages Capacitor de `node_modules`). Solution : ne publier que le dossier `dist/` (généré par `npm run build`), jamais la racine du projet.
+2. **Icônes de catégorie de recettes invisibles une fois publié** (visibles en dev seulement) : `src/components/recipes/CategoryIcons.js` référençait les SVG (`entree.svg`, `plat.svg`, etc.) via un chemin brut en chaîne de caractères (`"./src/assets/icons/entree.svg"`) au lieu d'un `import`. Vite sert `src/` tel quel en dev, mais au build seuls les fichiers réellement importés comme modules sont copiés/hashés dans `dist/assets/` — ce chemin `src/...` n'existe plus en prod, d'où les logos manquants (visible notamment dans "Repas du jour" via `CategoryIcon`).
+
+| Fichier | Changement |
+|---|---|
+| `src/components/recipes/CategoryIcons.js` | Les 6 icônes SVG (`entree`, `plat`, `dessert`, `petit-dejeuner`, `boisson`, `fait-maison`) sont désormais importées en haut de fichier (`import xIcon from "../../assets/icons/x.svg"`) au lieu d'un chemin `src/...` en dur dans `CATEGORY_CONFIG`. |
+
+Vérifié : `npm run build` produit bien les 6 SVG hashés dans `dist/assets/` (absents avant le correctif) ; en preview, le `mask-image` de l'icône "Plat" du repas du jour résout et charge (200) correctement.
+
 ## [2026-07-09] — Repas : bouton valider entrée/dessert affichait toujours ✓ + toast de déduction silencieux
 
 L'utilisateur voulait un vrai bouton de validation (coche/croix) sur les lignes entrée/dessert des repas, qui déclenche la déduction d'inventaire comme le fait déjà le bouton "Marquer cuisiné" du plat principal, et un message visible confirmant la déduction. La logique de déduction (`computeMealCookState` dans `App.js`) gérait déjà les sous-slots entrée/dessert — le vrai problème était double : (1) le petit bouton ✓ affichait `"✓"` dans les deux états (validé et non validé), donc rien ne distinguait visuellement l'état ; (2) le toast de confirmation ne s'affichait que si `deductedAny` était vrai (au moins un ingrédient trouvé en stock) — si la recette n'avait aucun ingrédient en inventaire, aucun message n'apparaissait, donnant l'impression que rien ne s'était passé.
@@ -42,6 +122,17 @@ L'onglet "Listes" de la nav du bas était le seul accès direct à Notes/Inventa
 | `src/styles.css` | Nouvelles classes `.mrd-bnav-quick-wrap`, `.mrd-bnav-quick-menu`, `.mrd-bnav-quick-item(-emoji)` (+ variantes dark mode), inspirées du pattern `task-menu-*` déjà utilisé ailleurs (ex. kebab menu de `ListsView.js`). |
 
 Vérifié en preview : ouverture/fermeture du menu et navigation vers chacun des 5 items fonctionnent.
+
+## [2026-07-14] — Accueil : suppression de la section "Accès rapide"
+
+Depuis l'ajout du bouton "Plus" dans la nav du bas (Notes/Inventaire/Recettes/Historique), la section "Accès rapide" en bas de l'accueil faisait doublon avec les mêmes 4 accès.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/home/HomeView.js` | Suppression de la section "Accès rapide" (grille de 4 boutons) et de la constante `QUICK_ITEMS` devenue inutile. `marginBottom: 24` déplacé sur la section "Pense-bête à trier", désormais la dernière section de la page, pour conserver l'espacement en bas. |
+| `src/styles.css` | Suppression des classes CSS devenues orphelines : `.mrd-quick-grid`, `.mrd-quick-btn`, `.mrd-quick-btn-icon-wrap`, `.mrd-quick-btn-icon`, `.mrd-quick-badge`, `.mrd-quick-btn-label`. |
+
+Vérifié en preview (`preview_snapshot` + `preview_screenshot`) : la section a bien disparu de l'accueil, l'espacement en bas de page est conservé, et les 4 accès restent disponibles via le bouton "Plus" de la nav du bas.
 
 ---
 

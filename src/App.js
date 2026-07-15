@@ -7,6 +7,7 @@ import { ListsView } from "./components/lists/ListsView.js";
 import { AgendaView } from "./components/agenda/AgendaView.js";
 import { AuthScreen } from "./components/auth/AuthScreen.js";
 import { OnboardingFlow } from "./components/auth/OnboardingFlow.js";
+import { ResetPasswordScreen } from "./components/auth/ResetPasswordScreen.js";
 import { HistoryView } from "./components/history/HistoryView.js";
 import { MealsView } from "./components/meals/MealsView.js";
 import { NotesView } from "./components/notes/NotesView.js";
@@ -20,12 +21,14 @@ import {
   canChangePassword,
   getCurrentAuthMode,
   renameFamily,
+  setFamilyPremiumOverride,
   signInWithEmail,
   signInWithGoogle,
   signOutUser,
   signUpWithEmail,
   updateFamilyPerson,
 } from "./firebase/client.js";
+import { PremiumLockScreen } from "./components/premium/PremiumLockScreen.js";
 import { html, useEffect, useMemo, useRef, useState } from "./lib.js";
 import { collectKnownProducts } from "./utils/productUtils.js";
 import { productMatchKey, toBaseQuantity, fromBaseQuantity } from "./utils/units.js";
@@ -150,6 +153,8 @@ export function App() {
   const [settingsAutoOpenAddPersonSignal, setSettingsAutoOpenAddPersonSignal] = useState(0);
   const [settingsSupportPage, setSettingsSupportPage] = useState("");
   const [settingsSubPage, setSettingsSubPage] = useState("main");
+  const isPremium = Boolean(currentFamily?.premiumOverride);
+  const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
   const [appTimeMode, setAppTimeModeState] = useState(() => getCurrentAppTimeMode());
   const [simulatedDateTime, setSimulatedDateTimeState] = useState(() => getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate()));
   const [appTimeVersion, setAppTimeVersion] = useState(0);
@@ -795,6 +800,13 @@ export function App() {
 
 
   // ── Routing: single decision tree, zero intermediate renders ───────────────
+  // 0. Lien de réinitialisation de mot de passe (email Firebase) — prioritaire
+  //    sur tout le reste : ne dépend pas de l'état d'auth/planner.
+  const resetParams = new URLSearchParams(window.location.search);
+  if (resetParams.get("mode") === "resetPassword" && resetParams.get("oobCode")) {
+    return html`<${ResetPasswordScreen} oobCode=${resetParams.get("oobCode")} />`;
+  }
+
   // 1. Error
   if (startupStage === "error" && startupError) {
     return html`
@@ -980,7 +992,9 @@ export function App() {
       `;
     } else if (activeTab === "meals") {
       const shoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
-      plannerContent = html`
+      plannerContent = !isPremium ? html`
+        <${PremiumLockScreen} feature="meals" onOpenPremiumSettings=${openPremiumSettings} />
+      ` : html`
         <${MealsView}
           meals=${state.meals}
           recipes=${state.recipes}
@@ -1016,6 +1030,8 @@ export function App() {
           activePersonId=${activePersonId}
           people=${householdPeople}
           inventory=${state.inventory}
+          isPremium=${isPremium}
+          onRequirePremium=${() => showToast("⭐ Fonction Premium — active le premium pour lier une liste à l'inventaire")}
           onCreateList=${(form) => handleCreateList({ ...form, createdBy: activePersonId })}
           onUpdateList=${handleUpdateList}
           onMoveList=${handleMoveList}
@@ -1028,7 +1044,9 @@ export function App() {
         />
       `;
     } else if (activeTab === "inventory") {
-      plannerContent = html`
+      plannerContent = !isPremium ? html`
+        <${PremiumLockScreen} feature="inventory" onOpenPremiumSettings=${openPremiumSettings} />
+      ` : html`
         <${InventoryView}
           inventory=${state.inventory}
           knownProducts=${knownProducts}
@@ -1051,7 +1069,9 @@ export function App() {
       `;
     } else if (activeTab === "recipes") {
       const recipesShoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
-      plannerContent = html`<${RecipesView}
+      plannerContent = !isPremium ? html`
+        <${PremiumLockScreen} feature="recipes" onOpenPremiumSettings=${openPremiumSettings} />
+      ` : html`<${RecipesView}
         recipes=${state.recipes}
         inventory=${state.inventory}
         knownProducts=${knownProducts}
@@ -1232,6 +1252,8 @@ export function App() {
                     onJoinFamily=${(code) => runFamilyAction(() => handleJoinFamily(code))}
                     onSwitchFamily=${(familyId) => runFamilyAction(() => handleSwitchFamily(familyId))}
                     onRenameFamily=${(name) => runFamilyAction(() => renameFamily(currentFamilyId, name))}
+                    isPremium=${isPremium}
+                    onSetPremiumOverride=${(value) => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, value))}
                     onAddPerson=${(person) => runFamilyAction(() => handleAddPerson(person))}
                     onUpdatePerson=${(personId, updates) => runFamilyAction(() => handleUpdatePerson(personId, updates))}
                     onUpdateMemberRole=${(uid, role) => runFamilyAction(() => handleUpdateMemberRole(uid, role))}
@@ -1355,6 +1377,7 @@ export function App() {
             activeTab=${activeTab}
             onChange=${handleBottomNavChange}
             overdueTaskCount=${stats.overdueTaskCount}
+            isPremium=${isPremium}
           />
         ` : null}
 

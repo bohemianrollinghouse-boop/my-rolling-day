@@ -39,6 +39,8 @@ export function SettingsView({
   onJoinFamily,
   onSwitchFamily,
   onRenameFamily,
+  isPremium = false,
+  onSetPremiumOverride,
   onAddPerson,
   onUpdatePerson,
   onUpdateMemberRole = async () => {},
@@ -1186,6 +1188,27 @@ export function SettingsView({
           ` : null}
           ${canManageHousehold ? html`<${SeeMoreLink} onClick=${() => goSettingsPage("household")}>Gerer le foyer en detail<//>` : null}
         <//>
+
+        <!-- Premium -->
+        <div className=${`premium-section-highlight${isPremium ? " is-active" : ""}`}>
+          <${SectionCard}
+            id="premium"
+            icon="⭐"
+            title="Premium"
+            subtitle=${isPremium ? "Actif" : "Inventaire, Recettes et Repas verrouillés"}
+            open=${openSections.includes("premium")}
+            onToggle=${toggleSection}
+          >
+            <${SettingsToggleRow}
+              icon="⭐"
+              label="Premium actif (test)"
+              sub="Interrupteur de test en attendant le vrai paiement (RevenueCat/Stripe). Débloque Inventaire, Recettes, Repas et le lien inventaire des listes."
+              value=${isPremium}
+              onChange=${(value) => onSetPremiumOverride?.(value)}
+              last=${true}
+            />
+          <//>
+        </div>
 
         <!-- Apparence -->
         <${SectionCard}

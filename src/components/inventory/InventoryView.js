@@ -6,7 +6,7 @@ import { EmojiPicker } from "../tasks/EmojiPicker.js";
 // ─── constants ────────────────────────────────────────────────────
 
 const UNITS = [
-  { value: "", label: "—" },
+  { value: "", label: "Unité" },
   { value: "unité", label: "Unité" },
   { value: "g", label: "g" },
   { value: "kg", label: "kg" },
@@ -80,7 +80,7 @@ function todayKey() {
 }
 
 function emptyForm() {
-  return { name: "", quantity: "", unit: "", purchaseDate: todayKey(), expiryDate: "", price: "", note: "", stockState: "in_stock" };
+  return { name: "", quantity: "", unit: "", purchaseDate: todayKey(), expiryDate: "", price: "", note: "", stockState: "in_stock", storageLocationId: "" };
 }
 
 function compareByName(a, b) {
@@ -423,7 +423,9 @@ export function InventoryView({
 
   // ─── modal handlers ───────────────────────────────────────────
   function openCreateModal() {
-    setEditingItemId(""); setForm(emptyForm()); setSimilarWarning(null);
+    setEditingItemId("");
+    setForm({ ...emptyForm(), storageLocationId: activeLocation ? activeLocation.id : "" });
+    setSimilarWarning(null);
     setBypassSimilar(false); setSuggestions([]); setShowExtraFields(false); setShowModal(true);
   }
   function openEditModal(item) {
@@ -434,6 +436,7 @@ export function InventoryView({
       purchaseDate: item.purchaseDate || todayKey(), expiryDate: item.expiryDate || "",
       price: item.price || "", note: item.note || "",
       stockState: item.stockState === "empty" ? "empty" : "in_stock",
+      storageLocationId: item.storageLocationId || "",
     });
     setSimilarWarning(null); setBypassSimilar(false); setSuggestions([]);
     setShowExtraFields(!!(item.quantity || item.price || item.expiryDate || item.note));
@@ -461,6 +464,7 @@ export function InventoryView({
       purchaseDate: form.purchaseDate || todayKey(), expiryDate: form.expiryDate || "",
       price: form.price || "", note: form.note || "",
       stockState: form.stockState || "in_stock", needsRestock: form.stockState === "empty",
+      storageLocationId: form.storageLocationId || "",
     };
     editingItemId ? onUpdateInventoryItem(editingItemId, payload) : onAddInventoryItem(payload);
     closeModal(); setForm(emptyForm());
@@ -566,6 +570,22 @@ export function InventoryView({
         style=${{ height: `${Math.max(54, Math.round(preview.height || 72))}px` }}
       ></div>
     `;
+  }
+  function decrementItemQuantity(item) {
+    const currentQty = parseFloat(String(item.quantity || "0").replace(",", "."));
+    if (!Number.isFinite(currentQty) || currentQty <= 0) return;
+    const nextQty = Math.round((currentQty - 1) * 100) / 100;
+    if (nextQty <= 0) {
+      onUpdateInventoryItem(item.id, { quantity: "0", stockState: "empty", needsRestock: true });
+    } else {
+      onUpdateInventoryItem(item.id, { quantity: String(nextQty) });
+    }
+  }
+  function incrementItemQuantity(item) {
+    const currentQty = parseFloat(String(item.quantity || "0").replace(",", "."));
+    const base = Number.isFinite(currentQty) ? currentQty : 0;
+    const nextQty = Math.round((base + 1) * 100) / 100;
+    onUpdateInventoryItem(item.id, { quantity: String(nextQty) });
   }
   function bulkFinished() { selectedIds.forEach((id) => onUpdateInventoryItem(id, { stockState: "empty", needsRestock: true })); exitSelectionMode(); }
   function bulkShopping() { selectedIds.forEach((id) => onSendInventoryToShopping(id)); exitSelectionMode(); }
@@ -740,10 +760,11 @@ export function InventoryView({
       : (sortMode === "alpha" && Array.isArray(list) && list.length > 1 ? "grab" : "default");
 
     const metaParts = [];
-    if (qtyLabel) metaParts.push(qtyLabel);
     if (item.price) metaParts.push(`${item.price} €`);
     if (item.note) metaParts.push(item.note);
     const metaLine = metaParts.join(" · ");
+    const numericQty = parseFloat(String(item.quantity || "").replace(",", "."));
+    const canStepQty = !isFinished && Number.isFinite(numericQty);
 
     return html`
       <div key=${item.id}
@@ -769,6 +790,18 @@ export function InventoryView({
             fontSize: 14, fontWeight: 600, color: "var(--mrd-fg)", lineHeight: 1.3,
             textDecoration: isFinished ? "line-through" : "none",
           }}>${item.name}</span>
+
+          ${canStepQty ? html`
+            <div className="inv-qty-stepper" onClick=${(e) => e.stopPropagation()}>
+              <button type="button" className="inv-qty-step-btn"
+                onClick=${() => decrementItemQuantity(item)}
+                aria-label="Diminuer la quantité">−</button>
+              <span className="inv-qty-step-value">${qtyLabel}</span>
+              <button type="button" className="inv-qty-step-btn"
+                onClick=${() => incrementItemQuantity(item)}
+                aria-label="Augmenter la quantité">+</button>
+            </div>
+          ` : (qtyLabel ? html`<span className="ldv-item-qty" style=${{ whiteSpace: "normal" }}>${qtyLabel}</span>` : null)}
 
           ${metaLine ? html`<span className="ldv-item-qty" style=${{ whiteSpace: "normal" }}>${metaLine}</span>` : null}
 
@@ -1255,6 +1288,29 @@ export function InventoryView({
               ` : null}
             </div>
 
+            <!-- 1bis. Lieu de rangement (mode organiser uniquement) -->
+            ${organiserMode ? html`
+              <div>
+                <span className="mrd-mlbl">Lieu de rangement</span>
+                <div style=${{ position: "relative" }}>
+                  <select
+                    value=${form.storageLocationId || ""}
+                    onChange=${(e) => setForm({ ...form, storageLocationId: e.target.value })}
+                    style=${{
+                      ...FORM_INP, paddingRight: 36, cursor: "pointer",
+                      color: form.storageLocationId ? "var(--mrd-fg)" : "var(--mrd-fg3)",
+                    }}
+                  >
+                    <option value="">Non classé</option>
+                    ${safeLocations.map((loc) => html`
+                      <option key=${loc.id} value=${loc.id}>${getStorageLocationDisplay(loc).label || loc.name}</option>
+                    `)}
+                  </select>
+                  <span style=${{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "var(--mrd-fg3)", pointerEvents: "none" }}>▼</span>
+                </div>
+              </div>
+            ` : null}
+
             <!-- 2. Bouton capsule "+ Plus d'informations" -->
             <div>
               <button type="button"
@@ -1281,7 +1337,10 @@ export function InventoryView({
                       onInput=${(e) => setForm({ ...form, quantity: e.target.value })}
                     />
                     <select
-                      style=${{ ...INP_INNER, width: 90, flexShrink: 0, appearance: "none", WebkitAppearance: "none" }}
+                      style=${{
+                        ...INP_INNER, width: 90, flexShrink: 0, appearance: "none", WebkitAppearance: "none",
+                        color: form.unit ? "var(--mrd-fg)" : "var(--mrd-fg3)",
+                      }}
                       value=${form.unit}
                       onChange=${(e) => setForm({ ...form, unit: e.target.value })}
                     >

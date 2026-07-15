@@ -476,6 +476,7 @@ export function useLists(state, updateState, showToast) {
         note: item.note || "",
         stockState: item.stockState || "in_stock",
         needsRestock: item.stockState === "empty",
+        storageLocationId: item.storageLocationId || "",
         order: previous.inventory.length,
       };
       const mergeIndex = previous.inventory.findIndex((entry) => inventoryEntriesCanMerge(entry, incomingItem));

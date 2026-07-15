@@ -2,6 +2,7 @@ import {
   EmailAuthProvider,
   GoogleAuthProvider,
   browserLocalPersistence,
+  confirmPasswordReset,
   createUserWithEmailAndPassword,
   getRedirectResult,
   onAuthStateChanged,
@@ -16,6 +17,7 @@ import {
   signOut,
   updateEmail,
   updatePassword,
+  verifyPasswordResetCode,
 } from "firebase/auth";
 import { Capacitor } from "@capacitor/core";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
@@ -158,6 +160,14 @@ export async function signUpWithEmail({ email, password, displayName }) {
 
 export async function resetPassword(email) {
   await sendPasswordResetEmail(auth, email.trim());
+}
+
+export async function verifyResetCode(oobCode) {
+  return verifyPasswordResetCode(auth, oobCode);
+}
+
+export async function confirmReset(oobCode, newPassword) {
+  await confirmPasswordReset(auth, oobCode, newPassword);
 }
 
 export function signOutUser() {

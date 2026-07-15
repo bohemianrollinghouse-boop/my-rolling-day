@@ -63,6 +63,8 @@ export function ListsView({
   activePersonId,
   people = [],
   inventory = [],
+  isPremium = false,
+  onRequirePremium,
   onCreateList,
   onUpdateList,
   onAddListItem,
@@ -753,10 +755,10 @@ export function ListsView({
 
             <!-- Lien inventaire -->
             <button type="button"
-              className=${`mrd-inv-badge${selectedList.addToInventory ? " on" : ""}`}
-              onClick=${() => onUpdateList(selectedList.id, { addToInventory: !selectedList.addToInventory })}
+              className=${`mrd-inv-badge${selectedList.addToInventory ? " on" : ""}${!isPremium ? " locked" : ""}`}
+              onClick=${() => (isPremium ? onUpdateList(selectedList.id, { addToInventory: !selectedList.addToInventory }) : onRequirePremium?.())}
               aria-label="Lier à l'inventaire"
-            >${selectedList.addToInventory ? "●" : "○"} Lié à l'inventaire</button>
+            >${isPremium ? (selectedList.addToInventory ? "●" : "○") : "🔒"} Lié à l'inventaire</button>
 
             <!-- Barre multi-sélection -->
             ${multiSelectMode
@@ -924,10 +926,10 @@ export function ListsView({
 
                 <!-- 4. Lier à l'inventaire -->
                 <button type="button"
-                  className=${`mrd-inv-badge${listForm.addToInventory ? " on" : ""}`}
-                  onClick=${() => setListForm((prev) => ({ ...prev, addToInventory: !prev.addToInventory }))}
+                  className=${`mrd-inv-badge${listForm.addToInventory ? " on" : ""}${!isPremium ? " locked" : ""}`}
+                  onClick=${() => (isPremium ? setListForm((prev) => ({ ...prev, addToInventory: !prev.addToInventory })) : onRequirePremium?.())}
                   aria-label="Lier à l'inventaire"
-                >${listForm.addToInventory ? "●" : "○"} Lié à l'inventaire</button>
+                >${isPremium ? (listForm.addToInventory ? "●" : "○") : "🔒"} Lié à l'inventaire</button>
 
                 <!-- 5. Bouton final -->
                 <button type="submit"
