@@ -7,6 +7,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
 } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 import { FIREBASE_CONFIG, MEMBER_COLORS } from "../constants.js";
 
 // ── Initialisation Firebase (singleton) ───────────────────────────────────
@@ -18,6 +19,7 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache(),
   experimentalForceLongPolling: true,
 });
+export const functions = getFunctions(app, "europe-west1");
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 export const firebaseApp = app;

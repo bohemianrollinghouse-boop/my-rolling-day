@@ -10,14 +10,17 @@
  */
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getAuth } = require("firebase-admin/auth");
 
 initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
+const adminAuth = getAuth();
 
 // ---------------------------------------------------------------------------
 // Temps Paris — "naïf" : les heures/minutes des events sont en heure locale
@@ -538,6 +541,37 @@ exports.onMemberJoined = onDocumentCreated(
 );
 
 // ---------------------------------------------------------------------------
+// Nettoyage : un membre est retiré du foyer (self-leave ou retrait par un admin)
+// ---------------------------------------------------------------------------
+// Le client (Firestore rules) n'autorise que l'utilisateur lui-même à écrire
+// dans son propre doc `users/{uid}` — un admin qui retire quelqu'un d'autre
+// ne peut donc pas nettoyer users/{uid} depuis le navigateur. On le fait ici
+// via l'Admin SDK (bypass des règles), déclenché par la suppression du doc
+// `families/{familyId}/members/{uid}`, quel que soit qui l'a supprimé.
+exports.onMemberRemoved = onDocumentDeleted(
+  "families/{familyId}/members/{uid}",
+  async (event) => {
+    const { familyId, uid } = event.params;
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) return;
+
+    const update = {
+      familyIds: FieldValue.arrayRemove(familyId),
+      [`linkedMemberIdsByHousehold.${familyId}`]: FieldValue.delete(),
+      updatedAt: Timestamp.now(),
+    };
+    if (userSnap.data()?.currentFamilyId === familyId) {
+      update.currentFamilyId = "";
+    }
+
+    await userRef.update(update);
+    console.log(`[onMemberRemoved] users/${uid} nettoyé (famille ${familyId})`);
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Notification : une nouvelle tâche est ajoutée au foyer
 // ---------------------------------------------------------------------------
 exports.onTaskCreated = onDocumentUpdated(
@@ -649,5 +683,226 @@ exports.onTaskAssigned = onDocumentUpdated(
       await markAsSent(familyId, key);
       console.log(`[onTaskAssigned] ${item.task.text} → ${person?.displayName || item.personId}`);
     }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Réinitialisation de mot de passe — lien généré côté serveur (contourne le
+// réglage "URL d'action personnalisée" cassé dans la console Firebase) +
+// envoi de l'e-mail via l'extension "Trigger Email from Firestore"
+// (dépose un document dans la collection "mail", surveillée par l'extension).
+// ---------------------------------------------------------------------------
+// Page de réinitialisation du mot de passe : hébergée sur le site officiel
+// (statique, séparé du bundle de l'app), pas sur my-rolling-day.web.app.
+const RESET_PASSWORD_PAGE_URL = "https://myrollingday.fr/reset-password.html";
+
+function buildResetPasswordEmailHtml(resetLink) {
+  return `<!doctype html>
+<html lang="fr">
+  <body style="margin:0;padding:32px 16px;background-color:#FAF4ED;font-family:Georgia,'Times New Roman',serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border:1px solid #EDE1D3;">
+      <tr>
+        <td style="padding:36px 32px 28px;text-align:center;">
+          <div style="font-size:15px;letter-spacing:0.08em;text-transform:uppercase;color:#B8654A;font-weight:700;margin-bottom:18px;">My Rolling Day</div>
+          <h1 style="margin:0 0 14px;font-size:24px;color:#3D2E22;font-weight:700;">Réinitialise ton mot de passe</h1>
+          <p style="margin:0 0 26px;font-size:15px;line-height:1.6;color:#6B5645;">
+            Tu as demandé à réinitialiser ton mot de passe. Clique sur le bouton ci-dessous pour choisir un nouveau mot de passe. Ce lien est valable 1 heure.
+          </p>
+          <a href="${resetLink}" style="display:inline-block;padding:14px 32px;background-color:#B8654A;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;border-radius:12px;">
+            Choisir un nouveau mot de passe
+          </a>
+          <p style="margin:28px 0 0;font-size:12px;line-height:1.6;color:#9C8975;">
+            Si tu n'es pas à l'origine de cette demande, tu peux ignorer cet e-mail : ton mot de passe ne changera pas.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
+// Rejoindre un foyer via code d'invitation — logique entièrement côté
+// serveur (Admin SDK, contourne les règles Firestore). Nécessaire car ce
+// flux doit à la fois lire/écrire des documents protégés par la règle
+// isFamilyMember(familyId) ET créer le tout premier doc membre qui rend
+// cette règle vraie — un ordre que les security rules côté client
+// n'arrivent pas à valider de façon fiable (get()/exists() dans les règles
+// ne voient pas de façon garantie les écritures précédentes de la même
+// session/requête).
+// ---------------------------------------------------------------------------
+const MEMBER_COLORS = ["#D4607A", "#8B6040", "#5E7A6B", "#7A6B8B", "#C4734A", "#547AA5"];
+function colorForUid(uid = "") {
+  let total = 0;
+  for (let index = 0; index < uid.length; index += 1) total += uid.charCodeAt(index);
+  return MEMBER_COLORS[total % MEMBER_COLORS.length];
+}
+
+exports.acceptInvitation = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Connecte-toi pour rejoindre un foyer.");
+    }
+    const uid = request.auth.uid;
+    const authEmail = String(request.auth.token?.email || "").trim().toLowerCase();
+    const normalized = String(request.data?.inviteCode || "").trim().toUpperCase().replace(/-/g, "");
+    if (!normalized) {
+      throw new HttpsError("invalid-argument", "Entre un code d'invitation.");
+    }
+
+    const invitationSnap = await db
+      .collectionGroup("invitations")
+      .where("code", "==", normalized)
+      .limit(1)
+      .get();
+    if (invitationSnap.empty) {
+      throw new HttpsError("not-found", "Invitation introuvable.");
+    }
+
+    const invitationDoc = invitationSnap.docs[0];
+    const invitation = invitationDoc.data();
+    if (invitation.status !== "pending") {
+      throw new HttpsError("failed-precondition", "Cette invitation n'est plus disponible.");
+    }
+    const expiresAt = invitation.expiresAt?.toDate
+      ? invitation.expiresAt.toDate()
+      : invitation.expiresAt
+        ? new Date(invitation.expiresAt)
+        : null;
+    if (expiresAt && expiresAt < new Date()) {
+      throw new HttpsError("failed-precondition", "Ce code a expiré. Demande un nouveau code à l'administrateur du foyer.");
+    }
+    if (invitation.email && invitation.email !== authEmail) {
+      throw new HttpsError("permission-denied", "Cette invitation est réservée à une autre adresse email.");
+    }
+
+    const familyId = invitation.familyId;
+    const personId = invitation.memberId;
+    const personRef = db.collection("families").doc(familyId).collection("people").doc(personId);
+    const personSnap = await personRef.get();
+    if (!personSnap.exists) {
+      throw new HttpsError("not-found", "Le membre visé par cette invitation n'existe plus.");
+    }
+    const person = personSnap.data();
+    if (person.linkedAccountId && person.linkedAccountId !== uid) {
+      throw new HttpsError("failed-precondition", "Ce membre du foyer est déjà rattaché à un autre compte.");
+    }
+
+    const accountName =
+      request.auth.token?.name ||
+      (authEmail ? authEmail.split("@")[0] : "") ||
+      invitation.memberName ||
+      "Utilisateur";
+
+    const memberRef = db.collection("families").doc(familyId).collection("members").doc(uid);
+    const userRef = db.collection("users").doc(uid);
+
+    const batch = db.batch();
+    batch.set(
+      memberRef,
+      {
+        uid,
+        displayName: accountName,
+        email: authEmail,
+        role: invitation.role || person.role || "member",
+        color: colorForUid(uid),
+        joinedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    batch.update(personRef, {
+      linkedAccountId: uid,
+      profileMode: "app_user",
+      canCompleteTasks: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      userRef,
+      {
+        uid,
+        email: authEmail,
+        displayName: accountName,
+        familyIds: FieldValue.arrayUnion(familyId),
+        currentFamilyId: familyId,
+        ...(request.data?.startOnboarding ? { pendingOnboardingFamilyId: familyId } : {}),
+        [`linkedMemberIdsByHousehold.${familyId}`]: personId,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    batch.update(invitationDoc.ref, {
+      status: "accepted",
+      acceptedByUserId: uid,
+      acceptedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    batch.update(db.collection("families").doc(familyId), {
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    await db.collection("families").doc(familyId).collection("joinEvents").add({
+      joinerUid: uid,
+      joinerName: accountName,
+      memberName: invitation.memberName || accountName,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    console.log(`[acceptInvitation] ${accountName} (${uid}) a rejoint le foyer ${familyId}`);
+    return { familyId, personId };
+  }
+);
+
+exports.requestPasswordReset = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    const email = String(request.data?.email || "").trim();
+    if (!email || !email.includes("@")) {
+      throw new HttpsError("invalid-argument", "Adresse email invalide.");
+    }
+
+    let actionLink;
+    try {
+      actionLink = await adminAuth.generatePasswordResetLink(email);
+    } catch (err) {
+      if (err?.code === "auth/user-not-found") {
+        throw new HttpsError("not-found", "Aucun compte n'existe avec cet email.");
+      }
+      if (err?.code === "auth/invalid-email") {
+        throw new HttpsError("invalid-argument", "Adresse email invalide.");
+      }
+      console.error("[requestPasswordReset] generatePasswordResetLink error", err);
+      throw new HttpsError("internal", "Impossible de générer le lien de réinitialisation. Réessaie plus tard.");
+    }
+
+    // generatePasswordResetLink() renvoie un lien vers la page générique
+    // firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=... — on
+    // récupère juste le oobCode (indépendant de l'URL qui le transporte)
+    // pour reconstruire notre propre lien vers reset-password.html.
+    let oobCode;
+    try {
+      oobCode = new URL(actionLink).searchParams.get("oobCode");
+    } catch (_) {
+      oobCode = null;
+    }
+    if (!oobCode) {
+      console.error("[requestPasswordReset] oobCode introuvable dans le lien généré", actionLink);
+      throw new HttpsError("internal", "Impossible de générer le lien de réinitialisation. Réessaie plus tard.");
+    }
+
+    const resetLink = `${RESET_PASSWORD_PAGE_URL}?oobCode=${encodeURIComponent(oobCode)}`;
+
+    await db.collection("mail").add({
+      to: [email],
+      message: {
+        subject: "Réinitialise ton mot de passe — My Rolling Day",
+        html: buildResetPasswordEmailHtml(resetLink),
+      },
+    });
+
+    console.log(`[requestPasswordReset] e-mail de réinitialisation mis en file pour ${email}`);
+    return { ok: true };
   }
 );

@@ -13,6 +13,12 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
     }
 
+    // Helper : l'utilisateur est admin de la famille
+    function isFamilyAdmin(familyId) {
+      return isFamilyMember(familyId) &&
+        get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;
@@ -29,7 +35,9 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isFamilyMember(familyId);
-        allow write: if isAuth() && request.auth.uid == uid;
+        // Chacun écrit son propre doc (rejoindre/quitter) ; un admin peut aussi
+        // supprimer le doc d'un autre membre (retrait d'un membre du foyer).
+        allow write: if isAuth() && (request.auth.uid == uid || isFamilyAdmin(familyId));
 
         // Tokens FCM par appareil — chaque user écrit uniquement ses propres devices
         match /devices/{deviceId} {
@@ -63,6 +71,13 @@ service cloud.firestore {
         allow create: if isFamilyMember(familyId)
           && request.resource.data.joinerUid == request.auth.uid;
       }
+    }
+
+    // ── Mail (extension "Trigger Email from Firestore") ──────────────────────
+    // Écrit uniquement par la Cloud Function requestPasswordReset (Admin SDK,
+    // qui contourne les règles) et lu par l'extension elle-même (idem).
+    match /mail/{mailId} {
+      allow read, write: if false;
     }
   }
 }

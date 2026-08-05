@@ -2,13 +2,11 @@ import {
   EmailAuthProvider,
   GoogleAuthProvider,
   browserLocalPersistence,
-  confirmPasswordReset,
   createUserWithEmailAndPassword,
   getRedirectResult,
   onAuthStateChanged,
   reauthenticateWithCredential,
   reauthenticateWithPopup,
-  sendPasswordResetEmail,
   setPersistence,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -17,11 +15,11 @@ import {
   signOut,
   updateEmail,
   updatePassword,
-  verifyPasswordResetCode,
 } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { Capacitor } from "@capacitor/core";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
-import { auth, googleProvider } from "./core.js";
+import { auth, functions, googleProvider } from "./core.js";
 
 let persistenceReady = false;
 
@@ -159,15 +157,15 @@ export async function signUpWithEmail({ email, password, displayName }) {
 }
 
 export async function resetPassword(email) {
-  await sendPasswordResetEmail(auth, email.trim());
-}
-
-export async function verifyResetCode(oobCode) {
-  return verifyPasswordResetCode(auth, oobCode);
-}
-
-export async function confirmReset(oobCode, newPassword) {
-  await confirmPasswordReset(auth, oobCode, newPassword);
+  const trimmedEmail = email.trim();
+  try {
+    const requestPasswordReset = httpsCallable(functions, "requestPasswordReset");
+    await requestPasswordReset({ email: trimmedEmail });
+    console.log("[auth] resetPassword (Cloud Function) success", { email: trimmedEmail });
+  } catch (error) {
+    console.error("[auth] resetPassword error", error?.code, error?.message);
+    throw error;
+  }
 }
 
 export function signOutUser() {

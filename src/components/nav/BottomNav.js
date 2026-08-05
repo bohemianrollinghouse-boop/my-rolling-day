@@ -168,3 +168,52 @@ export function BottomNav({ activeTab, onChange, overdueTaskCount = 0, isPremium
     </nav>
   `;
 }
+
+// ── Nav bureau (barre latérale, écrans larges) ──────────────────────────────
+
+const SIDEBAR_TABS = [
+  { id: "home", label: "Accueil", Icon: IcoHome },
+  { id: "tasks", label: "Tâches", Icon: IcoCheck },
+  { id: "agenda", label: "Agenda", Icon: IcoCal },
+  { id: "meals", label: "Repas", Icon: IcoFork },
+];
+
+export function SidebarNav({ activeTab, onChange, overdueTaskCount = 0, isPremium = false }) {
+  const active = getBottomId(activeTab);
+
+  function renderItem({ id, label, Icon, emoji }) {
+    const isOn = active === id || activeTab === id;
+    const badge = id === "tasks" && overdueTaskCount > 0 ? overdueTaskCount : 0;
+    const premiumLocked = isPremiumTab(id) && !isPremium;
+    return html`
+      <button
+        key=${id}
+        type="button"
+        className=${`mrd-sidebar-btn ${isOn ? "on" : ""}`}
+        aria-current=${isOn ? "page" : null}
+        onClick=${() => onChange(toTabId(id))}
+      >
+        <span className="mrd-sidebar-btn-icon" aria-hidden="true">
+          ${Icon ? html`<${Icon} active=${isOn} />` : emoji}
+        </span>
+        <span className="mrd-sidebar-btn-label">${label}</span>
+        ${badge ? html`<span className="mrd-sidebar-badge" aria-hidden="true">${badge > 9 ? "9+" : badge}</span>` : null}
+        ${premiumLocked ? html`<span className="mrd-bnav-premium-star" aria-hidden="true">⭐</span>` : null}
+      </button>
+    `;
+  }
+
+  return html`
+    <nav className="mrd-sidebar">
+      <div className="mrd-sidebar-brand">
+        <img src="./src/assets/brand/mark.svg" width="26" height="26" alt="" />
+        <span className="mrd-sidebar-brand-name">My Rolling Day</span>
+      </div>
+      <div className="mrd-sidebar-list">
+        ${SIDEBAR_TABS.map(renderItem)}
+        <div className="mrd-sidebar-sep"></div>
+        ${QUICK_MENU_ITEMS.map(renderItem)}
+      </div>
+    </nav>
+  `;
+}

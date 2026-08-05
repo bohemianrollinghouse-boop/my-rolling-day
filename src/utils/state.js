@@ -72,8 +72,15 @@ function normalizeTask(task, index) {
   const recurrenceFrequency =
     task.recurrenceFrequency || (task.recur === "daily" || task.recur === "weekly" || task.recur === "monthly" ? task.recur : task.type || "daily");
   const taskKind = task.taskKind || (task.recur && task.recur !== "none" ? "recurring" : "single");
+  const legacyCreatedAtMatch = String(task.id || "").match(/^task-(\d+)/);
+  const legacyCreatedAt = legacyCreatedAtMatch ? new Date(Number(legacyCreatedAtMatch[1])) : null;
   return {
     id: task.id || `task-${Date.now()}-${index}`,
+    createdAt: task.createdAt || (legacyCreatedAt && !Number.isNaN(legacyCreatedAt.getTime())
+      ? legacyCreatedAt.toISOString()
+      : getCurrentAppDate().toISOString()),
+    staleNoticeDismissedAt: task.staleNoticeDismissedAt || "",
+    staleNoticeMissedCount: Number(task.staleNoticeMissedCount) || 0,
     text: task.text || "Tâche",
     type: task.type || "daily",
     icon: task.icon || "",
