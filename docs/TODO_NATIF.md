@@ -34,13 +34,13 @@ de l'événement (`LocalNotifications.schedule({ at: date })`), pour qu'ils
 sonnent même app fermée. Refactor plus lourd (annulation/reprogrammation à
 chaque édition d'événement) — à faire dans un second temps.
 
-### 🟡 3. Reset de mot de passe in-app (deep links)
+### ~~🟡 3. Reset de mot de passe in-app (deep links)~~ — obsolète
 
-Le lien e-mail ouvre le navigateur, pas l'app (`App.js` lit
-`window.location.search`). Universal Links (iOS) / App Links (Android) :
-AASA + assetlinks.json sur le hosting, entitlement Associated Domains,
-intent-filter. **Bloqué en partie par la release** : assetlinks exige la SHA-1
-de la clé d'upload (bloc B ci-dessous).
+Réglé autrement par le commit `3beeeb0` (mergé le 8 août) : le reset passe
+désormais par une page statique autonome (`site/reset-password.html`) hors du
+bundle React/Capacitor — l'écran in-app `ResetPasswordScreen.js` a été supprimé.
+Plus besoin d'Universal Links / App Links pour ce flux. (Les deep links
+resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
 
 ### 🟡 4. Divers
 
