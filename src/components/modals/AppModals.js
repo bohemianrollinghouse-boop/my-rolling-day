@@ -197,6 +197,58 @@ export function NotificationModal({ notification, onClose, onNavigate }) {
   `;
 }
 
+// ── Relance "tâche non faite" (semaine/mois en retard) ────────────────────
+
+export function StaleTaskModal({ task, alert, onClose, onMoveToDaily, onMoveToWeekly }) {
+  if (!task || !alert) return null;
+  const isRecurring = alert.kind === "recurring";
+  const isWeekly = alert.period === "weekly";
+  const periodLabel = isWeekly ? "cette semaine" : "ce mois-ci";
+  const periodTagLabel = isWeekly ? "Semaine" : "Mois";
+  const title = isRecurring ? "Tâche récurrente non faite" : "Tâche non terminée";
+  const badgeIcon = isRecurring ? "🔁" : isWeekly ? "⏳" : "🗓️";
+  const missedCount = Number(alert.missedCount) || 0;
+
+  return html`
+    <div className="modal-backdrop task-create-backdrop" onClick=${onClose}>
+      <div className="modal-card task-modal-redesign stale-task-modal" style=${{ width: "min(420px, 100%)" }} onClick=${(event) => event.stopPropagation()}>
+        <div className="mrd-mhd">
+          <span className="mrd-mtitle">${title}</span>
+          <button type="button" className="mrd-mclose" onClick=${onClose}>✕</button>
+        </div>
+        <div className="mrd-mbody">
+          <div className=${`stale-task-modal-icon ${isWeekly ? "is-weekly" : "is-monthly"}`}>${badgeIcon}</div>
+
+          <div className="stale-task-modal-card">
+            ${task.icon ? html`<span className="task-emoji has-emoji">${task.icon}</span>` : null}
+            <div className="stale-task-modal-card-text">
+              <span className="stale-task-modal-card-name">${task.text}</span>
+              <span className=${`ttag stale-task-modal-tag ${isWeekly ? "is-weekly" : "is-monthly"}`}>${periodTagLabel}</span>
+            </div>
+          </div>
+
+          <p className="stale-task-modal-message">
+            N'a pas été faite <strong>${periodLabel}</strong>${isRecurring && missedCount > 1 ? ` — ratée ${missedCount} fois` : ""}.
+          </p>
+
+          <div className="task-modal-actions">
+            ${!isRecurring && isWeekly ? html`
+              <button type="button" className="clrbtn" onClick=${onClose}>Ignorer</button>
+              <button type="button" className="aok" onClick=${onMoveToDaily}>Ajouter à la tâche quotidienne</button>
+            ` : null}
+            ${!isRecurring && !isWeekly ? html`
+              <button type="button" className="clrbtn" onClick=${onClose}>Ignorer</button>
+              <button type="button" className="acn" onClick=${onMoveToWeekly}>Passer à la semaine</button>
+              <button type="button" className="aok" onClick=${onMoveToDaily}>Passer au jour</button>
+            ` : null}
+            ${isRecurring ? html`<button type="button" className="aok" onClick=${onClose}>Compris</button>` : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ── Bienvenue dans le foyer (post-création) ───────────────────────────────
 
 export function HouseholdWelcomeModal({ onClose, onAddMembers }) {

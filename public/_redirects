@@ -1,0 +1,2 @@
+/__/auth/*      https://my-rolling-day.firebaseapp.com/__/auth/:splat      200!
+/__/firebase/*  https://my-rolling-day.firebaseapp.com/__/firebase/:splat  200!

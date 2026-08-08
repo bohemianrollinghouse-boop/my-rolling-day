@@ -77,6 +77,9 @@ export function useTasks(updateState) {
 
       const newTask = {
         id: `task-${Date.now()}`,
+        createdAt: getCurrentAppDate().toISOString(),
+        staleNoticeDismissedAt: "",
+        staleNoticeMissedCount: 0,
         text: form.text.trim(),
         type: targetType,
         icon: form.icon.trim(),
@@ -339,5 +342,48 @@ export function useTasks(updateState) {
     });
   }
 
-  return { handleAddTask, handleUpdateTask, handleToggleTask, handleDeleteTask, handleMoveTask };
+  // Déplace une tâche unique (non récurrente) vers une autre période (offert
+  // depuis la modale de relance "tâche non faite" — ex. semaine → quotidien).
+  function handleChangeTaskPeriod(taskId, newPeriod) {
+    updateState((previous) => {
+      const sameType = previous.tasks.filter((task) => task.type === newPeriod && task.id !== taskId);
+      const tasks = previous.tasks.map((task) => {
+        if (task.id !== taskId) return task;
+        return {
+          ...task,
+          type: newPeriod,
+          displayPeriod: newPeriod,
+          order: sameType.length,
+          createdAt: getCurrentAppDate().toISOString(),
+          staleNoticeDismissedAt: "",
+        };
+      });
+      return { ...previous, tasks: reorderTasks(tasks) };
+    });
+  }
+
+  // Marque la relance "tâche non faite" comme vue, pour ne plus la réafficher
+  // (jusqu'au prochain cycle manqué pour les tâches récurrentes).
+  function handleDismissStaleNotice(taskId) {
+    updateState((previous) => ({
+      ...previous,
+      tasks: previous.tasks.map((task) => {
+        if (task.id !== taskId) return task;
+        if (task.taskKind === "recurring") {
+          return { ...task, staleNoticeMissedCount: Number(task.missedCount) || 0 };
+        }
+        return { ...task, staleNoticeDismissedAt: getCurrentAppDate().toISOString() };
+      }),
+    }));
+  }
+
+  return {
+    handleAddTask,
+    handleUpdateTask,
+    handleToggleTask,
+    handleDeleteTask,
+    handleMoveTask,
+    handleChangeTaskPeriod,
+    handleDismissStaleNotice,
+  };
 }

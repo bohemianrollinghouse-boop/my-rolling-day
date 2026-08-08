@@ -20,6 +20,7 @@ import {
   resetPassword,
   joinFamily,
   previewHouseholdInvitation,
+  removeFamilyMember,
   saveDisplayName,
   saveFamilyPeopleOrder,
   saveUserEmail,
@@ -810,10 +811,17 @@ export function useAuth() {
 
   async function handleDeletePerson(personId) {
     if (!currentFamilyId) throw new Error("Aucune famille active.");
+    const person = safePeople.find((item) => item.id === personId);
+    if (person?.linkedAccountId) {
+      // Retire l'accès du compte lié avant tout — sinon son doc `members/{uid}`
+      // reste en base (toujours visible sur Firebase, accès au foyer conservé)
+      // alors que sa fiche `people` a disparu de l'app.
+      await removeFamilyMember(currentFamilyId, person.linkedAccountId);
+    }
     await deleteFamilyPerson(currentFamilyId, personId);
     await saveFamilyPeopleOrder(
       currentFamilyId,
-      safePeople.filter((person) => person.id !== personId),
+      safePeople.filter((item) => item.id !== personId),
     );
   }
 

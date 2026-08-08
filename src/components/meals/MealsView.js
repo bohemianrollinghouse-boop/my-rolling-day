@@ -1,5 +1,5 @@
 import { DAYS } from "../../constants.js";
-import { html, useMemo, useState } from "../../lib.js";
+import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { getCurrentAppDate } from "../../utils/date.js";
 import { createMealShell } from "../../utils/state.js";
 import { formatQuantityUnit, normalizeProductName } from "../../utils/productUtils.js";
@@ -290,6 +290,30 @@ export function MealsView({
   }
 
   function closePicker() { setPickModal(null); }
+
+  // Verrouille la page en arrière-plan pendant que le picker est ouvert : sans ça, sur
+  // mobile, l'apparition du clavier (focus sur la recherche) fait défiler la page pour
+  // garder le champ visible, ce qui décale visuellement la modale (position: fixed).
+  useEffect(() => {
+    if (!pickModal) return;
+    const scrollY = window.scrollY;
+    const { body } = document;
+    const prevPosition = body.style.position;
+    const prevTop = body.style.top;
+    const prevWidth = body.style.width;
+    const prevOverflow = body.style.overflow;
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = prevPosition;
+      body.style.top = prevTop;
+      body.style.width = prevWidth;
+      body.style.overflow = prevOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [pickModal]);
 
   function checkInventoryAfterPick(recipe) {
     if (!linkMealsToInventory || !recipe) return;
@@ -991,15 +1015,15 @@ export function MealsView({
 
       ${/* ── Barre de navigation semaine ── */null}
       <div className="mrd-meals-week-nav">
-        <button className="mrd-meals-week-btn" onClick=${() => setWeekOffset((n) => n - 1)} aria-label="Semaine précédente">
+        <button className="mrd-meals-week-btn" onClick=${() => { setWeekOffset((n) => n - 1); setSelectedDayIdx(0); }} aria-label="Semaine précédente">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button className="mrd-meals-week-label-btn" onClick=${() => { setWeekOffset(0); setViewMode("week"); }}>
+        <button className="mrd-meals-week-label-btn" onClick=${() => { setWeekOffset(0); setViewMode("week"); setSelectedDayIdx(todayIdx); }}>
           ${isCurrentWeek ? "Cette semaine" : weekLabel}
         </button>
-        <button className="mrd-meals-week-btn" onClick=${() => setWeekOffset((n) => n + 1)} aria-label="Semaine suivante">
+        <button className="mrd-meals-week-btn" onClick=${() => { setWeekOffset((n) => n + 1); setSelectedDayIdx(0); }} aria-label="Semaine suivante">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>

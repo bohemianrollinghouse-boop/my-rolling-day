@@ -1,4 +1,4 @@
-import { BottomNav } from "./components/nav/BottomNav.js";
+import { BottomNav, SidebarNav } from "./components/nav/BottomNav.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
 import { HomeView } from "./components/home/HomeView.js";
@@ -7,7 +7,6 @@ import { ListsView } from "./components/lists/ListsView.js";
 import { AgendaView } from "./components/agenda/AgendaView.js";
 import { AuthScreen } from "./components/auth/AuthScreen.js";
 import { OnboardingFlow } from "./components/auth/OnboardingFlow.js";
-import { ResetPasswordScreen } from "./components/auth/ResetPasswordScreen.js";
 import { HistoryView } from "./components/history/HistoryView.js";
 import { MealsView } from "./components/meals/MealsView.js";
 import { NotesView } from "./components/notes/NotesView.js";
@@ -15,7 +14,7 @@ import { RecipesView } from "./components/recipes/RecipesView.js";
 import { SettingsView } from "./components/settings/SettingsView.js";
 import { TasksView } from "./components/tasks/TasksView.js";
 import { SegmentedTabs } from "./components/common/SegmentedTabs.js";
-import { ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal, NotificationModal } from "./components/modals/AppModals.js";
+import { ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal, NotificationModal, StaleTaskModal } from "./components/modals/AppModals.js";
 import { createDefaultState } from "./data/defaultState.js";
 import {
   canChangePassword,
@@ -59,6 +58,7 @@ import { useMeals } from "./hooks/useMeals.js";
 import { useLists, ensureShoppingList } from "./hooks/useLists.js";
 import { useAgenda } from "./hooks/useAgenda.js";
 import { useTaskNotifications } from "./hooks/useTaskNotifications.js";
+import { useStaleTaskAlerts } from "./hooks/useStaleTaskAlerts.js";
 import { useAppRouting } from "./hooks/useAppRouting.js";
 
 
@@ -158,6 +158,7 @@ export function App() {
   const [settingsSubPage, setSettingsSubPage] = useState("main");
   const isPremium = Boolean(currentFamily?.premiumOverride);
   const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
+  const handleActivatePremium = () => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
   const [appTimeMode, setAppTimeModeState] = useState(() => getCurrentAppTimeMode());
   const [simulatedDateTime, setSimulatedDateTimeState] = useState(() => getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate()));
   const [appTimeVersion, setAppTimeVersion] = useState(0);
@@ -439,7 +440,15 @@ export function App() {
     }
   }
 
-  const { handleAddTask, handleUpdateTask, handleToggleTask, handleDeleteTask, handleMoveTask } = useTasks(updateState);
+  const {
+    handleAddTask,
+    handleUpdateTask,
+    handleToggleTask,
+    handleDeleteTask,
+    handleMoveTask,
+    handleChangeTaskPeriod,
+    handleDismissStaleNotice,
+  } = useTasks(updateState);
 
   useTaskNotifications({
     tasks: state.tasks,
@@ -447,6 +456,20 @@ export function App() {
     updateState,
     onNotification: setNotifPopup,
   });
+
+  const staleTaskAlerts = useStaleTaskAlerts(state.tasks);
+  const activeStaleTaskAlert = staleTaskAlerts[0] || null;
+  const activeStaleTask = activeStaleTaskAlert
+    ? state.tasks.find((task) => task.id === activeStaleTaskAlert.taskId) || null
+    : null;
+
+  function handleDismissStaleTaskAlert() {
+    if (activeStaleTaskAlert) handleDismissStaleNotice(activeStaleTaskAlert.taskId);
+  }
+
+  function handleMoveStaleTaskToPeriod(period) {
+    if (activeStaleTaskAlert) handleChangeTaskPeriod(activeStaleTaskAlert.taskId, period);
+  }
 
   function handleUpdateTaskNotifications(updates) {
     updateState((prev) => ({
@@ -867,13 +890,6 @@ export function App() {
 
 
   // ── Routing: single decision tree, zero intermediate renders ───────────────
-  // 0. Lien de réinitialisation de mot de passe (email Firebase) — prioritaire
-  //    sur tout le reste : ne dépend pas de l'état d'auth/planner.
-  const resetParams = new URLSearchParams(window.location.search);
-  if (resetParams.get("mode") === "resetPassword" && resetParams.get("oobCode")) {
-    return html`<${ResetPasswordScreen} oobCode=${resetParams.get("oobCode")} />`;
-  }
-
   // 1. Error
   if (startupStage === "error" && startupError) {
     return html`
@@ -1060,7 +1076,7 @@ export function App() {
     } else if (activeTab === "meals") {
       const shoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
       plannerContent = !isPremium ? html`
-        <${PremiumLockScreen} feature="meals" onOpenPremiumSettings=${openPremiumSettings} />
+        <${PremiumLockScreen} feature="meals" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`
         <${MealsView}
           meals=${state.meals}
@@ -1112,7 +1128,7 @@ export function App() {
       `;
     } else if (activeTab === "inventory") {
       plannerContent = !isPremium ? html`
-        <${PremiumLockScreen} feature="inventory" onOpenPremiumSettings=${openPremiumSettings} />
+        <${PremiumLockScreen} feature="inventory" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`
         <${InventoryView}
           inventory=${state.inventory}
@@ -1137,7 +1153,7 @@ export function App() {
     } else if (activeTab === "recipes") {
       const recipesShoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
       plannerContent = !isPremium ? html`
-        <${PremiumLockScreen} feature="recipes" onOpenPremiumSettings=${openPremiumSettings} />
+        <${PremiumLockScreen} feature="recipes" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`<${RecipesView}
         recipes=${state.recipes}
         inventory=${state.inventory}
@@ -1204,6 +1220,15 @@ export function App() {
     <div className="mrd-outer">
       <div className="mrd-shell">
 
+        ${/* Nav bureau — barre latérale sur écrans larges, remplace la barre du bas */null}
+        ${plannerUnlocked && !showSettings ? html`
+          <${SidebarNav}
+            activeTab=${activeTab}
+            onChange=${handleBottomNavChange}
+            overdueTaskCount=${stats.overdueTaskCount}
+            isPremium=${isPremium}
+          />
+        ` : null}
 
         ${/* Main screen area */null}
         <div className="mrd-screen">
@@ -1484,6 +1509,16 @@ export function App() {
           notification=${notifPopup}
           onClose=${() => setNotifPopup(null)}
           onNavigate=${handleNotifPopupNavigate}
+        />
+      ` : null}
+
+      ${!notifPopup && activeStaleTask ? html`
+        <${StaleTaskModal}
+          task=${activeStaleTask}
+          alert=${activeStaleTaskAlert}
+          onClose=${handleDismissStaleTaskAlert}
+          onMoveToDaily=${() => handleMoveStaleTaskToPeriod("daily")}
+          onMoveToWeekly=${() => handleMoveStaleTaskToPeriod("weekly")}
         />
       ` : null}
 

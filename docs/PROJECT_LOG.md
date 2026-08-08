@@ -2,6 +2,229 @@
 
 ---
 
+## [2026-08-05] — Refonte visuelle de la modale "tâche non faite" (StaleTaskModal)
+
+L'utilisateur voulait améliorer le design du `StaleTaskModal` (texte brut + boutons jusque-là) sans changer son comportement.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/modals/AppModals.js` | `StaleTaskModal` : ajout d'un badge circulaire en tête (⏳ tâche unique semaine, 🗓️ tâche unique mois, 🔁 récurrente), d'un encart "carte tâche" reprenant l'icône + le nom de la tâche + un tag de période (Semaine/Mois), et d'un message reformulé plus court. Pour les tâches récurrentes ratées plus d'une fois, affiche désormais le nombre de cycles manqués ("— ratée 3 fois"), donnée déjà disponible (`alert.missedCount`) mais pas encore montrée. |
+| `src/styles.css` | Nouvelles classes `.stale-task-modal-icon(.is-monthly)`, `.stale-task-modal-card(-text/-name)`, `.stale-task-modal-tag(.is-monthly)`, `.stale-task-modal-message` — palette ambre (semaine/rappel) vs rouge "danger" (mois/plus urgent), toutes basées sur les variables de couleur existantes donc compatibles dark mode sans règle supplémentaire. |
+
+`npm run build` OK (116 modules). Vérifié en preview (session déjà connectée avec le vrai compte de l'utilisateur — composant monté à part, isolément, via `createRoot` dans la console du navigateur, sans toucher aux données réelles, comme pour la vérification de `PremiumLockScreen` du 2026-08-03) : les deux variantes (tâche unique "Semaine" avec bouton "Ajouter à la tâche quotidienne", tâche récurrente "Mois" avec compteur de cycles manqués et bouton "Compris") s'affichent correctement, badge coloré + carte tâche + tag bien rendus en thème clair. Non re-testé en thème sombre ni dans le flux réel de l'app (nécessiterait de faire vieillir une vraie tâche).
+
+---
+
+## [2026-08-05] — Section "Données" (Réglages) réservée au compte développeur
+
+Suite à l'entrée précédente (réactivation du simulateur de date dans Réglages → Données), l'utilisateur a demandé que le bouton d'accès à "Données" ne soit visible que pour `bohemianrollinghouse@gmail.com` — les autres membres du foyer (comptes réels de la famille) ne doivent pas voir ce panneau de debug (export/import, reset planner, date simulée).
+
+| Fichier | Changement |
+|---|---|
+| `src/components/settings/SettingsView.js` | Nouvelle constante `DEV_ACCOUNT_EMAIL` + `isDevAccount` (comparaison insensible à la casse sur `userProfile.email`). Le `SectionCard` "💾 Données" (avec son bouton "Gérer les données" vers la sous-page) n'est ajouté à la liste des réglages que si `isDevAccount` est vrai. Double verrou côté sous-page `settingsPage === "privacy"` : si un compte non développeur y accède quand même (état `settingsPage` restauré autrement), un message "Accès réservé" s'affiche à la place du contenu réel. |
+
+`npm run build` OK (116 modules). En rechargeant la preview, le navigateur avait une session déjà connectée avec le vrai compte de l'utilisateur (foyer "Les bus", profil "Myenndine") — pas le compte développeur : conforme à l'attendu, aucune trace du bouton "Données" ne devait apparaître pour ce compte. Un clic sur "Paramètres" a été fait pour naviguer (action non destructive), mais **je n'ai pas poussé la vérification visuelle plus loin** (screenshot indisponible/timeout) pour éviter tout risque d'interaction accidentelle avec de vraies données pendant les tests. À confirmer par l'utilisateur : se connecter avec `bohemianrollinghouse@gmail.com` → la section "Données" doit apparaître en bas de Réglages ; avec tout autre compte, elle doit être absente.
+
+---
+
+## [2026-08-05] — Réglages : réactivation du simulateur de date (pour tester la relance "tâche non faite")
+
+Suite à l'entrée précédente (relance "tâche non faite"), l'utilisateur a demandé comment la tester sans attendre 6/27 jours réels. En inspectant le code, tout le mécanisme de simulation de date (`appTimeMode`, `onShiftSimulatedDate`, etc.) existait déjà côté `App.js`/`utils/date.js` — utilisé partout ailleurs pour calculer "maintenant" (échéances, cycles des tâches récurrentes…) — mais ses props n'étaient branchées à aucun rendu dans `SettingsView.js` : les boutons n'existaient nulle part dans l'UI.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/settings/SettingsView.js` | Réglages → Données : nouvelle section "Date de test (développeur)" (interrupteur date réelle/simulée, champs date+heure, boutons "−1 jour"/"+1 jour"/"+7 jours"/"Revenir à aujourd'hui"), branchée sur les props déjà existantes (`appTimeMode`, `simulatedDateTime`, `currentAppDateLabel`, `onUseRealDate`, `onUseSimulatedDate`, `onChangeSimulatedDate`, `onChangeSimulatedTime`, `onShiftSimulatedDate`, `onResetSimulatedDate`). |
+
+Aucun changement côté `App.js` nécessaire : décaler la date simulée déclenche déjà `appTimeVersion` → un `checkReset` qui recrée `state.tasks` avec une nouvelle référence, donc `useStaleTaskAlerts` (qui dépend de `tasks`) se réévalue automatiquement — la modale de relance apparaît donc immédiatement après avoir avancé de 6 (semaine) ou 27 (mois) jours, sans attendre le tick périodique de 5 min.
+
+`npm run build` OK (116 modules). Vérifié en preview (app non connectée, écran de login) : aucune nouvelle erreur console (seuls les warnings React préexistants sur les attributs SVG kebab-case). **Non testé avec un compte connecté** (nécessite les identifiants de l'utilisateur) — à valider par l'utilisateur : Réglages → Données → activer "Date simulée" → créer une tâche Semaine → "+7 jours" → la modale de relance doit apparaître.
+
+---
+
+## [2026-08-05] — Relance "tâche non faite" (Semaine ≥6j, Mois ≥27j)
+
+L'utilisateur voulait qu'une modale apparaisse quand une tâche créée dans l'onglet "Semaine" n'a pas été cochée au bout de 6 jours, indiquant qu'elle n'a pas été faite et proposant de la basculer en tâche "Quotidien" — sauf si c'est une tâche récurrente, où la modale se contente d'informer (pas de proposition). Même logique pour "Mois" (seuil 27 jours), avec proposition de bascule vers "Semaine" ou "Jour".
+
+Aucun `createdAt` n'existait sur les tâches jusqu'ici (seul l'id `task-<timestamp>` encodait implicitement la date de création). Pour les tâches récurrentes, le mécanisme de cycle existant (`missedCount`/`currentCycleKey` dans `applyTaskCycles`, `src/utils/state.js`) incrémente déjà `missedCount` à chaque cycle hebdo/mensuel manqué — réutilisé comme déclencheur plutôt que de recalculer un seuil en jours pour ces tâches-là.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/state.js` | `normalizeTask` : nouveaux champs `createdAt` (repris de l'id `task-<timestamp>` pour les tâches existantes, sinon date du jour), `staleNoticeDismissedAt` et `staleNoticeMissedCount` (déduplication de la relance). |
+| `src/hooks/useTasks.js` | `handleAddTask` pose `createdAt`/`staleNoticeDismissedAt`/`staleNoticeMissedCount` sur les nouvelles tâches. Deux nouveaux handlers : `handleChangeTaskPeriod(taskId, newPeriod)` (bascule une tâche unique vers une autre période, réinitialise `createdAt` pour repartir sur un délai frais) et `handleDismissStaleNotice(taskId)` (marque la relance comme vue — `staleNoticeDismissedAt` pour les tâches uniques, `staleNoticeMissedCount = missedCount` pour les récurrentes, qui pourront donc re-alerter au prochain cycle manqué). |
+| `src/utils/staleTasks.js` (nouveau) | `getStaleTaskAlerts(tasks, now)` — fonction pure qui calcule la liste des relances à afficher (tâches uniques Semaine/Mois non faites au-delà du seuil et pas encore ignorées ; tâches récurrentes dont `missedCount > staleNoticeMissedCount`). Ignore les tâches à échéance (`priority === "deadline"`). |
+| `src/hooks/useStaleTaskAlerts.js` (nouveau) | Hook réévaluant `getStaleTaskAlerts` toutes les 5 min + au retour au premier plan (focus/visibilitychange), même schéma que `useTaskNotifications`. |
+| `src/components/modals/AppModals.js` | Nouveau composant `StaleTaskModal` : affiche la tâche concernée, message adapté (semaine/mois), et selon le cas les boutons "Ajouter à la tâche quotidienne" (semaine, tâche unique), "Passer à la semaine"/"Passer au jour" (mois, tâche unique), ou juste "Compris" (récurrente). |
+| `src/App.js` | Branche `useStaleTaskAlerts(state.tasks)`, affiche `StaleTaskModal` pour la première relance en attente (masquée si une notification popup est déjà affichée), câblée sur `handleDismissStaleNotice`/`handleChangeTaskPeriod`. |
+
+`npm run build` OK (116 modules). Logique de détection (`getStaleTaskAlerts`) vérifiée par un script Node autonome (11 cas : tâches uniques semaine/mois avant/après seuil, déjà faites, déjà ignorées ; tâches récurrentes avec cycle manqué déjà notifié ou non ; tâche à échéance et tâche quotidienne toujours ignorées) — tous les cas passent. **Non testé en preview interactive de bout en bout** : l'app exige un compte Firebase connecté (pas de mode démo), donc impossible de créer une vraie tâche et vérifier l'apparition de la modale dans le navigateur sans les identifiants de l'utilisateur.
+
+---
+
+## [2026-08-05] — Repas : la navigation semaine suivante/précédente réinitialise le curseur sur lundi
+
+L'utilisateur signale que lorsqu'il est sur le dernier jour de la semaine (dimanche) et passe à la semaine suivante, le curseur du jour sélectionné reste sur l'index précédent (dimanche de la nouvelle semaine) au lieu de revenir sur lundi. Cause : `selectedDayIdx` n'était initialisé qu'une fois (`useState(todayIdx)`) et jamais réinitialisé quand `weekOffset` changeait via les boutons ‹/›.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/meals/MealsView.js` | Boutons "Semaine précédente"/"Semaine suivante" : appellent désormais aussi `setSelectedDayIdx(0)` (lundi) en plus de `setWeekOffset`. Bouton "Cette semaine" (clic sur le libellé) : appelle `setSelectedDayIdx(todayIdx)` pour revenir sur le jour actuel. |
+
+`npm run build` OK. Non re-testé en preview interactive (nécessite un compte connecté).
+
+---
+
+## [2026-08-05] — Nouveau site web officiel (page de présentation + réinitialisation de mot de passe), indépendant du bundle de l'app
+
+L'utilisateur voulait une page web séparée de l'application (le "site officiel" de My Rolling Day, domaines `myrollingday.fr`/`myrollingday.com` déjà possédés) pour deux choses : présenter l'app publiquement, et gérer la réinitialisation de mot de passe (à la place de l'écran in-app `ResetPasswordScreen.js`, qui obligeait à charger tout le bundle React/Capacitor juste pour changer un mot de passe).
+
+| Fichier | Changement |
+|---|---|
+| `site/index.html`, `site/style.css`, `site/favicon.svg` | Nouvelle page de présentation statique (HTML/CSS pur, sans build), reprend l'identité visuelle de l'app (polices Cormorant Garamond/DM Sans, couleurs `--mrd-*`, wordmark). CTA vers `https://my-rolling-day.web.app` (app réelle). |
+| `site/reset-password.html` | Nouvelle page statique autonome : lit `oobCode` dans l'URL, utilise le SDK Firebase v10 modulaire via CDN (`gstatic.com/firebasejs/10.12.5`) pour appeler `verifyPasswordResetCode`/`confirmPasswordReset` directement (config Firebase publique, même projet `my-rolling-day`). Reprend la logique/les textes de l'ancien `ResetPasswordScreen.js`. |
+| `functions/index.js` | `requestPasswordReset` : le lien envoyé par e-mail pointe désormais vers `https://myrollingday.fr/reset-password.html?oobCode=...` au lieu de `https://my-rolling-day.web.app/?mode=resetPassword&oobCode=...`. |
+| `src/App.js`, `src/components/auth/ResetPasswordScreen.js` (supprimé), `src/firebase/clientAuth.js` | Retrait de la route in-app `?mode=resetPassword` et du composant `ResetPasswordScreen` (plus utilisé) ; retrait des exports `verifyResetCode`/`confirmReset` devenus inutiles (la logique équivalente vit maintenant dans `site/reset-password.html`). |
+
+**Hébergement final : pas Firebase Hosting, mais l'hébergement mutualisé existant de l'utilisateur** (`myrollingday.fr`/`myrollingday.com` étaient déjà pointés en DNS vers un serveur Plesk à `5.135.136.43`, deux comptes séparés — un par domaine). SSH indisponible sur ce plan (nécessite une demande à l'hébergeur) ; déploiement fait en **FTP** (ProFTPD, port 21) :
+- Compte `.fr` : contenu réel du site (`index.html`, `style.css`, `favicon.svg`, `reset-password.html`) + `.htaccess` (`DirectoryIndex index.html index.php`, pour que l'ancien `index.php` placeholder de l'hébergeur — non supprimable, cf. ci-dessous — ne prenne pas le pas sur la nouvelle page).
+- Compte `.com` : `index.html` (redirection JS) + `.htaccess` (`RewriteRule ^(.*)$ https://myrollingday.fr/$1 [R=301,L]`) → toute URL sur `.com` redirige en 301 vers la même URL sur `.fr`.
+- Identifiants FTP des deux comptes stockés dans `.env` (déjà ignoré par git) : `FR_FTP_*` / `COM_FTP_*`.
+- SSL : les certificats Let's Encrypt n'étaient au départ pas assignés aux domaines (le serveur servait son certificat par défaut, `dns40.domaine.fr` → `net::ERR_CERT_COMMON_NAME_INVALID` dans le navigateur) ; l'utilisateur les a assignés depuis son panneau Plesk. Reconfirmé ensuite en TLS direct (`SslStream.AuthenticateAsClient`) : `myrollingday.fr` → `CN=myrollingday.fr` (Let's Encrypt), `myrollingday.com` → `CN=myrollingday.com` (Let's Encrypt).
+- `firebase.json` : la config hosting multi-site (`target: "app"`/`target: "site"`) ajoutée en cours de route pour un déploiement via Firebase Hosting a été **retirée** (revert à l'objet `hosting` unique d'origine) une fois la piste FTP retenue — elle aurait cassé `firebase deploy --only hosting` pour l'app (target `app` non résolu dans `.firebaserc`, jamais créé côté Firebase).
+- **Reste en place, non bloquant** : les fichiers `index.php` placeholder d'origine sur les deux comptes FTP n'ont pas pu être supprimés (action bloquée par le classifieur de permissions Claude Code) — inertes, sans impact (voir contournement `.htaccess` ci-dessus pour le `.fr` ; le `.com` redirige de toute façon avant que `DirectoryIndex` n'entre en jeu).
+
+Vérifié en conditions réelles une fois le SSL assigné : `https://myrollingday.fr` charge la page de présentation (contenu et absence d'erreur console confirmés via `get_page_text`/`read_console_messages`), `https://myrollingday.com` redirige bien vers `https://myrollingday.fr` (301, confirmé par navigation), `https://myrollingday.fr/reset-password.html` accessible. `reset-password.html` avait aussi été testé plus tôt en local avec un `oobCode` invalide → appel réel à l'API Firebase Auth du projet `my-rolling-day`, réponse `auth/invalid-action-code` correctement affichée, confirmant que l'intégration SDK CDN fonctionne de bout en bout.
+
+---
+
+## [2026-08-03] — Repas : picker de recette — modale fixe pendant la recherche (clavier mobile)
+
+L'utilisateur signale que lors d'une recherche dans le picker "Choisir un repas", la modale bouge et le clavier gêne. Cause : `.meal-picker-backdrop`/`.meal-picker-modal` sont en `position: fixed`, mais rien n'empêchait la page en arrière-plan de défiler — sur mobile, le focus du champ de recherche déclenche le comportement natif du navigateur qui scrolle la page pour garder le champ visible au-dessus du clavier, ce qui décale visuellement toute la modale (bug classique iOS/Android avec `position: fixed` + clavier virtuel). De plus, les hauteurs de la modale étaient exprimées en `vh`, une unité qui ne tient pas compte du clavier virtuel sur certains navigateurs.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/meals/MealsView.js` | Nouveau `useEffect` (déclenché par `pickModal`) qui verrouille le scroll de la page tant que le picker est ouvert : `document.body` passe en `position: fixed` (avec `top: -scrollY` pour compenser) + `overflow: hidden`, restauré (position/top/overflow + `window.scrollTo`) à la fermeture. Empêche le navigateur de scroller la page en arrière-plan quand le clavier apparaît, donc la modale ne bouge plus. Import de `useEffect` ajouté. |
+| `src/styles.css` | `.meal-picker-modal` (3 endroits : base, `.mrd-shell`, media query mobile ≤720px) : ajout d'une déclaration `max-height` en `dvh` juste après celle en `vh` (le navigateur retient la dernière valeur supportée) — `dvh` s'ajuste dynamiquement à la présence du clavier, contrairement à `vh`. |
+
+Vérifié en preview (session réelle de l'utilisateur déjà connectée dans le navigateur de dev — aucune donnée modifiée, fermeture du picker sans sélectionner de recette) : ouverture du picker "Choisir un repas" → `document.body.style.position` passe bien à `"fixed"` et `overflow` à `"hidden"` ; frappe dans le champ de recherche → `window.scrollY` reste à `0`, aucun décalage ; fermeture (✕) → styles du body restaurés (`position`/`overflow` vides) et backdrop retiré du DOM. Revérifié en viewport mobile (375×812) : même comportement, `max-height` de la modale calculée en `dvh` (714,56px = 88 % de 812px). `npm run build` OK (115 modules, aucune erreur). Aucune nouvelle erreur console (seuls les warnings React préexistants, sans rapport).
+
+---
+
+## [2026-08-03] — Espace Premium : transformation de l'écran d'accroche en vrai écran de vente
+
+L'utilisateur voulait un "vrai écran de vente" à la place du simple écran d'accroche (icône + texte + bouton "Découvrir Premium" qui ouvrait juste les Réglages) affiché sur Repas/Inventaire/Recettes quand le foyer n'est pas Premium. Choix validés avec l'utilisateur : afficher un tarif mensuel + annuel (annuel mis en avant avec badge de réduction), et faire en sorte que le bouton principal active directement le statut Premium (toggle de test `premiumOverride`, en attendant le vrai paiement RevenueCat/Stripe — cf. entrée du 2026-07-14).
+
+| Fichier | Changement |
+|---|---|
+| `src/components/premium/PremiumLockScreen.js` | Réécrit : liste de 5 bénéfices (repas, inventaire, recettes, lien liste↔inventaire, "pour tout le foyer"), sélecteur de plan Mensuel (4,99 €/mois) / Annuel (39,99 €/an, badge "Économise 33 %", affiché par défaut), bouton principal dont le libellé reflète le plan choisi ("Activer Premium — X €/mois ou /an"), et bouton secondaire "Gérer depuis les Réglages" (renvoie vers `onOpenPremiumSettings`, comportement inchangé). Nouvelle prop `onActivatePremium`. |
+| `src/App.js` | Nouveau handler `handleActivatePremium` (= `runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true))`, même mécanique que le toggle des Réglages) branché sur les 3 usages de `PremiumLockScreen` (`meals`, `inventory`, `recipes`) via la nouvelle prop `onActivatePremium`. |
+| `src/styles.css` | Nouvelles classes `.premium-lock-benefits(-benefit-icon)`, `.premium-lock-plans/.premium-lock-plan(.on)/-badge/-label/-price/-sub`, `.premium-lock-secondary` ; `.premium-lock-card` élargie (320px → 380px, marge réduite). Toutes basées sur les variables de couleur existantes (`--mrd-amber*`), donc compatibles dark mode sans règle supplémentaire. |
+
+**Prix actuels codés en dur (4,99 €/mois, 39,99 €/an) : à ajuster si l'utilisateur vise un autre tarif.** Le bouton "Activer Premium" reste pour l'instant le même mécanisme de test que le toggle des Réglages (pas de vrai paiement) — à remplacer par le SDK RevenueCat/Stripe une fois les comptes externes créés.
+
+Vérifié sans connexion (le compte réel nécessite une authentification, non testable ici) : composant monté directement via `import()` dans la console du navigateur sur la page d'accueil non authentifiée (`createRoot` + `html` de `lib.js`), styles Vite déjà chargés globalement. Confirmé : les 5 bénéfices s'affichent, le clic sur "Mensuel"/"Annuel" bascule bien le prix et le libellé du bouton principal, le clic sur "Activer Premium" déclenche bien le callback `onActivatePremium`. `npm run build` OK (115 modules, aucune erreur).
+
+---
+
+## [2026-07-27] — Fix : supprimer un membre (avec compte lié) le laissait toujours dans Firebase
+
+L'utilisateur signale que supprimer un membre le laisse toujours visible sur Firebase. Cause : le bouton "Supprimer le compte" (`EditMemberModal`, `SettingsModals.js`) n'appelait que `handleDeletePerson` → `deleteFamilyPerson`, qui supprime uniquement la fiche `families/{familyId}/people/{personId}`. Le doc `families/{familyId}/members/{uid}` du compte lié (`linkedAccountId`) — celui qui donne réellement accès au foyer — n'était jamais touché : `removeFamilyMember(familyId, uid)` existait déjà dans `clientFamily.js` mais n'était appelée nulle part (code mort). De plus, même en la branchant, la règle Firestore sur `members/{uid}` n'autorisait que l'utilisateur lui-même à écrire son propre doc — un admin ne pouvait donc pas supprimer le doc membre de quelqu'un d'autre.
+
+| Fichier | Changement |
+|---|---|
+| `src/hooks/useAuth.js` | `handleDeletePerson(personId)` : si la personne a un `linkedAccountId`, appelle désormais `removeFamilyMember(currentFamilyId, person.linkedAccountId)` avant de supprimer la fiche `people`. |
+| `src/firebase/clientFamily.js` | `removeFamilyMember` : ajout du garde-fou `assertUserIsNotLastAdmin` (absent jusqu'ici — un admin aurait pu se retirer lui-même en dernier admin, verrouillant le foyer). Retrait de la tentative d'écriture directe dans `users/{uid}` (échouait de toute façon sous les règles quand l'appelant n'est pas cet uid) — déléguée à la nouvelle Cloud Function ci-dessous. |
+| `firestore.rules` | Nouveau helper `isFamilyAdmin(familyId)`. `match /members/{uid}` : `allow write` accepte désormais `request.auth.uid == uid` **ou** `isFamilyAdmin(familyId)` (un admin peut retirer un autre membre, pas seulement soi-même). |
+| `functions/index.js` | Nouvelle Cloud Function `onMemberRemoved` (`onDocumentDeleted` sur `families/{familyId}/members/{uid}`) : nettoie côté serveur (Admin SDK, contourne les règles) le doc `users/{uid}` du membre retiré — `familyIds` (arrayRemove), `linkedMemberIdsByHousehold.{familyId}` (delete), `currentFamilyId` remis à `""` si c'était ce foyer. Nécessaire car un admin retirant quelqu'un d'autre n'a pas le droit d'écrire dans le `users/{uid}` d'un tiers ; le fallback client existant (`useAuth.js`, entrée du 2026-05-25) bascule déjà automatiquement l'utilisateur retiré sur un autre foyer accessible à sa prochaine connexion. |
+
+`npm run build` OK, `node --check` OK sur `functions/index.js`, `clientFamily.js`, `useAuth.js`. **Reste à faire (action manuelle utilisateur)** : `firebase deploy --only firestore:rules,functions` puis redéployer le nouveau `dist/` — sans ce déploiement, le fix reste inactif en prod (règles + fonction encore anciennes côté serveur).
+
+## [2026-07-27] — Retrait du mockup "téléphone Android" affiché en navigateur desktop
+
+L'utilisateur (après la migration Capacitor) voulait pouvoir tester l'app "en version ordinateur" dans un navigateur normal et continuer à la déployer sur Netlify, tout en gardant Capacitor pour le natif à venir. En testant en preview à une largeur desktop (1280×800), l'app entière s'affichait à l'intérieur d'un mockup graphique de téléphone Android (bordure, boutons volume/power, encoche caméra, barre de gestes, label "Android · Grand écran"), mis à l'échelle pour tenir dans la fenêtre — confirmé en DOM (`.emu-phone`/`.emu-bg` présents dès `window.innerWidth >= 900`).
+
+Cause : `src/main.js` enveloppait tout le rendu dans `<AndroidEmulator>` (`src/components/dev/AndroidEmulator.js`), un outil de dev pour prévisualiser le rendu mobile sur un grand écran, qui s'activait automatiquement sur toute fenêtre ≥900px de large — donc aussi en usage normal desktop/Netlify.
+
+| Fichier | Changement |
+|---|---|
+| `src/main.js` | Suppression de l'import et de l'enveloppe `AndroidEmulator` : `root.render(html\`<${App} />\`)` directement, sans wrapper. |
+| `src/components/dev/AndroidEmulator.js` | Fichier supprimé (plus aucune référence après le changement ci-dessus). |
+| `src/styles.css` | Suppression du bloc CSS mort associé (`.emu-bg`, `.emu-wrap`, `.emu-phone`, `.emu-btn`, `.emu-vol-up/-dn`, `.emu-pwr`, `.emu-frame`, `.emu-screen`, `.emu-punch`, `.emu-content`, `.emu-navbar`, `.emu-pill`, `.emu-label` + variante dark). |
+
+Vérifié : `npm run build` OK (115 modules, aucune erreur). En preview à 1280×800, `document.querySelector('.emu-phone')` et `.emu-bg` sont désormais `null` — l'app s'affiche directement en pleine fenêtre. Aucune nouvelle erreur console (seuls des warnings React préexistants sur les attributs SVG kebab-case, sans rapport).
+
+**Important** : ce correctif ne redessine pas l'app en vraie mise en page "bureau" (pas de barre latérale, pas de grilles multi-colonnes) — il retire seulement le mockup téléphone. L'app reste visuellement mobile-first (colonne unique, `BottomNav` en bas) même en grande fenêtre, ce qui correspond à une "version web normale". Une vraie refonte desktop (barre latérale, grilles plus larges par vue) reste un chantier séparé, à faire uniquement si demandé.
+
+## [2026-07-27] — Fix "permission insuffisante" à l'acceptation d'un code d'invitation (rejoindre un foyer)
+
+L'utilisateur signale qu'un membre invité par code reçoit "permission insuffisante" en rejoignant le foyer. Cause : `acceptHouseholdInvitation` (`src/firebase/clientFamily.js`) faisait la création du doc `families/{familyId}/members/{uid}` **et** les écritures protégées par `isFamilyMember(familyId)` (`people/{personId}`, `families/{familyId}`, l'invitation) dans le **même** `writeBatch`. Or Firestore évalue les règles de sécurité d'un batch par rapport à l'état de la base **avant** le batch — `exists()`/`get()` ne voient pas les écritures des autres opérations du même batch. Résultat : au tout premier join, `isFamilyMember(familyId)` reste faux au moment d'évaluer les écritures sur `people`/`families`/`invitations`, qui échouent avec permission refusée.
+
+| Fichier | Changement |
+|---|---|
+| `src/firebase/clientFamily.js` | `acceptHouseholdInvitation` : le `setDoc` du doc membre (`families/{familyId}/members/{uid}`) est désormais fait seul, **avant** (`await`) le reste des écritures (`people`, `users`, invitation, `families`), qui restent groupées dans un second `writeBatch`. Ainsi `isFamilyMember(familyId)` est déjà vrai (doc membre committé) quand les règles évaluent le second batch. |
+
+**Suite 1** : après premier redéploiement Netlify, l'utilisateur confirme que l'erreur persiste à l'identique. Cause réelle trouvée : `getDoc(personRef)` (lecture de `families/{familyId}/people/{personId}`) était appelé **avant** la création du doc membre, alors que la règle de lecture de `people` exige elle aussi `isFamilyMember(familyId)` — donc refusée en tout premier, avant même d'atteindre le batch corrigé plus haut. Fix : la lecture de `personRef` est déplacée **après** la création du membre. Rebuild + redéploiement Netlify.
+
+**Suite 2 (résolution finale)** : toujours "permission insuffisante" après ce 2e fix — au point que l'utilisateur a dû désactiver temporairement toutes les règles Firestore en prod pour débloquer un test (**risque de sécurité** : base ouverte à tous tant que les règles n'étaient pas restaurées). Cause définitive : `previewHouseholdInvitation` (`src/firebase/clientFamily.js`), appelée **avant** `acceptHouseholdInvitation` par `handleJoinHouseholdOnboarding` (`src/hooks/useAuth.js`) pour afficher le nom du foyer, lisait `families/{familyId}` directement — protégé lui aussi par `isFamilyMember`. Un non-membre échouait donc dès cet appel de preview, avant même d'atteindre le code déjà corrigé.
+
+Plutôt que de continuer à corriger des lectures/écritures client une par une contre des règles `isFamilyMember`, la logique d'acceptation est déplacée **côté serveur** :
+- `functions/index.js` : nouvelle Cloud Function callable `acceptInvitation` (europe-west1, Admin SDK — contourne les règles Firestore) qui fait toute la validation de l'invitation + création du membre + liaison du profil `people` + mise à jour `users`/`invitation`/`families`/`joinEvents` en une seule opération serveur.
+- `src/firebase/clientFamily.js` : `acceptHouseholdInvitation` appelle désormais `httpsCallable(functions, "acceptInvitation")` au lieu d'écrire directement dans Firestore. `createHouseholdInvitation` dénormalise maintenant `familyName` sur le doc invitation (lu par un membre existant, donc sans souci de permission) pour que `previewHouseholdInvitation` n'ait plus besoin de lire `families/{familyId}`.
+
+Déployé (confirmation explicite de l'utilisateur) : `firebase deploy --only firestore:rules,functions:acceptInvitation` — règles sécurisées restaurées en prod + nouvelle fonction créée. **Reste à faire** : rebuild (`npm run build`, déjà fait) + redéploiement du `dist/` sur Netlify, puis retest réel du join.
+
+**Test e2e** : ajout de `functions/test/acceptInvitation.e2e.test.js`, qui exécute le vrai code de `acceptInvitation` contre les émulateurs Firebase (Firestore + Auth + Functions — jamais la prod). Nécessite `"emulators"` dans `firebase.json` (ports 9099/5001/8080, `ui` sur 4000), absent jusqu'ici. Lancer avec `firebase emulators:exec --only firestore,auth,functions "node functions/test/acceptInvitation.e2e.test.js"`. 7 scénarios couverts, tous passants : join réussi (membre créé + `people.linkedAccountId` posé + invitation `accepted` + `joinEvent` créé, qui déclenche bien le trigger `onMemberJoined`), code inconnu (`not-found`), non authentifié (`unauthenticated`), email réservé à une autre adresse (`permission-denied`), invitation expirée (`failed-precondition`), profil déjà lié à un autre compte (`failed-precondition`, et vérifie qu'aucun membre fantôme n'est créé), code déjà utilisé (`failed-precondition`).
+
+## [2026-07-27] — Déploiement en attente de la règle Firestore `mail` (reset de mot de passe, cf. entrée du 2026-07-16)
+
+À la demande explicite de l'utilisateur : `firebase deploy --only firestore:rules` exécuté sur le projet `my-rolling-day`. Déploie la règle `match /mail/{mailId} { allow read, write: if false; }` ajoutée le 2026-07-16 (défense en profondeur pour la collection utilisée par la Cloud Function `requestPasswordReset`), restée non déployée jusqu'ici. Sans rapport avec le fix du join de foyer ci-dessus (celui-ci ne touche pas `firestore.rules`).
+
+## [2026-07-27] — Connexion Google cassée en prod : `/__/auth/handler` renvoyait 404 (Page not found Netlify)
+
+L'utilisateur signale un écran "Page not found" (404 Netlify) au clic sur "Continuer avec Google" sur le site déployé (`myrollingday.netlify.app`). Reproduit en preview : `signInWithPopup` échoue (`auth/popup-blocked`, normal en navigateur automatisé), fallback `signInWithRedirect` déclenché, puis `GET /__/auth/handler?...` → **404** (confirmé via `read_network_requests`).
+
+Cause : les règles de proxy vers Firebase (`/__/auth/*`, `/__/firebase/*` → `my-rolling-day.firebaseapp.com`) sont définies dans `netlify.toml` à la racine du repo. Or le déploiement se fait par glisser-déposer du seul dossier `dist/` (cf. entrée du 2026-07-09 ci-dessous) — Netlify ne lit `netlify.toml` que s'il est présent dans le dossier déposé, donc ces règles n'ont jamais été appliquées en prod, même si le fichier existe bien dans le repo.
+
+| Fichier | Changement |
+|---|---|
+| `public/_redirects` | Nouveau fichier (format Netlify `_redirects`) dupliquant les 2 règles de proxy `/__/auth/*` et `/__/firebase/*` de `netlify.toml`. Vite copie automatiquement le contenu de `public/` dans `dist/` au build, donc `_redirects` sera désormais inclus dans le prochain dossier `dist/` glissé-déposé sur Netlify. |
+
+Vérifié : `npm run build` produit bien `dist/_redirects`. **Reste à faire (action manuelle utilisateur)** : re-glisser-déposer le nouveau dossier `dist/` sur Netlify pour que le correctif prenne effet en prod.
+
+## [2026-07-16] — Réinitialisation de mot de passe : lien généré côté serveur (contournement du réglage cassé) + envoi par extension Firebase "Trigger Email"
+
+Suite du chantier du [2026-07-16] précédent : la personnalisation de l'URL d'action dans la console Firebase reste cassée (probable dépréciation de Dynamic Links). Plutôt que d'attendre un correctif Firebase, le lien de réinitialisation est désormais généré nous-mêmes côté serveur via l'Admin SDK, indépendamment de ce réglage.
+
+Vérification technique préalable (doc officielle Firebase, Admin SDK `generatePasswordResetLink`) : passer `actionCodeSettings.url` ne remplace **pas** le domaine du lien généré — il reste sur `.../__/auth/action?mode=resetPassword&oobCode=...`, `url` ne devient qu'un `continueUrl` secondaire. La solution retenue extrait donc le `oobCode` du lien généré par l'Admin SDK (ce code est indépendant de l'URL qui le transporte — seul compte l'appel REST via l'API key du projet) et reconstruit nous-mêmes `https://my-rolling-day.web.app/?mode=resetPassword&oobCode=...`, exploitable tel quel par `ResetPasswordScreen.js` (déjà en place).
+
+Service d'envoi choisi avec l'utilisateur (parmi Resend / Brevo / Mailgun / extension Firebase) : l'extension officielle **"Trigger Email from Firestore"**, pour rester dans l'écosystème Firebase sans nouveau compte externe — configurée avec le SMTP Gmail de l'utilisateur (mot de passe d'application).
+
+| Fichier | Changement |
+|---|---|
+| `functions/index.js` | Nouvelle Cloud Function callable `requestPasswordReset` (region `europe-west1`) : valide l'email, appelle `adminAuth.generatePasswordResetLink(email)`, extrait `oobCode` du lien retourné, reconstruit le lien vers `https://my-rolling-day.web.app/?mode=resetPassword&oobCode=...`, puis dépose un document dans la collection Firestore `mail` (`to`, `message.subject`, `message.html`) — surveillée par l'extension "Trigger Email from Firestore" qui envoie effectivement l'e-mail. Erreurs mappées en `HttpsError` avec messages français directement affichables (`not-found` si email inconnu, `invalid-argument` si email invalide). Nouveau helper `buildResetPasswordEmailHtml()` (template HTML inline, couleurs de l'app : fond crème `#FAF4ED`, accent terracotta `#B8654A`, texte brun `#3D2E22`, approximés depuis les variables OKLCH de `styles.css` — les clients mail ne supportent pas `oklch()`). |
+| `src/firebase/core.js` | Ajout de `export const functions = getFunctions(app, "europe-west1")` (import `getFunctions` depuis `firebase/functions`), même région que la nouvelle Cloud Function. |
+| `src/firebase/clientAuth.js` | `resetPassword(email)` n'appelle plus `sendPasswordResetEmail` (SDK client, retiré des imports) mais `httpsCallable(functions, "requestPasswordReset")`. Les erreurs (déjà en français côté serveur) remontent telles quelles — `formatAuthError` (`core.js`) retombe déjà sur `error.message` par défaut, aucun changement nécessaire côté formatage. |
+| `firestore.rules` | Nouvelle règle explicite `match /mail/{mailId} { allow read, write: if false; }` — défense en profondeur (la collection contient des adresses e-mail ; en pratique seule la Cloud Function/l'extension y touchent, via Admin SDK qui contourne déjà les règles). |
+
+`npm run build` OK (116 modules, aucune erreur). `node --check functions/index.js` OK.
+
+**Reste à faire (actions manuelles utilisateur, avant tout déploiement)** :
+1. Créer un mot de passe d'application Gmail (nécessite la validation en 2 étapes activée sur le compte Google).
+2. Installer l'extension Firebase **"Trigger Email from Firestore"** (Console Firebase → Extensions) avec ce SMTP Gmail, collection `mail`, adresse d'expédition = l'adresse Gmail de l'utilisateur.
+3. `firebase deploy --only functions,firestore:rules` — **pas encore fait**, en attente de confirmation explicite de l'utilisateur.
+
+## [2026-07-16] — Firebase Hosting activé + écran de réinitialisation de mot de passe dans l'app (en attente de la personnalisation du lien e-mail Firebase)
+
+L'utilisateur voulait que le lien "mot de passe oublié" reçu par e-mail ouvre une page à ses couleurs plutôt que la page générique `*.firebaseapp.com`. Comme l'app n'a jamais eu de site web publié (Capacitor uniquement, `firebase.json` n'avait ni `hosting`), il fallait d'abord un hébergement.
+
+| Fichier | Changement |
+|---|---|
+| `firebase.json` | Ajout d'un bloc `hosting` (`public: "dist"`, rewrite `**` → `/index.html`). Déployé sur `https://my-rolling-day.web.app` (`firebase deploy --only hosting`). |
+| `src/firebase/clientAuth.js` | Ajout de `verifyResetCode(oobCode)` et `confirmReset(oobCode, newPassword)` (`verifyPasswordResetCode`/`confirmPasswordReset` de `firebase/auth`). |
+| `src/firebase/core.js` | `formatAuthError` : ajout des codes `auth/expired-action-code` et `auth/invalid-action-code`. |
+| `src/components/auth/ResetPasswordScreen.js` (nouveau) | Écran de saisie du nouveau mot de passe (vérifie le `oobCode`, formulaire mot de passe + confirmation, réutilise les classes `auth-shell`/`auth-card`/`aform`/`ainp`/`aok`/`error-box` existantes). |
+| `src/App.js` | Tout en haut du rendu (avant les branches erreur/splash/auth), détection de `?mode=resetPassword&oobCode=...` dans l'URL → affiche `ResetPasswordScreen` directement, sans dépendre de l'état d'auth/planner. |
+
+**Bloqué** : la personnalisation de l'URL du lien d'action dans la console Firebase (Authentication → Templates → Réinitialisation du mot de passe → "Personnaliser l'URL d'action") échoue systématiquement avec le toast "Une erreur s'est produite lors de la modification de l'URL d'action" — confirmé en observant l'écran en direct (via computer-use), pas un problème de permissions ni de domaine autorisé (vérifié). Probablement lié à la dépréciation de Firebase Dynamic Links (25/08/2025) qui a cassé cette fonctionnalité côté Firebase. Tant que ce n'est pas résolu, le lien du mail continue de pointer vers la page Firebase par défaut — `ResetPasswordScreen.js` n'est donc pas encore atteint par le flux réel (testé uniquement en local avec un `oobCode` factice, qui affiche bien l'état "Lien invalide" attendu). Piste de repli proposée à l'utilisateur (pas encore implémentée, "on verra") : passer `actionCodeSettings.url` à `sendPasswordResetEmail` pour au moins afficher un lien "Continuer vers l'app" sur la page Firebase par défaut après la réinitialisation.
+
 ## [2026-07-14] — Espace Premium : verrouillage Inventaire/Recettes/Repas + mise en avant visuelle
 
 L'utilisateur veut transformer l'app en modèle freemium : les modules Inventaire, Recettes et Repas, ainsi que le bouton "Lié à l'inventaire" des Listes, deviennent des fonctionnalités Premium. Discussion préalable sur la stratégie de paiement (distribution à la fois stores + web → RevenueCat pour unifier IAP Apple/Google et Stripe, à mettre en place par l'utilisateur lui-même via des comptes externes). Cette étape met en place uniquement la mécanique de verrouillage, pilotée par un statut premium simulé/manuel (`premiumOverride` sur le document foyer), activable depuis les Réglages pour tester — le vrai statut d'abonnement remplacera ce flag plus tard, le calcul de `isPremium` étant centralisé au même endroit.

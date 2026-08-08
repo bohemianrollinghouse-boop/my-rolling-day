@@ -23,7 +23,8 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { auth, db, randomCode, colorForUser, colorForPerson, accountLabel } from "./core.js";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions, randomCode, colorForUser, colorForPerson, accountLabel } from "./core.js";
 import { reauthenticateCurrentUserForDeletion } from "./clientAuth.js";
 import { createDefaultState } from "../data/defaultState.js";
 
@@ -218,15 +219,13 @@ export async function previewHouseholdInvitation(inviteCode) {
     throw new Error("Ce code a expire. Demande un nouveau code a l administrateur du foyer.");
   }
 
-  const familySnap = await getDoc(doc(db, "families", invitation.familyId));
-  if (!familySnap.exists()) {
-    throw new Error("Le foyer lie a cette invitation est introuvable.");
-  }
-
   return {
     code: normalized,
     familyId: invitation.familyId,
-    householdName: familySnap.data()?.name || "Votre foyer",
+    // families/{familyId} n'est pas lisible par un non-membre (règle
+    // isFamilyMember) — le nom du foyer est dénormalisé sur l'invitation
+    // elle-même par createHouseholdInvitation, justement pour ce preview.
+    householdName: invitation.familyName || "Votre foyer",
     memberId: invitation.memberId || "",
     memberName: invitation.memberName || "",
     role: invitation.role || "member",
@@ -377,7 +376,10 @@ export async function joinFamily({ user, inviteCode, startOnboarding = false }) 
 
 export async function createHouseholdInvitation({ familyId, personId, createdBy, targetEmail = "" }) {
   const personRef = doc(db, "families", familyId, "people", personId);
-  const personSnap = await getDoc(personRef);
+  const [personSnap, familySnap] = await Promise.all([
+    getDoc(personRef),
+    getDoc(doc(db, "families", familyId)),
+  ]);
   if (!personSnap.exists()) {
     throw new Error("Membre du foyer introuvable.");
   }
@@ -404,6 +406,10 @@ export async function createHouseholdInvitation({ familyId, personId, createdBy,
   batch.set(invitationRef, {
     code,
     familyId,
+    // Dénormalisé ici : le futur invité (pas encore membre du foyer) ne peut
+    // pas lire families/{familyId} directement (règle isFamilyMember), donc
+    // previewHouseholdInvitation ne peut pas aller chercher le nom à la volée.
+    familyName: familySnap.data()?.name || "Votre foyer",
     memberId: personId,
     memberName: person.displayName || "Membre",
     email: String(targetEmail || "").trim().toLowerCase(),
@@ -444,99 +450,20 @@ export async function acceptHouseholdInvitation({ user, inviteCode, startOnboard
     throw new Error("Entre un code d invitation.");
   }
 
-  const invitationQuery = query(collectionGroup(db, "invitations"), where("code", "==", normalized), limit(1));
-  const invitationResults = await getDocs(invitationQuery);
-  if (invitationResults.empty) {
-    throw new Error("Invitation introuvable.");
-  }
-
-  const invitationDoc = invitationResults.docs[0];
-  const invitation = invitationDoc.data();
-  if (invitation.status !== "pending") {
-    throw new Error("Cette invitation n est plus disponible.");
-  }
-  const expiresAt = invitation.expiresAt?.toDate ? invitation.expiresAt.toDate() : invitation.expiresAt ? new Date(invitation.expiresAt) : null;
-  if (expiresAt && expiresAt < new Date()) {
-    throw new Error("Ce code a expire. Demande un nouveau code a l administrateur du foyer.");
-  }
-  if (invitation.email && invitation.email !== String(user.email || "").trim().toLowerCase()) {
-    throw new Error("Cette invitation est reservee a une autre adresse email.");
-  }
-
-  const familyId = invitation.familyId;
-  const personId = invitation.memberId;
-  const personRef = doc(db, "families", familyId, "people", personId);
-  const personSnap = await getDoc(personRef);
-  if (!personSnap.exists()) {
-    throw new Error("Le membre vise par cette invitation n existe plus.");
-  }
-  const person = personSnap.data();
-  if (person.linkedAccountId && person.linkedAccountId !== user.uid) {
-    throw new Error("Ce membre du foyer est déjà rattaché à un autre compte.");
-  }
-
-  const batch = writeBatch(db);
-  const userRef = doc(db, "users", user.uid);
-  const memberRef = doc(db, "families", familyId, "members", user.uid);
-  const accountName = user.displayName || user.email?.split("@")[0] || person.displayName || "Utilisateur";
-
-  batch.set(
-    memberRef,
-    {
-      uid: user.uid,
-      displayName: accountName,
-      email: user.email || "",
-      role: invitation.role || person.role || "member",
-      color: colorForUser(user.uid),
-      joinedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-  batch.update(personRef, {
-    linkedAccountId: user.uid,
-    profileMode: "app_user",
-    canCompleteTasks: true,
-    updatedAt: serverTimestamp(),
-  });
-  batch.set(
-    userRef,
-    {
-      uid: user.uid,
-      email: user.email || "",
-      displayName: accountName,
-      familyIds: arrayUnion(familyId),
-      currentFamilyId: familyId,
-      ...(startOnboarding ? { pendingOnboardingFamilyId: familyId } : {}),
-      [`linkedMemberIdsByHousehold.${familyId}`]: personId,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-  batch.update(invitationDoc.ref, {
-    status: "accepted",
-    acceptedByUserId: user.uid,
-    acceptedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  batch.update(doc(db, "families", familyId), {
-    updatedAt: serverTimestamp(),
-  });
-
-  await batch.commit();
-
-  // Trigger join notification via Cloud Function
+  // Toute la logique (lecture de l'invitation, vérifications, création du
+  // membre + liaison du profil) tourne côté serveur via l'Admin SDK — ce
+  // flux doit à la fois créer le tout premier doc membre ET lire/écrire des
+  // documents protégés par la règle isFamilyMember(familyId), un ordre que
+  // les security rules Firestore ne valident pas de façon fiable côté
+  // client (cf. PROJECT_LOG du 2026-07-27).
+  const acceptInvitation = httpsCallable(functions, "acceptInvitation");
   try {
-    await addDoc(collection(db, "families", familyId, "joinEvents"), {
-      joinerUid: user.uid,
-      joinerName: accountName,
-      memberName: invitation.memberName || accountName,
-      createdAt: serverTimestamp(),
-    });
-  } catch (e) {
-    console.warn("[acceptInvitation] joinEvent write failed", e);
+    const result = await acceptInvitation({ inviteCode: normalized, startOnboarding: Boolean(startOnboarding) });
+    return result.data;
+  } catch (error) {
+    console.error("[acceptHouseholdInvitation] Cloud Function error", error?.code, error?.message);
+    throw new Error(error?.message || "Impossible de rejoindre ce foyer.");
   }
-
-  return { familyId, personId };
 }
 
 // ── Gestion du foyer ──────────────────────────────────────────────────────
@@ -646,12 +573,12 @@ export function updateFamilyMemberRole(familyId, uid, role) {
 }
 
 export async function removeFamilyMember(familyId, uid) {
+  await assertUserIsNotLastAdmin(familyId, uid);
   await deleteDoc(doc(db, "families", familyId, "members", uid));
-  await updateDoc(doc(db, "users", uid), {
-    familyIds: arrayRemove(familyId),
-    currentFamilyId: "",
-    updatedAt: serverTimestamp(),
-  });
+  // Le nettoyage de users/{uid} (familyIds, currentFamilyId) est fait côté
+  // serveur par la Cloud Function onMemberRemoved (Admin SDK) : un membre
+  // (ex. un admin retirant quelqu'un d'autre) n'a pas le droit d'écrire dans
+  // le doc `users` d'un uid différent du sien (règle Firestore).
 }
 
 // ── Helpers privés ────────────────────────────────────────────────────────

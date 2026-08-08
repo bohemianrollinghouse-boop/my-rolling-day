@@ -198,6 +198,10 @@ export function SettingsView({
 
   const effectiveRole = currentRole;
   const canManageHousehold = effectiveRole === "admin";
+  // Section "Données" (export/import + date de test) réservée au compte développeur —
+  // les autres membres du foyer ne doivent pas voir/toucher ce panneau de debug.
+  const DEV_ACCOUNT_EMAIL = "bohemianrollinghouse@gmail.com";
+  const isDevAccount = String(userProfile?.email || "").trim().toLowerCase() === DEV_ACCOUNT_EMAIL;
 
   function toggleSection(id) {
     setOpenSections((previous) => (previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]));
@@ -851,6 +855,17 @@ export function SettingsView({
     }
 
     if (settingsPage === "privacy") {
+      if (!isDevAccount) {
+        return html`
+          <div className="mrd-set-page settings-subpage">
+            <${SubPageHeader} title="💾 Donnees" />
+            <div className="settings-summary-card">
+              <strong>Accès réservé</strong>
+              <span>Cette section est réservée au compte développeur.</span>
+            </div>
+          </div>
+        `;
+      }
       return html`
         <div className="mrd-set-page settings-subpage">
           <${SubPageHeader} title="💾 Donnees" />
@@ -869,6 +884,44 @@ export function SettingsView({
           <${SettingsGroup} title="Maintenance">
             <${SettingsRow} icon="🧹" label="Vider l'historique" onClick=${onClearHistory} />
             <${SettingsRow} icon="↺" label="Reinitialiser le planner" onClick=${onResetPlanner} danger=${true} last=${true} />
+          <//>
+          <${SettingsGroup} title="Date de test (développeur)">
+            <div className="settings-subpage-field">
+              <p className="settings-subpage-help">
+                Permet d'avancer artificiellement l'horloge de l'app pour tester les fonctionnalités liées au temps
+                (tâches récurrentes, échéances, relances "tâche non faite"…) sans attendre les vrais jours.
+              </p>
+              <div className="settings-compact-toggle-row">
+                <span>Utiliser une date simulée</span>
+                <${SettingsSwitch}
+                  value=${appTimeMode === "simulated"}
+                  onChange=${(value) => (value ? onUseSimulatedDate?.() : onUseRealDate?.())}
+                />
+              </div>
+              <div className="mini">Date actuelle utilisée par l'app : ${currentAppDateLabel || "—"}</div>
+              ${appTimeMode === "simulated" ? html`
+                <div className="arow">
+                  <input
+                    className="ainp"
+                    type="date"
+                    value=${simulatedDateTime.slice(0, 10)}
+                    onInput=${(event) => onChangeSimulatedDate?.(event.target.value)}
+                  />
+                  <input
+                    className="ainp"
+                    type="time"
+                    value=${simulatedDateTime.slice(11, 16)}
+                    onInput=${(event) => onChangeSimulatedTime?.(event.target.value)}
+                  />
+                </div>
+                <div className="settings-inline-actions">
+                  <button type="button" className="ghost-btn" onClick=${() => onShiftSimulatedDate?.(-1)}>− 1 jour</button>
+                  <button type="button" className="ghost-btn" onClick=${() => onShiftSimulatedDate?.(1)}>+ 1 jour</button>
+                  <button type="button" className="ghost-btn" onClick=${() => onShiftSimulatedDate?.(7)}>+ 7 jours</button>
+                  <button type="button" className="ghost-btn" onClick=${() => onResetSimulatedDate?.()}>Revenir à aujourd'hui</button>
+                </div>
+              ` : null}
+            </div>
           <//>
           <${SettingsGroup} title="Documents legaux">
             <${SettingsRow} label="Politique de confidentialite" onClick=${() => openSupportPage("privacy")} />
@@ -1399,6 +1452,24 @@ export function SettingsView({
           </div>
           <${SeeMoreLink} onClick=${() => goSettingsPage("about")}>Voir les informations<//>
         <//>
+
+        ${isDevAccount ? html`
+          <!-- Données (réservé au compte développeur) -->
+          <${SectionCard}
+            id="privacy"
+            icon="💾"
+            title="Données"
+            subtitle="Export, maintenance, date de test."
+            open=${openSections.includes("privacy")}
+            onToggle=${toggleSection}
+          >
+            <div className="settings-row">
+              <span>Visible uniquement pour</span>
+              <strong>${DEV_ACCOUNT_EMAIL}</strong>
+            </div>
+            <${SeeMoreLink} onClick=${() => goSettingsPage("privacy")}>Gérer les données<//>
+          <//>
+        ` : null}
 
       </div>
 

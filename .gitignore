@@ -31,3 +31,9 @@ android/app/src/main/assets/capacitor.plugins.json
 # Capacitor iOS build artifacts
 ios/App/Pods/
 ios/.xcode.env.local
+
+# Android Studio project files (machine-specific)
+android/.idea/
+
+# Firebase CLI local cache
+.firebase/

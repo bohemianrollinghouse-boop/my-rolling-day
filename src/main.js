@@ -1,5 +1,4 @@
 import { App } from "./App.js";
-import { AndroidEmulator } from "./components/dev/AndroidEmulator.js";
 import { createRoot, html } from "./lib.js";
 
 if (window.__pushBootLog) {
@@ -37,7 +36,7 @@ if (window.__pushBootLog) {
   window.__APP_BOOT_STATE__ = "react-rendering";
   window.__pushBootLog("react-rendering", "React render lance");
 }
-root.render(html`<${AndroidEmulator}><${App} /><//>`);
+root.render(html`<${App} />`);
 window.__APP_BOOT_STATE__ = "react-mounted";
 if (window.__pushBootLog) {
   window.__pushBootLog("react-mounted", "React monte");

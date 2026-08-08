@@ -1,0 +1,2 @@
+RewriteEngine On
+RewriteRule ^(.*)$ https://myrollingday.fr/$1 [R=301,L]
