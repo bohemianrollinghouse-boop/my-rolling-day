@@ -5,12 +5,20 @@ import {
   isSupported as isMessagingSupported,
   onMessage,
 } from "firebase/messaging";
+import { Capacitor } from "@capacitor/core";
 import { FIREBASE_WEB_VAPID_KEY } from "../constants.js";
 import { firebaseApp } from "./client.js";
+import brandMark from "../assets/brand/mark.svg";
+import {
+  getNotificationPermissionState as getUnifiedPermissionState,
+  refreshNotificationPermissionState,
+} from "../utils/notify.js";
+
+const IS_NATIVE = Capacitor.isNativePlatform();
 
 const SERVICE_WORKER_PATH = "/firebase-messaging-sw.js";
 const SERVICE_WORKER_SCOPE = "/";
-const NOTIFICATION_ICON = "/src/assets/brand/mark.svg";
+const NOTIFICATION_ICON = brandMark;
 const VITE_FIREBASE_VAPID_KEY = String(FIREBASE_WEB_VAPID_KEY || "").trim();
 const MIN_VAPID_KEY_LENGTH = 80;
 
@@ -21,11 +29,17 @@ let tokenUnavailableReason = "";
 let vapidWarningLogged = false;
 
 export function getNotificationPermissionState() {
-  if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
-  return Notification.permission || "default";
+  return getUnifiedPermissionState();
+}
+
+async function pushNotificationsPlugin() {
+  const module = await import("@capacitor/push-notifications");
+  return module.PushNotifications;
 }
 
 export async function isPushMessagingSupported() {
+  // Natif : FCM passe par @capacitor/push-notifications, pas par la Push API web.
+  if (IS_NATIVE) return true;
   if (!messagingSupportPromise) {
     messagingSupportPromise = (async () => {
       if (typeof window === "undefined" || typeof navigator === "undefined") return false;
@@ -39,6 +53,62 @@ export async function isPushMessagingSupported() {
     })();
   }
   return messagingSupportPromise;
+}
+
+// ── Push natif (Capacitor) ─────────────────────────────────────────────────
+// Sur iOS, `register()` retourne un token APNs converti en token FCM par le SDK
+// Firebase natif ; sur Android c'est directement un token FCM. Dans les deux cas
+// il se stocke et s'utilise côté Cloud Function exactement comme un token web.
+
+let nativeRegistrationPromise = null;
+
+async function getNativePushToken() {
+  if (!nativeRegistrationPromise) {
+    nativeRegistrationPromise = (async () => {
+      const plugin = await pushNotificationsPlugin();
+      const token = await new Promise((resolve) => {
+        const timeoutId = setTimeout(() => resolve(""), 15000);
+        plugin.addListener("registration", (result) => {
+          clearTimeout(timeoutId);
+          resolve(String(result?.value || "").trim());
+        });
+        plugin.addListener("registrationError", (error) => {
+          clearTimeout(timeoutId);
+          console.error("[push-native] registration error", error);
+          resolve("");
+        });
+        plugin.register().catch((error) => {
+          clearTimeout(timeoutId);
+          console.error("[push-native] register() failed", error);
+          resolve("");
+        });
+      });
+      return token;
+    })().catch((error) => {
+      nativeRegistrationPromise = null;
+      console.error("[push-native] token flow failed", error);
+      return "";
+    });
+  }
+  return nativeRegistrationPromise;
+}
+
+async function syncNativePushToken({ requestPermission = false } = {}) {
+  const plugin = await pushNotificationsPlugin();
+  let status = await plugin.checkPermissions();
+  if (requestPermission && status.receive !== "granted") {
+    status = await plugin.requestPermissions();
+  }
+  // Aligne le cache du module notify (permission locale et push sont la même sur mobile)
+  await refreshNotificationPermissionState();
+
+  const permission = status.receive === "granted" ? "granted"
+    : status.receive === "denied" ? "denied" : "default";
+  if (permission !== "granted") {
+    return { supported: true, permission, token: "" };
+  }
+  const token = await getNativePushToken();
+  return { supported: true, permission, token };
 }
 
 async function getMessagingInstance() {
@@ -103,6 +173,15 @@ function validateVapidKey({ log = false } = {}) {
 }
 
 export async function syncPushToken({ requestPermission = false } = {}) {
+  if (IS_NATIVE) {
+    try {
+      return await syncNativePushToken({ requestPermission });
+    } catch (error) {
+      console.error("[push-native] syncPushToken failed", error);
+      return { supported: true, permission: getNotificationPermissionState(), token: "" };
+    }
+  }
+
   const supported = await isPushMessagingSupported();
   if (!supported) {
     return { supported: false, permission: "unsupported", token: "" };
@@ -156,6 +235,16 @@ export async function syncPushToken({ requestPermission = false } = {}) {
 }
 
 export async function clearPushToken() {
+  if (IS_NATIVE) {
+    try {
+      const plugin = await pushNotificationsPlugin();
+      await plugin.unregister(); // supprime le token FCM (Android) / désenregistre APNs (iOS)
+      nativeRegistrationPromise = null;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
   const supported = await isPushMessagingSupported();
   if (!supported) return false;
   const messaging = await getMessagingInstance();
@@ -176,6 +265,35 @@ function payloadBody(payload) {
 }
 
 export async function bindForegroundPushMessages(handler = null) {
+  if (IS_NATIVE) {
+    try {
+      const plugin = await pushNotificationsPlugin();
+      // Reproduit la forme de payload FCM web pour ne rien changer côté hooks
+      const toWebPayload = (notification) => ({
+        notification: {
+          title: notification?.title || "",
+          body: notification?.body || "",
+        },
+        data: notification?.data || {},
+      });
+      const received = await plugin.addListener("pushNotificationReceived", (notification) => {
+        if (typeof handler === "function") handler(toWebPayload(notification));
+      });
+      // Tap sur une notification (app en arrière-plan ou fermée) — équivalent
+      // du postMessage NOTIFICATION_CLICK du service worker web.
+      const tapped = await plugin.addListener("pushNotificationActionPerformed", (event) => {
+        if (typeof handler === "function") handler(toWebPayload(event?.notification));
+      });
+      return () => {
+        received.remove();
+        tapped.remove();
+      };
+    } catch (error) {
+      console.error("[push-native] foreground binding failed", error);
+      return () => {};
+    }
+  }
+
   const supported = await isPushMessagingSupported();
   if (!supported) return () => {};
   const messaging = await getMessagingInstance();

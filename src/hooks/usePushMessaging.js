@@ -6,6 +6,7 @@ import {
   isPushMessagingSupported,
   syncPushToken,
 } from "../firebase/messaging.js";
+import { refreshNotificationPermissionState } from "../utils/notify.js";
 
 export function usePushMessaging({ userId = "", familyId = "", linkedPersonId = "", onForegroundMessage = null }) {
   const [supported, setSupported] = useState(true);
@@ -19,7 +20,10 @@ export function usePushMessaging({ userId = "", familyId = "", linkedPersonId = 
   useEffect(() => { onForegroundMessageRef.current = onForegroundMessage; }, [onForegroundMessage]);
 
   function refreshPermission() {
-    setPermission(getNotificationPermissionState());
+    // En natif la lecture synchrone vient d'un cache — on le rafraîchit d'abord
+    refreshNotificationPermissionState()
+      .then((next) => setPermission(next || getNotificationPermissionState()))
+      .catch(() => setPermission(getNotificationPermissionState()));
   }
 
   async function persistToken(nextToken, nextPermission) {

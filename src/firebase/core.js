@@ -16,7 +16,9 @@ const app = initializeApp(FIREBASE_CONFIG);
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache(),
-  experimentalForceLongPolling: true,
+  // Auto-détection plutôt que forçage : en natif, les streams WebChannel
+  // fonctionnent et sont plus économes (latence + batterie) que le long polling.
+  experimentalAutoDetectLongPolling: true,
 });
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });

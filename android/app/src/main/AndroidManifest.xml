@@ -38,4 +38,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ : requis pour afficher toute notification (locale ou push) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

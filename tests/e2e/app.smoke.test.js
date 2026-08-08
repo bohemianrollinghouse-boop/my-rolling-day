@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
 
-const projectRoot = resolve("C:/Users/Myenn/Documents/Codex/2026-04-17-files-mentioned-by-the-user-code/planning-react");
+const projectRoot = resolve(import.meta.dirname, "..", "..");
 
 let serverHandle;
 let browserHandle;

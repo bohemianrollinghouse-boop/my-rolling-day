@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "../lib.js";
 import { getCurrentAppDate, localDateKey } from "../utils/date.js";
+import { getNotificationPermissionState, showAppNotification } from "../utils/notify.js";
 
 // Déduplication immédiate — évite les doublons quand focus + visibilitychange
 // se déclenchent ensemble avant que l'état React ait propagé les sentKeys.
@@ -11,17 +12,13 @@ function isTaskDone(task) {
 }
 
 function sendTaskNotification(title, body, taskData, onNotification) {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
-  try {
-    const notif = new Notification(title, { body, icon: "/icon-192.png" });
-    if (typeof onNotification === "function") {
-      notif.onclick = (e) => {
-        if (e && e.preventDefault) e.preventDefault();
-        window.focus();
-        onNotification({ title, body, ...(taskData || {}) });
-      };
-    }
-  } catch (_) {}
+  if (getNotificationPermissionState() !== "granted") return;
+  showAppNotification(title, {
+    body,
+    onClick: typeof onNotification === "function"
+      ? () => onNotification({ title, body, ...(taskData || {}) })
+      : null,
+  });
 }
 
 function getTaskReminder(task) {
@@ -100,7 +97,7 @@ function buildDueReminder(task, settings) {
 }
 
 function checkTaskNotifications(tasks, settings, updateState, onNotification) {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  if (getNotificationPermissionState() !== "granted") return;
   if (!settings?.enabled) return;
   if (!Array.isArray(tasks) || tasks.length === 0) return;
 

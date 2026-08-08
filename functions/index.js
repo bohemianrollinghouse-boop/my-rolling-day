@@ -55,6 +55,19 @@ function isWithinWindow(nowMs, targetMs) {
 }
 
 // ---------------------------------------------------------------------------
+// Dédup partagée avec le client
+// ---------------------------------------------------------------------------
+// L'app au premier plan affiche ces mêmes rappels en local (checks 30-60 s,
+// donc plus précis que notre fenêtre de 5 min) et consigne une clé dans le
+// planner state : `notification.sentKeys` côté agenda, `task.notificationLog`
+// côté tâches — le document que cette fonction lit déjà. Clé présente = rappel
+// déjà vu en local → on ne push pas. App fermée = tableaux vides → le push part.
+// Les formats sont miroirs : clé serveur = "srv-" + clé cliente.
+function clientAlreadyNotified(list, clientKey) {
+  return Array.isArray(list) && list.includes(clientKey);
+}
+
+// ---------------------------------------------------------------------------
 // Tokens FCM
 // ---------------------------------------------------------------------------
 async function getFamilyTokens(familyId, memberUids) {
@@ -206,6 +219,10 @@ async function checkAgendaForFamily(familyId, agenda, recurringEvents, tokens, n
       const key = `srv-agenda-${event.id}-${event.dateKey}-${event.start}-${minutesBefore}`;
       if (await isAlreadySent(familyId, key)) continue;
 
+      // Même construction (valeur brute) que AgendaView.js pour matcher à l'identique
+      const clientKey = `${event.id}-${event.dateKey}-${event.start}-${event.notification.minutesBefore}`;
+      if (clientAlreadyNotified(event.notification.sentKeys, clientKey)) continue;
+
       const isSameDay = event.dateKey === todayKey;
       const body = minutesBefore > 0
         ? `Dans ${minutesBefore} min${!isSameDay ? ` (${event.dateKey})` : ""}`
@@ -254,6 +271,9 @@ async function checkAgendaForFamily(familyId, agenda, recurringEvents, tokens, n
 
       const key = `srv-recur-${event.id}-${todayKey}-${event.start}-${minutesBefore}`;
       if (await isAlreadySent(familyId, key)) continue;
+
+      const clientKey = `recur-${event.id}-${todayKey}-${event.start}-${event.notification.minutesBefore}`;
+      if (clientAlreadyNotified(event.notification.sentKeys, clientKey)) continue;
 
       const body = minutesBefore > 0 ? `Dans ${minutesBefore} min` : "C'est maintenant";
 
@@ -307,7 +327,10 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
 
     if (isWithinWindow(nowMs, eodTarget.getTime())) {
       const key = `srv-foyer-endofday-${todayKey}`;
-      if (!(await isAlreadySent(familyId, key))) {
+      // Le client consigne cette clé dans le notificationLog de chaque tâche notifiée
+      const eodClientKey = `foyer-endofday-${todayKey}`;
+      const eodSentLocally = tasks.some((t) => clientAlreadyNotified(t.notificationLog, eodClientKey));
+      if (!eodSentLocally && !(await isAlreadySent(familyId, key))) {
         // Tâches du jour : récurrentes quotidiennes + tâches dont l'échéance est aujourd'hui
         const undone = tasks.filter(
           (t) => !isTaskDone(t) && (t.type === "daily" || t.dueDate === todayKey)
@@ -338,6 +361,7 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
       if (isTaskDone(task)) continue;
       const key = `srv-${task.id}-urgent-${todayKey}`;
       if (await isAlreadySent(familyId, key)) continue;
+      if (clientAlreadyNotified(task.notificationLog, `${task.id}-urgent-${todayKey}`)) continue;
       await sendToFamily(
         tokens,
         `Urgent : ${task.text}`,
@@ -397,6 +421,8 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
 
       if (!isWithinWindow(nowMs, notifyAt.getTime())) continue;
       if (await isAlreadySent(familyId, key)) continue;
+      // Clé serveur = "srv-" + clé cliente (formats miroirs dans useTaskNotifications.js)
+      if (clientAlreadyNotified(task.notificationLog, key.slice(4))) continue;
 
       await sendToFamily(tokens, title, "", { type: "task_due", taskId: String(task.id) });
       await markAsSent(familyId, key);

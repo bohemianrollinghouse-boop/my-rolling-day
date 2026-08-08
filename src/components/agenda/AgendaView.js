@@ -4,6 +4,7 @@ import { addMinutesToTime, frDateLabel, getCurrentAppDate, getWeekDays, localDat
 import { completedIds, TaskCard, urgencyBadge } from "../tasks/TaskCard.js";
 import { SegmentedTabs } from "../common/SegmentedTabs.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
+import { getNotificationPermissionState, showAppNotification } from "../../utils/notify.js";
 
 // Déduplication immédiate des notifications envoyées dans cette session.
 // Évite les doublons quand focus + visibilitychange se déclenchent simultanément
@@ -23,16 +24,10 @@ function sendAgendaNotification(event, onNotification) {
     title,
     body,
   };
-  try {
-    const notif = new Notification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png" });
-    if (typeof onNotification === "function") {
-      notif.onclick = (e) => {
-        if (e && e.preventDefault) e.preventDefault();
-        window.focus();
-        onNotification(notifData);
-      };
-    }
-  } catch (_) {}
+  showAppNotification(title, {
+    body,
+    onClick: typeof onNotification === "function" ? () => onNotification(notifData) : null,
+  });
 }
 
 function startOfMonth(date) {
@@ -333,7 +328,7 @@ export function AgendaView({
 
   useEffect(() => {
     function checkAgendaNotifications() {
-      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      if (getNotificationPermissionState() !== "granted") return;
       const now = new Date();
       const todayDateKey = localDateKey(now);
 

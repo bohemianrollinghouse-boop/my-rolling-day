@@ -26,10 +26,9 @@ export const EMPTY_PERSON = {
 
 // ── Fonctions utilitaires ──────────────────────────────────────────────────
 
-export function getNotificationPermissionState() {
-  if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
-  return Notification.permission || "default";
-}
+// Ré-export de l'adaptateur multi-plateforme (cache natif inclus) pour garder
+// l'API historique des composants Settings.
+export { getNotificationPermissionState } from "../../utils/notify.js";
 
 export function notificationPermissionLabel(status) {
   if (status === "granted") return "Notifications : autorisées";

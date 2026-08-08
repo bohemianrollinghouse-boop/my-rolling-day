@@ -1,4 +1,24 @@
 import { html, useMemo, useRef, useState } from "../../lib.js"; // v2026-05-06-cocon-1
+import { Capacitor } from "@capacitor/core";
+import brandMark from "../../assets/brand/mark.svg";
+
+// navigator.clipboard.readText() est bloqué en WKWebView → plugin natif
+async function readClipboardText() {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Clipboard } = await import("@capacitor/clipboard");
+      const { value } = await Clipboard.read();
+      return value || "";
+    } catch (_) {
+      return "";
+    }
+  }
+  try {
+    return (await navigator.clipboard?.readText?.()) || "";
+  } catch (_) {
+    return "";
+  }
+}
 
 const BADGE_PALETTE = [
   ["#7F1D1D", "#B91C1C", "#DC2626", "#F87171", "#FECACA"],
@@ -559,7 +579,7 @@ export function OnboardingFlow({
   return html`
     <div className="onboarding-shell">
       <div className="onboarding-page-brand">
-        <img src="./src/assets/brand/mark.svg" width="52" height="52" alt="My Rolling Day" />
+        <img src=${brandMark} width="52" height="52" alt="My Rolling Day" />
         <span>My Rolling Day</span>
       </div>
 
@@ -711,7 +731,7 @@ export function OnboardingFlow({
             <button
               type="button"
               className="onb-code-paste-btn"
-              onClick=${() => navigator.clipboard?.readText?.().then((t) => {
+              onClick=${() => readClipboardText().then((t) => {
                 const cleaned = (t || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
                 if (cleaned) { updateJoin({ invitationCode: cleaned }); setCodeError(false); }
               })}

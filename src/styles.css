@@ -1,3 +1,23 @@
+/* ─── POLICES EMBARQUÉES ──────────────────────────────────────
+   Auto-hébergées (plus de fonts.googleapis.com) : rendu identique
+   hors ligne et au premier lancement natif, premier paint plus rapide. */
+@font-face {
+  font-family: "Cormorant Garamond";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/cormorant-garamond-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 600; /* police variable : couvre 400, 500 et 600 */
+  font-display: swap;
+  src: url("./assets/fonts/dm-sans-variable-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+
 /* ─── DESIGN TOKENS ───────────────────────────────────────── */
 :root {
   --mrd-bg:         #FAF4ED;

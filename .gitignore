@@ -3,9 +3,22 @@ server.out.log
 server.err.log
 node_modules/
 .env
+.env.ios
+.env.android
 
 # Build output
 dist/
+src/assets/build-info.json
+
+# Signature Android (identifiants + keystore hors dépôt)
+android/keystore.properties
+*.jks
+*.p8
+
+# Émulateurs Firebase
+.firebase-emulator-data/
+.tmp-emulators.log
+*-debug.log
 
 # Capacitor Android build artifacts
 android/.gradle/

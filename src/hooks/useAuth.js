@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import {
   canChangePassword,
   changePasswordForCurrentUser,
@@ -248,7 +249,11 @@ export function useAuth() {
     // Traite le retour d'un signInWithRedirect précédent.
     // Quand getRedirectResult se règle (succès, null ou erreur), on sait que
     // Firebase a fini de traiter le redirect — on peut appliquer l'état retenu.
-    getGoogleRedirectResult()
+    // En natif il n'y a jamais de flux redirect (dialog Google natif) : on saute.
+    const redirectResultPromise = Capacitor.isNativePlatform()
+      ? Promise.resolve(null)
+      : getGoogleRedirectResult();
+    redirectResultPromise
       .then((result) => {
         if (!active) return;
         localStorage.removeItem("mrd_google_redirect_pending");

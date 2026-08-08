@@ -25,9 +25,7 @@ import { resolve, join } from "node:path";
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
 
-const projectRoot = resolve(
-  "C:/Users/Myenn/Documents/Codex/2026-04-17-files-mentioned-by-the-user-code/planning-react"
-);
+const projectRoot = resolve(import.meta.dirname, "..", "..");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Répliques des fonctions pures de BottomNav.js (testées sans React)

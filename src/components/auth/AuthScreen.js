@@ -1,4 +1,5 @@
 import { html, useEffect, useState } from "../../lib.js";
+import brandMark from "../../assets/brand/mark.svg";
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -72,7 +73,7 @@ export function AuthScreen({
         <div className="auth-welcome-card">
           <div className="auth-welcome-brand">
             <div className="auth-welcome-logo">
-              <img src="./src/assets/brand/mark.svg" width="96" height="96" alt="My Rolling Day" style=${{ display: "block" }} />
+              <img src=${brandMark} width="96" height="96" alt="My Rolling Day" style=${{ display: "block" }} />
             </div>
             <div className="auth-welcome-appname">My Rolling Day</div>
             <h1 className="auth-welcome-title-cocon">

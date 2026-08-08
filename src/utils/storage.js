@@ -1,4 +1,5 @@
 import { normalizeState } from "./state.js";
+import { getNotificationPermissionState } from "./notify.js";
 
 // ── Notification prompt state ─────────────────────────────────────────────────
 // Remplace l'ancien booléen mrd_notifications_prompt_seen.
@@ -42,11 +43,9 @@ function writeNotifPromptState(state) {
  * Tient compte de la permission OS, du nombre de refus et des délais.
  */
 export function shouldShowNotifPrompt() {
-  // Si le navigateur a déjà une décision définitive, inutile de proposer
-  if (typeof window !== "undefined" && "Notification" in window) {
-    const perm = Notification.permission;
-    if (perm === "granted" || perm === "denied") return false;
-  }
+  // Si l'OS a déjà une décision définitive, inutile de proposer
+  const perm = getNotificationPermissionState();
+  if (perm === "granted" || perm === "denied") return false;
   const { dismissCount, lastDismissed, granted } = readNotifPromptState();
   if (granted) return false;
   if (dismissCount >= MAX_DISMISSALS) return false;

@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Identifiants de signature, hors du dépôt (cf. keystore.properties.example).
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "fr.myrollingday.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,9 +23,25 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Signature de release : les identifiants vivent dans android/keystore.properties
+    // (non versionné) et le .jks reste hors du dépôt. Sans ce fichier le build release
+    // reste possible mais non signé — voir android/keystore.properties.example.
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

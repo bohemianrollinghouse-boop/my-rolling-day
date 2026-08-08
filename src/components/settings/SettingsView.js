@@ -1,5 +1,7 @@
 import { APP_VERSION } from "../../constants.js";
 import { html, useEffect, useState } from "../../lib.js";
+import brandMarkWhite from "../../assets/brand/mark-white.svg";
+import { applyStatusBarTheme } from "../../utils/statusBar.js";
 import {
   BADGE_PALETTE, EMPTY_PERSON, getNotificationPermissionState,
   SectionCard, PlaceholderList, SeeMoreLink,
@@ -183,6 +185,7 @@ export function SettingsView({
     } catch (error) {
       console.warn("[settings] impossible d enregistrer le theme", error);
     }
+    applyStatusBarTheme(isDark);
   }, [appearanceMode]);
 
   useEffect(() => {
@@ -907,7 +910,7 @@ export function SettingsView({
           <${SubPageHeader} title="A propos" />
           <div className="settings-about-hero">
             <div className="settings-about-logo">
-              <img src="./src/assets/brand/mark-white.svg" width="52" height="52" alt="" />
+              <img src=${brandMarkWhite} width="52" height="52" alt="" />
             </div>
             <h2>My Rolling Day</h2>
             <p>Version ${APP_VERSION}</p>

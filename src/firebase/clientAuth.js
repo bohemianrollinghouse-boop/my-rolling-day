@@ -2,6 +2,7 @@ import {
   EmailAuthProvider,
   GoogleAuthProvider,
   browserLocalPersistence,
+  indexedDBLocalPersistence,
   confirmPasswordReset,
   createUserWithEmailAndPassword,
   getRedirectResult,
@@ -29,7 +30,13 @@ let persistenceReady = false;
 
 export async function ensureAuthPersistence() {
   if (persistenceReady) return;
-  await setPersistence(auth, browserLocalPersistence);
+  // IndexedDB d'abord : en WKWebView, iOS peut purger le localStorage sous
+  // pression de stockage — IndexedDB est le support recommandé en WebView.
+  try {
+    await setPersistence(auth, indexedDBLocalPersistence);
+  } catch (_) {
+    await setPersistence(auth, browserLocalPersistence);
+  }
   persistenceReady = true;
 }
 
@@ -50,11 +57,34 @@ export function isStandalonePwa() {
 
 // ── Connexion Google ──────────────────────────────────────────────────────
 
+let googleAuthInit = null;
+
+/**
+ * Le plugin GoogleAuth ne configure RIEN dans son load() natif : le client
+ * Google n'existe qu'après initialize(). Appeler signIn() sans initialize()
+ * déréférence un client nil → crash natif (iOS Plugin.swift:74
+ * "Unexpectedly found nil", NullPointerException côté Android).
+ *
+ * Sans argument, chaque plateforme lit sa propre clé dans capacitor.config.json :
+ * iosClientId côté iOS, androidClientId (= client web, il sert de requestIdToken)
+ * côté Android.
+ */
+async function ensureGoogleAuthInitialized() {
+  if (!googleAuthInit) {
+    googleAuthInit = GoogleAuth.initialize().catch((error) => {
+      googleAuthInit = null; // permet un nouvel essai au prochain tap
+      throw error;
+    });
+  }
+  return googleAuthInit;
+}
+
 export async function signInWithGoogle() {
   // Sur Android/iOS natif (Capacitor) : dialog Google natif via le plugin.
   if (Capacitor.isNativePlatform()) {
     console.log("[auth] signInWithGoogle → native GoogleAuth");
     try {
+      await ensureGoogleAuthInitialized();
       const googleUser = await GoogleAuth.signIn();
       const idToken = googleUser?.authentication?.idToken;
       if (!idToken) throw new Error("Google Sign-In: idToken manquant");

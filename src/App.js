@@ -48,6 +48,9 @@ import {
 } from "./utils/date.js";
 import { checkReset, createMealShell } from "./utils/state.js";
 import { parseImportedState, shouldShowNotifPrompt, markNotifPromptGranted, markNotifPromptDismissed, getNotifPromptDismissCount } from "./utils/storage.js";
+import { Capacitor } from "@capacitor/core";
+import { initNotifications } from "./utils/notify.js";
+import { applyStatusBarTheme } from "./utils/statusBar.js";
 import { usePlannerSync } from "./hooks/usePlannerSync.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { usePushMessaging } from "./hooks/usePushMessaging.js";
@@ -279,9 +282,48 @@ export function App() {
       document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", themeColor));
       const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
       if (sb) sb.setAttribute("content", isDark ? "black" : "default");
+      applyStatusBarTheme(isDark);
     } catch (error) {
       console.warn("[app] impossible d appliquer le theme en cache", error);
     }
+    // Natif : amorce le cache de permission + le listener de tap sur notification
+    initNotifications().catch(() => {});
+  }, []);
+
+  // Bouton retour Android : remonte la navigation au lieu de quitter l'app.
+  // Ordre : sous-page Réglages → Réglages → onglet home → sortie de l'app.
+  const backNavRef = useRef({});
+  backNavRef.current = { showSettings, settingsSubPage, activeTab };
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let listenerHandle = null;
+    let cancelled = false;
+    import("@capacitor/app").then(({ App: CapacitorApp }) => {
+      if (cancelled) return;
+      CapacitorApp.addListener("backButton", () => {
+        const nav = backNavRef.current;
+        if (nav.showSettings) {
+          if (nav.settingsSubPage && nav.settingsSubPage !== "main") {
+            setSettingsSubPage("main");
+          } else {
+            setShowSettings(false);
+          }
+          return;
+        }
+        if (nav.activeTab !== "home") {
+          setActiveTab("home");
+          return;
+        }
+        CapacitorApp.exitApp();
+      }).then((handle) => {
+        if (cancelled) handle.remove();
+        else listenerHandle = handle;
+      });
+    }).catch((error) => console.warn("[app] backButton listener impossible", error));
+    return () => {
+      cancelled = true;
+      listenerHandle?.remove?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -597,14 +639,39 @@ export function App() {
     }
   }
 
-  function handleExportData() {
+  async function handleExportData() {
+    const payload = JSON.stringify(state, null, 2);
+    const fileName = `my-rolling-day-${currentFamily?.name || "foyer"}.json`;
+
+    // Natif : <a download> ne fait rien en WKWebView → fichier + feuille de partage
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([
+          import("@capacitor/filesystem"),
+          import("@capacitor/share"),
+        ]);
+        const written = await Filesystem.writeFile({
+          path: fileName,
+          data: payload,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+        await Share.share({ title: fileName, files: [written.uri] });
+        setDataMessage("Export partagé.");
+      } catch (error) {
+        // L'utilisateur a fermé la feuille de partage → pas une erreur
+        if (String(error?.message || "").toLowerCase().includes("cancel")) return;
+        setDataMessage(error.message || "Export impossible.");
+      }
+      return;
+    }
+
     try {
-      const payload = JSON.stringify(state, null, 2);
       const blob = new Blob([payload], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `my-rolling-day-${currentFamily?.name || "foyer"}.json`;
+      link.download = fileName;
       link.click();
       URL.revokeObjectURL(url);
       setDataMessage("Export lance.");

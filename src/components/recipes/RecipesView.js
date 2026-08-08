@@ -2,8 +2,9 @@ import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
 import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/productUtils.js";
 import { CONDIMENTS, CONDIMENT_ESSENTIALS } from "../../data/condiments.js";
 import { CategoryIcon, categoryToneClass } from "./CategoryIcons.js";
+import drinkFallbackIllustration from "../../assets/recipe-drink-fallback.svg";
 
-const DRINK_FALLBACK_ILLUSTRATION = "./src/assets/recipe-drink-fallback.svg";
+const DRINK_FALLBACK_ILLUSTRATION = drinkFallbackIllustration;
 
 const ESSENTIAL_ID_SET = new Set(CONDIMENT_ESSENTIALS.map((e) => e.id));
 
