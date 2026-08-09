@@ -154,11 +154,11 @@ export function TaskCard({
                     <button
                       key=${`${task.id}-${person.id}`}
                       className=${`task-person-chip ${isSelected ? "on" : ""}`}
-                      style=${isSelected ? { background: person.color, borderColor: person.color, color: "#fff" } : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
+                      style=${isSelected ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" } : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                       onClick=${() => onToggleTask(task.id, person.id)}
                       title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
                     >
-                      <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "#fff" } : { color: person.color || "var(--mrd-fg3)" }}>
+                      <span className="task-person-avatar" style=${isSelected ? { background: "transparent", color: "var(--mrd-white)" } : { color: person.color || "var(--mrd-fg3)" }}>
                         ${person.shortId}
                       </span>
                     </button>

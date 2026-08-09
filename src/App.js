@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "./constants.js";
 import { BottomNav, SidebarNav } from "./components/nav/BottomNav.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
@@ -145,7 +146,7 @@ export function App() {
   const [profilePersonId, setProfilePersonId] = useState("");
   const [activePersonId, setActivePersonId] = useState("");
   const [deviceMode, setDeviceMode] = useState("personal");
-  const [profileDraft, setProfileDraft] = useState({ displayName: "", color: "#8B7355", mood: "", message: "" });
+  const [profileDraft, setProfileDraft] = useState({ displayName: "", color: DEFAULT_MEMBER_COLOR, mood: "", message: "" });
   const [authEntryPage, setAuthEntryPage] = useState("welcome");
   const [pendingSignupSetup, setPendingSignupSetup] = useState(false);
   const [pendingSignupDraftName, setPendingSignupDraftName] = useState("");
@@ -268,7 +269,7 @@ export function App() {
     if (!selectedProfile) return;
     setProfileDraft({
       displayName: selectedProfile.label || "",
-      color: selectedProfile.color || "#8B7355",
+      color: selectedProfile.color || DEFAULT_MEMBER_COLOR,
       mood: selectedProfile.mood || "",
       message: selectedProfile.message || "",
     });
@@ -1488,7 +1489,7 @@ export function App() {
             title="Nouvelle tâche"
           >
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
             </svg>
           </button>
         ` : null}

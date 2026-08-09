@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useMemo, useState, useEffect, useRef } from "../../lib.js";
 import { TaskCard as SharedTaskCard } from "./TaskCard.js";
 import { getCurrentAppDate, getCurrentAppTimestamp, localDateKey } from "../../utils/date.js";
@@ -729,7 +730,7 @@ export function TasksView({
                         <div className="task-name">${task.text}</div>
                         <div className="task-badges">
                           ${taskUrgency.className !== "normal" ? html`<span className=${`ttag task-priority ${taskUrgency.className}`}>${taskUrgency.label}</span>` : null}
-                          ${assignedPersons.map((p) => html`<span key=${p.id} className="task-assigned-chip" style=${{ background: p.color || "#8B7355" }} title=${p.label}>${p.shortId || String(p.label || "?")[0].toUpperCase()}</span>`)}
+                          ${assignedPersons.map((p) => html`<span key=${p.id} className="task-assigned-chip" style=${{ background: p.color || DEFAULT_MEMBER_COLOR }} title=${p.label}>${p.shortId || String(p.label || "?")[0].toUpperCase()}</span>`)}
                           ${isTaskLate(task) && !isDone ? html`<span className="ttag lateTag">Retard</span>` : null}
                         </div>
                       </div>
@@ -910,7 +911,7 @@ export function TasksView({
                         key=${`${task.id}-${person.id}`}
                         className=${`task-person-chip ${doneIds.includes(person.id) ? "on" : ""}`}
                         style=${doneIds.includes(person.id)
-                          ? { background: person.color, borderColor: person.color, color: "#fff" }
+                          ? { background: person.color, borderColor: person.color, color: "var(--mrd-white)" }
                           : { borderColor: person.color || "var(--mrd-border)", color: person.color || "var(--mrd-fg3)" }}
                         onClick=${() => onToggleTask(task.id, person.id)}
                         title=${`Marquer ${person.label} comme personne ayant fait la tâche`}
@@ -1083,7 +1084,7 @@ export function TasksView({
                       const on = !isDeadline && form.displayPeriod === t.id;
                       return html`
                         <button key=${t.id} type="button"
-                          style=${{ ...PILL_STACK, background: on ? "var(--mrd-a)" : "var(--mrd-surf2)", color: on ? "#fff" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                          style=${{ ...PILL_STACK, background: on ? "var(--mrd-aBtn)" : "var(--mrd-surf2)", color: on ? "var(--mrd-white)" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
                           onClick=${() => { updateForm("displayPeriod", t.id); if (form.priority === "deadline") updateForm("priority", "normal"); }}
                         >
                           <span style=${{ fontSize: 18, lineHeight: 1 }}>${t.icon}</span>
@@ -1146,7 +1147,7 @@ export function TasksView({
                             width: 22,
                             height: 22,
                             borderRadius: "50%",
-                            background: "#fff",
+                            background: "var(--mrd-white)",
                             boxShadow: "0 2px 6px rgba(15, 23, 42, 0.18)",
                             display: "block",
                           }}></span>
@@ -1206,7 +1207,7 @@ export function TasksView({
                         const on = form.taskKind === k.id;
                         return html`
                           <button key=${k.id} type="button"
-                            style=${{ ...PILL_STACK, background: on ? "var(--mrd-a)" : "var(--mrd-surf2)", color: on ? "#fff" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                            style=${{ ...PILL_STACK, background: on ? "var(--mrd-aBtn)" : "var(--mrd-surf2)", color: on ? "var(--mrd-white)" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
                             onClick=${() => updateForm("taskKind", k.id)}
                           >
                             <span style=${{ fontSize: 18, lineHeight: 1 }}>${k.icon}</span>
@@ -1247,7 +1248,7 @@ export function TasksView({
                         <button key=${person.id} type="button"
                           onClick=${() => toggleAssignedPerson(person.id)}
                           title=${person.label}
-                          style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 2px " + (person.color || "var(--mrd-a)") + "33" : "none" }}>
+                          style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 2px " + (person.color || DEFAULT_MEMBER_COLOR) + "33" : "none" }}>
                           <div style=${{ width: 35, height: 35, borderRadius: "50%", background: person.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 13, fontWeight: 700, margin: "auto" }}>
                             ${person.shortId || String(person.label || "?")[0].toUpperCase()}
                           </div>
@@ -1280,7 +1281,7 @@ export function TasksView({
                         return html`
                           <button key=${person.id} type="button"
                             onClick=${() => toggleConcernedPerson(person.id)}
-                            style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? (person.color || "var(--mrd-a)") + "15" : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
+                            style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? (person.color || DEFAULT_MEMBER_COLOR) + "15" : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
                             <div style=${{ width: 26, height: 26, borderRadius: "50%", background: person.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                               ${person.shortId || String(person.label || "?")[0].toUpperCase()}
                             </div>
@@ -1309,7 +1310,7 @@ export function TasksView({
                       />
                       <button type="button"
                         onClick=${() => setForm((prev) => { const next = !prev.calendarAllDay; return { ...prev, calendarAllDay: next, calendarDurationPreset: next ? "all-day" : "none" }; })}
-                        style=${{ padding: "8px 11px", borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", background: form.calendarAllDay ? "var(--mrd-a)" : "var(--mrd-surf)", color: form.calendarAllDay ? "#fff" : "var(--mrd-fg3)", border: "1px solid " + (form.calendarAllDay ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                        style=${{ padding: "8px 11px", borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", background: form.calendarAllDay ? "var(--mrd-aBtn)" : "var(--mrd-surf)", color: form.calendarAllDay ? "var(--mrd-white)" : "var(--mrd-fg3)", border: "1px solid " + (form.calendarAllDay ? "var(--mrd-a)" : "var(--mrd-border)") }}
                       >Toute la journée</button>
                     </div>
 
@@ -1327,7 +1328,7 @@ export function TasksView({
                             const on = form.calendarDurationPreset === opt.id;
                             return html`
                               <button key=${opt.id} type="button"
-                                style=${{ padding: "6px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: on ? "var(--mrd-a)" : "var(--mrd-surf)", color: on ? "#fff" : "var(--mrd-fg3)", border: "1px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                                style=${{ padding: "6px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: on ? "var(--mrd-aBtn)" : "var(--mrd-surf)", color: on ? "var(--mrd-white)" : "var(--mrd-fg3)", border: "1px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
                                 onClick=${() => updateForm("calendarDurationPreset", opt.id)}
                               >${opt.label}</button>
                             `;
@@ -1358,7 +1359,7 @@ export function TasksView({
                         <div style=${{ display: "flex", gap: 6 }}>
                           <button type="button"
                             onClick=${() => updateForm("calendarRecurConfirm", "yes")}
-                            style=${{ flex: 1, padding: "7px 10px", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: form.calendarRecurConfirm === "yes" ? "var(--mrd-a)" : "var(--mrd-surf)", color: form.calendarRecurConfirm === "yes" ? "#fff" : "var(--mrd-fg3)", border: "1.5px solid " + (form.calendarRecurConfirm === "yes" ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                            style=${{ flex: 1, padding: "7px 10px", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: form.calendarRecurConfirm === "yes" ? "var(--mrd-aBtn)" : "var(--mrd-surf)", color: form.calendarRecurConfirm === "yes" ? "var(--mrd-white)" : "var(--mrd-fg3)", border: "1.5px solid " + (form.calendarRecurConfirm === "yes" ? "var(--mrd-a)" : "var(--mrd-border)") }}
                           >Oui</button>
                           <button type="button"
                             onClick=${() => updateForm("calendarRecurConfirm", "no")}
@@ -1373,7 +1374,7 @@ export function TasksView({
                 <!-- Créer -->
                 <button type="submit"
                   disabled=${!formValid}
-                  style=${{ width: "100%", padding: 14, borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-a)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", boxShadow: formValid ? "0 6px 20px oklch(58% 0.13 28 / 0.28)" : "none", transition: "all 0.2s", border: "none" }}
+                  style=${{ width: "100%", padding: 14, borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", boxShadow: formValid ? "var(--mrd-glowA)" : "none", transition: "all 0.2s", border: "none" }}
                 >
                   ${editingTaskId ? "Enregistrer les modifications" : "Créer la tâche"}
                 </button>

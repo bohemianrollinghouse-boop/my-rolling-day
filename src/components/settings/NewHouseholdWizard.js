@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 /**
  * NewHouseholdWizard
  *
@@ -354,7 +355,7 @@ export function NewHouseholdWizard({
         householdName: householdName.trim(),
         profile: {
           firstName:  linkedPerson?.displayName || userProfile?.displayName || "",
-          badgeColor: linkedPerson?.color       || "#8B7355",
+          badgeColor: linkedPerson?.color       || DEFAULT_MEMBER_COLOR,
         },
         profiles:       markedProfiles,
         inviteSelected: [...inviteSelected],

@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
 import { SettingsSwitch } from "./SettingsUI.js";
 
@@ -22,7 +23,7 @@ export function EditMemberModal({
         <div className="task-modal-head">
           <div className="foyer-modal-member-head">
             <div className="foyer-member-badge foyer-member-badge--lg"
-              style=${{ background: person.color || "#8B7355" }}>
+              style=${{ background: person.color || DEFAULT_MEMBER_COLOR }}>
               ${(person.displayName || "?").slice(0, 2).toUpperCase()}
             </div>
             <div className="foyer-modal-member-info">

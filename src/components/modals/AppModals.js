@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
 
 // ── Fiche profil (éditable ou lecture seule) ──────────────────────────────
@@ -14,7 +15,7 @@ export function ProfileModal({ profile, canEdit, draft, onDraftChange, onClose, 
           <button className="delbtn" onClick=${onClose}>X</button>
         </div>
         <div className="profile-hero">
-          <div className="profile-avatar" style=${{ background: (canEdit ? draft.color : profile.color) || "#8B7355" }}>
+          <div className="profile-avatar" style=${{ background: (canEdit ? draft.color : profile.color) || DEFAULT_MEMBER_COLOR }}>
             ${(canEdit ? draft.mood : profile.mood) || profile.shortId}
           </div>
           <div className="profile-meta">
@@ -33,7 +34,7 @@ export function ProfileModal({ profile, canEdit, draft, onDraftChange, onClose, 
               </div>
               <div className="settings-actions">
                 <div className="miniTitle">Couleur personnelle</div>
-                <input className="ainp profile-color-input" type="color" value=${draft.color || "#8B7355"} onInput=${(event) => onDraftChange({ ...draft, color: event.target.value })} />
+                <input className="ainp profile-color-input" type="color" value=${draft.color || DEFAULT_MEMBER_COLOR} onInput=${(event) => onDraftChange({ ...draft, color: event.target.value })} />
               </div>
               <div className="settings-actions">
                 <div className="miniTitle">Humeur</div>

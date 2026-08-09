@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { localDateKey } from "../../utils/date.js";
 import { CategoryIcon, categoryToneClass } from "../recipes/CategoryIcons.js";
@@ -13,7 +14,7 @@ function initials(label) {
 
 function Avatar({ person, size }) {
   const sz = size || 28;
-  const bg = person?.color || "#8B7355";
+  const bg = person?.color || DEFAULT_MEMBER_COLOR;
   const id = initials(person?.displayName || person?.label || "?");
   return html`
     <div className="mrd-avatar" style=${{
@@ -497,7 +498,7 @@ export function HomeView({
     const personInitial = assignedPerson
       ? (assignedPerson.displayName || assignedPerson.label || "?")[0].toUpperCase()
       : null;
-    const personColor = assignedPerson?.color || "#8B7355";
+    const personColor = assignedPerson?.color || DEFAULT_MEMBER_COLOR;
 
     function handleCheck(e) {
       e.stopPropagation();
@@ -523,7 +524,7 @@ export function HomeView({
         ${schedTime ? html`<span className="mrd-mini-task-time">${schedTime}</span>` : null}
         ${personInitial ? html`
           <span className="mrd-mini-task-person"
-            style=${{ background: personColor, color: "#fff", boxShadow: "0 1px 4px " + personColor + "66" }}>
+            style=${{ background: personColor, color: "var(--mrd-white)", boxShadow: "0 1px 4px " + personColor + "66" }}>
             ${personInitial}
           </span>` : null}
       </div>

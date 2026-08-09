@@ -1,4 +1,4 @@
-import { APP_VERSION } from "../../constants.js";
+import { APP_VERSION, DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useEffect, useState } from "../../lib.js";
 import brandMarkWhite from "../../assets/brand/mark-white.svg";
 import { applyStatusBarTheme } from "../../utils/statusBar.js";
@@ -121,7 +121,7 @@ export function SettingsView({
   // settingsPage est géré par App.js via la prop settingsPage / onSettingsPageChange
   const [openSections, setOpenSections] = useState(() => (isOnboarding ? ["foyer"] : []));
   const [profileOpen, setProfileOpen] = useState(isOnboarding);
-  const [linkedColor, setLinkedColor] = useState(linkedPerson?.color || "#8B7355");
+  const [linkedColor, setLinkedColor] = useState(linkedPerson?.color || DEFAULT_MEMBER_COLOR);
   const [showInviteForId, setShowInviteForId] = useState("");
   const [showBadgePalette, setShowBadgePalette] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
@@ -159,7 +159,7 @@ export function SettingsView({
   }, [linkedPerson?.id, linkedPerson?.displayName]);
 
   useEffect(() => {
-    setLinkedColor(linkedPerson?.color || "#8B7355");
+    setLinkedColor(linkedPerson?.color || DEFAULT_MEMBER_COLOR);
   }, [linkedPerson?.id, linkedPerson?.color]);
 
   useEffect(() => {
@@ -379,12 +379,12 @@ export function SettingsView({
   }
 
   const profileInitial = (linkedPerson?.displayName || userProfile?.email || "?").slice(0, 1).toUpperCase();
-  const profileColor = linkedColor || linkedPerson?.color || "#8B7355";
+  const profileColor = linkedColor || linkedPerson?.color || DEFAULT_MEMBER_COLOR;
   const roleDisplay = effectiveRole === "admin" ? "Admin" : "Standard";
   const currentLinkedName = String(linkedPerson?.displayName || "");
   const currentFamilyName = String(currentFamily?.name || "");
   const currentEmail = String(userProfile?.email || "");
-  const currentLinkedColor = String(linkedPerson?.color || "#8B7355");
+  const currentLinkedColor = String(linkedPerson?.color || DEFAULT_MEMBER_COLOR);
   const canSubmitLinkedName = Boolean(linkedPerson?.id) && linkedName.trim() && linkedName.trim() !== currentLinkedName.trim();
   const canSubmitLinkedColor = Boolean(linkedPerson?.id) && linkedColor !== currentLinkedColor;
   const canSubmitEmail = newEmail.trim() && newEmail.trim() !== currentEmail.trim();
@@ -658,7 +658,7 @@ export function SettingsView({
                 const pendingCode = pendingInvitationsByMember[person.id] || null;
                 return html`
                   <button type="button" className=${`settings-member-row${index === safePeople.length - 1 ? " is-last" : ""}`} key=${person.id} onClick=${() => openMemberFromSubpage(person.id)}>
-                    <span className="foyer-member-badge" style=${{ background: person.color || "#8B7355" }}>${(person.displayName || "?").slice(0, 2).toUpperCase()}</span>
+                    <span className="foyer-member-badge" style=${{ background: person.color || DEFAULT_MEMBER_COLOR }}>${(person.displayName || "?").slice(0, 2).toUpperCase()}</span>
                     <span className="settings-member-copy">
                       <span className="settings-member-name">${person.displayName || "Sans nom"}</span>
                       <span className="settings-member-role">${roleLabel}${pendingCode?.code ? ` · ${pendingCode.code.slice(0, 3)}-${pendingCode.code.slice(3)}` : ""}</span>
@@ -1112,7 +1112,7 @@ export function SettingsView({
                           >
                             ${linkedColor === hex ? html`
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M5 13l4 4L19 7" stroke="var(--mrd-white)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
                               </svg>
                             ` : null}
                           </button>
@@ -1207,7 +1207,7 @@ export function SettingsView({
                 return html`
                   <div className="foyer-member-card foyer-member-card--preview" key=${person.id}>
                     <div className="foyer-member-left">
-                      <div className="foyer-member-badge foyer-member-badge--preview" style=${{ background: person.color || "#8B7355" }}>
+                      <div className="foyer-member-badge foyer-member-badge--preview" style=${{ background: person.color || DEFAULT_MEMBER_COLOR }}>
                         ${(person.displayName || "?").slice(0, 1).toUpperCase()}
                       </div>
                       <div className="foyer-member-info">

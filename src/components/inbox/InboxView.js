@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
 import { localDateKey, getCurrentAppDate, addMinutesToTime } from "../../utils/date.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
@@ -330,7 +331,7 @@ export function InboxView({
                   const on = !isDeadline && taskForm.displayPeriod === t.id;
                   return html`
                     <button key=${t.id} type="button"
-                      style=${{ ...PILL_STACK, background: on ? "var(--mrd-a)" : "var(--mrd-surf2)", color: on ? "#fff" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                      style=${{ ...PILL_STACK, background: on ? "var(--mrd-aBtn)" : "var(--mrd-surf2)", color: on ? "var(--mrd-white)" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
                       onClick=${() => { updateTaskForm("displayPeriod", t.id); if (taskForm.priority === "deadline") updateTaskForm("priority", "normal"); }}>
                       <span style=${{ fontSize: 18, lineHeight: 1 }}>${t.icon}</span>
                       <span>${t.label}</span>
@@ -375,7 +376,7 @@ export function InboxView({
                     const on = taskForm.taskKind === k.id;
                     return html`
                       <button key=${k.id} type="button"
-                        style=${{ ...PILL_STACK, background: on ? "var(--mrd-a)" : "var(--mrd-surf2)", color: on ? "#fff" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
+                        style=${{ ...PILL_STACK, background: on ? "var(--mrd-aBtn)" : "var(--mrd-surf2)", color: on ? "var(--mrd-white)" : "var(--mrd-fg2)", border: "1.5px solid " + (on ? "var(--mrd-a)" : "var(--mrd-border)") }}
                         onClick=${() => updateTaskForm("taskKind", k.id)}>
                         <span style=${{ fontSize: 18, lineHeight: 1 }}>${k.icon}</span>
                         <span>${k.label}</span>
@@ -408,7 +409,7 @@ export function InboxView({
                       <button key=${person.id} type="button"
                         onClick=${() => toggleTaskAssignedPerson(person.id)}
                         title=${person.label || person.displayName}
-                        style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 2px " + (person.color || "var(--mrd-a)") + "33" : "none" }}>
+                        style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 2px " + (person.color || DEFAULT_MEMBER_COLOR) + "33" : "none" }}>
                         <div style=${{ width: 35, height: 35, borderRadius: "50%", background: person.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 13, fontWeight: 700, margin: "auto" }}>
                           ${person.shortId || String(person.label || person.displayName || "?")[0].toUpperCase()}
                         </div>
@@ -422,7 +423,7 @@ export function InboxView({
             <!-- 6. Submit -->
             <button type="submit"
               disabled=${!formValid}
-              style=${{ width: "100%", padding: 14, borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-a)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", boxShadow: formValid ? "0 6px 20px oklch(58% 0.13 28 / 0.28)" : "none", transition: "all 0.2s", border: "none" }}
+              style=${{ width: "100%", padding: 14, borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", boxShadow: formValid ? "var(--mrd-glowA)" : "none", transition: "all 0.2s", border: "none" }}
             >Créer la tâche →</button>
 
           </form>
@@ -529,7 +530,7 @@ export function InboxView({
                   ${showDurationPicker && !agendaForm.allDay ? "⏱ Durée activée" : "+ Ajouter une durée"}
                 </button>
                 <button type="button"
-                  style=${{ padding: "10px 14px", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: agendaForm.allDay ? "var(--mrd-a)" : "var(--mrd-surf2)", color: agendaForm.allDay ? "#fff" : "var(--mrd-fg3)", border: "1.5px solid " + (agendaForm.allDay ? "var(--mrd-a)" : "var(--mrd-border)"), whiteSpace: "nowrap" }}
+                  style=${{ padding: "10px 14px", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", background: agendaForm.allDay ? "var(--mrd-aBtn)" : "var(--mrd-surf2)", color: agendaForm.allDay ? "var(--mrd-white)" : "var(--mrd-fg3)", border: "1.5px solid " + (agendaForm.allDay ? "var(--mrd-a)" : "var(--mrd-border)"), whiteSpace: "nowrap" }}
                   onClick=${() => { setShowDurationPicker(false); setAgendaForm((prev) => ({ ...prev, allDay: !prev.allDay, durationPreset: !prev.allDay ? "all-day" : "60", endTime: !prev.allDay ? "" : addMinutesToTime(prev.start, 60) })); }}>
                   Toute la journée
                 </button>
@@ -553,7 +554,7 @@ export function InboxView({
                       <button key=${person.id} type="button"
                         onClick=${() => toggleAgendaPerson(person.id)}
                         title=${person.displayName || person.label}
-                        style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 3px " + (person.color || "var(--mrd-a)") + "33" : "none" }}>
+                        style=${{ width: 40, height: 40, borderRadius: "50%", padding: 0, border: "2.5px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: "transparent", cursor: "pointer", flexShrink: 0, transition: "all 0.15s", boxShadow: on ? "0 0 0 3px " + (person.color || DEFAULT_MEMBER_COLOR) + "33" : "none" }}>
                         <div style=${{ width: 35, height: 35, borderRadius: "50%", background: person.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 13, fontWeight: 700, margin: "auto" }}>
                           ${person.shortId || String(person.displayName || person.label || "?")[0].toUpperCase()}
                         </div>
@@ -583,7 +584,7 @@ export function InboxView({
                           return html`
                             <button key=${child.id} type="button"
                               onClick=${() => toggleAgendaChild(child.id)}
-                              style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (child.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? (child.color || "var(--mrd-a)") + "18" : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
+                              style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (child.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? (child.color || DEFAULT_MEMBER_COLOR) + "18" : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
                               <div style=${{ width: 26, height: 26, borderRadius: "50%", background: child.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                                 ${child.shortId || String(child.displayName || child.label || "?")[0].toUpperCase()}
                               </div>
@@ -618,7 +619,7 @@ export function InboxView({
               </button>
               <button type="submit"
                 disabled=${!formValid}
-                style=${{ flex: 1, padding: "13px 0", borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-a)" : "var(--mrd-disabledBg)", color: formValid ? "#fff" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", border: "none", boxShadow: formValid ? "0 6px 20px oklch(58% 0.13 28 / 0.28)" : "none", transition: "all 0.2s", fontFamily: "inherit" }}>
+                style=${{ flex: 1, padding: "13px 0", borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", border: "none", boxShadow: formValid ? "var(--mrd-glowA)" : "none", transition: "all 0.2s", fontFamily: "inherit" }}>
                 Ajouter au calendrier →
               </button>
             </div>
@@ -702,7 +703,7 @@ export function InboxView({
               </button>
               <button type="submit"
                 disabled=${!formValid}
-                style=${{ flex: 1, padding: "13px 0", borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-a)" : "var(--mrd-disabledBg)", color: formValid ? "#fff" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", border: "none", boxShadow: formValid ? "0 6px 20px oklch(58% 0.13 28 / 0.28)" : "none", transition: "all 0.2s", fontFamily: "inherit" }}>
+                style=${{ flex: 1, padding: "13px 0", borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", border: "none", boxShadow: formValid ? "var(--mrd-glowA)" : "none", transition: "all 0.2s", fontFamily: "inherit" }}>
                 Enregistrer la note →
               </button>
             </div>

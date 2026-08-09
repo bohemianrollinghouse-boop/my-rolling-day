@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
 import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
@@ -888,7 +889,7 @@ export function ListsView({
                         const on = listForm.visibility === opt.id;
                         return html`
                           <button key=${opt.id} type="button"
-                            style=${{ ...VISIBILITY_PILL, background: on ? "var(--mrd-a)" : "var(--mrd-surf2)", color: on ? "#fff" : "var(--mrd-fg2)", borderColor: on ? "var(--mrd-a)" : "var(--mrd-border)" }}
+                            style=${{ ...VISIBILITY_PILL, background: on ? "var(--mrd-aBtn)" : "var(--mrd-surf2)", color: on ? "var(--mrd-white)" : "var(--mrd-fg2)", borderColor: on ? "var(--mrd-a)" : "var(--mrd-border)" }}
                             onClick=${() => setListForm((prev) => ({ ...prev, visibility: opt.id, sharedWith: opt.id !== "shared" ? [] : prev.sharedWith }))}
                           >
                             <span style=${{ fontSize: 18, lineHeight: 1 }}>${opt.icon}</span>
@@ -912,7 +913,7 @@ export function ListsView({
                         return html`
                           <button key=${person.id} type="button"
                             onClick=${() => toggleListMember(person.id)}
-                            style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? ((person.color || "var(--mrd-a)") + "15") : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
+                            style=${{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", borderRadius: 99, border: "2px solid " + (on ? (person.color || "var(--mrd-a)") : "var(--mrd-border)"), background: on ? ((person.color || DEFAULT_MEMBER_COLOR) + "15") : "transparent", cursor: "pointer", transition: "all 0.15s" }}>
                             <div style=${{ width: 26, height: 26, borderRadius: "50%", background: person.color || "var(--mrd-fg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mrd-white)", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                               ${String(person.shortId || name)[0].toUpperCase()}
                             </div>
@@ -934,7 +935,7 @@ export function ListsView({
                 <!-- 5. Bouton final -->
                 <button type="submit"
                   disabled=${!formValid}
-                  style=${{ width: "100%", padding: 14, borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-a)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", boxShadow: formValid ? "0 6px 20px oklch(58% 0.13 28 / 0.28)" : "none", transition: "all 0.2s", border: "none" }}
+                  style=${{ width: "100%", padding: 14, borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", boxShadow: formValid ? "var(--mrd-glowA)" : "none", transition: "all 0.2s", border: "none" }}
                 >
                   ${editingList ? "Enregistrer" : "Créer la liste"}
                 </button>

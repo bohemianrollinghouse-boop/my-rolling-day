@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useEffect, useState } from "../../lib.js";
 
 const EMPTY_PERSON = {
@@ -206,7 +207,7 @@ export function FamilyPanel({
                     (person, index) => html`
                       <div className="person-row" key=${person.id}>
                         <div className="ubdg">
-                          <div className="ucirc" style=${{ background: person.color || "#8B7355" }}>
+                          <div className="ucirc" style=${{ background: person.color || DEFAULT_MEMBER_COLOR }}>
                             ${(person.displayName || "?").slice(0, 2).toUpperCase()}
                           </div>
                           <div>

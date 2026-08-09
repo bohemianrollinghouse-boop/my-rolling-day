@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../constants.js";
 import { Capacitor } from "@capacitor/core";
 import {
   canChangePassword,
@@ -51,7 +52,7 @@ function buildUiPeople(people, memberDirectory = {}) {
     id: person.id,
     shortId: shortId(person.displayName || "P"),
     label: person.displayName || "Personne",
-    color: person.color || "#8B7355",
+    color: person.color || DEFAULT_MEMBER_COLOR,
     type: person.type || "adult",
     profileMode: person.profileMode || (person.type === "adult" ? "app_user" : "context"),
     active: person.active !== false,
@@ -615,7 +616,7 @@ export function useAuth() {
     if (!user?.uid) throw new Error("Aucun compte connecte.");
     const profile = payload?.profile || {};
     const displayName = String(profile?.firstName || profile?.displayName || userProfile?.displayName || user?.displayName || "").trim();
-    const color = String(profile?.badgeColor || profile?.color || linkedPerson?.color || "#8B7355").trim() || "#8B7355";
+    const color = String(profile?.badgeColor || profile?.color || linkedPerson?.color || DEFAULT_MEMBER_COLOR).trim() || DEFAULT_MEMBER_COLOR;
     const householdName = String(payload?.householdName || payload?.familyName || "").trim();
     const profiles = normalizeOnboardingProfiles(payload?.profiles);
 
@@ -680,7 +681,7 @@ export function useAuth() {
     const displayName = String(
       profile?.firstName || profile?.displayName || preview.memberName || userProfile?.displayName || user?.displayName || "",
     ).trim();
-    const color = String(profile?.badgeColor || profile?.color || linkedPerson?.color || "#8B7355").trim() || "#8B7355";
+    const color = String(profile?.badgeColor || profile?.color || linkedPerson?.color || DEFAULT_MEMBER_COLOR).trim() || DEFAULT_MEMBER_COLOR;
     if (!displayName) throw new Error("Entre ton prenom.");
 
     const joined = await joinFamily({ user, inviteCode, startOnboarding: true });
@@ -761,7 +762,7 @@ export function useAuth() {
     const personId = linkedPerson?.id || (await ensureLinkedHouseholdProfile(currentFamilyId, user, displayName));
     const updates = {
       displayName,
-      color: profile?.color || linkedPerson?.color || "#8B7355",
+      color: profile?.color || linkedPerson?.color || DEFAULT_MEMBER_COLOR,
     };
 
     await Promise.all([
