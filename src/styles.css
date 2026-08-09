@@ -6147,25 +6147,14 @@ html[data-theme="dark"] .initial-members-finish { background: var(--mrd-surf2); 
   }
 }
 /* ═══════════════════════════════════════════════════════════
-   DARK MODE — surcharges finales
-   Ces règles doivent rester EN DERNIER dans le fichier pour
-   gagner la cascade contre les valeurs hardcodées (var(--mrd-surf),
-   var(--mrd-fg), etc.) des blocs mobile placés plus haut.
+   DARK MODE — surcharges auth / onboarding
+   Ce qui reste ici surcharge des règles définies PLUS BAS dans le
+   fichier (blocs mobile auth/onboarding) : la position en fin de
+   fichier est donc nécessaire, ne pas remonter ces règles.
+   Vérifié en mesurant la valeur calculée avec puis sans chaque
+   règle : tout le reste du bloc était mort (doublons littéraux des
+   lignes ~5446-5458 et ~1887) et a été supprimé.
    ═══════════════════════════════════════════════════════════ */
-/* Fond des shells plein-écran */
-html[data-theme="dark"] .auth-shell,
-html[data-theme="dark"] .onboarding-shell { background: var(--mrd-bgDeep); }
-html[data-theme="dark"] .notif-prompt-overlay { background: var(--mrd-bgDeep); }
-/* Bouton retour fixé */
-html[data-theme="dark"] .auth-back { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg2); }
-html[data-theme="dark"] .auth-back:hover { background: var(--mrd-surf2); color: var(--mrd-fg); }
-/* Inputs */
-html[data-theme="dark"] .auth-input,
-html[data-theme="dark"] .onboarding-input { background: var(--mrd-bg); border-color: var(--mrd-border); color: var(--mrd-fg); }
-html[data-theme="dark"] .auth-input::placeholder,
-html[data-theme="dark"] .onboarding-input::placeholder { color: var(--mrd-disabledFg); }
-html[data-theme="dark"] .auth-input:focus,
-html[data-theme="dark"] .onboarding-input:focus { border-color: var(--mrd-a); box-shadow: var(--mrd-ringA); }
 /* Boutons secondaires (auth, onboarding, google, notif) */
 html[data-theme="dark"] .auth-cta-secondary,
 html[data-theme="dark"] .google-btn,
@@ -6179,20 +6168,9 @@ html[data-theme="dark"] .notif-prompt-btn-secondary { background: var(--mrd-surf
 html[data-theme="dark"] .notif-prompt-card { background: transparent; border-color: transparent; }
 /* Titres et textes auth/onboarding */
 html[data-theme="dark"] .auth-welcome-title { color: var(--mrd-a); }
-html[data-theme="dark"] .auth-title { color: var(--mrd-fg); }
-html[data-theme="dark"] .auth-subtitle,
-html[data-theme="dark"] .auth-switch { color: var(--mrd-fg2); }
 html[data-theme="dark"] .onboarding-page-brand { color: var(--mrd-fg2); }
 html[data-theme="dark"] .onboarding-title { color: var(--mrd-a); }
 html[data-theme="dark"] .notif-prompt-title { color: var(--mrd-a); }
-html[data-theme="dark"] .notif-prompt-body,
-html[data-theme="dark"] .notif-prompt-body p { color: var(--mrd-fg2); }
-/* Modal notification push (surcharge la règle du milieu de fichier) */
-html[data-theme="dark"] .notification-modal-card { background: var(--mrd-surf); border-color: var(--mrd-border); box-shadow: var(--mrd-shadowXl); }
-html[data-theme="dark"] .notification-modal-title { color: var(--mrd-a); }
-html[data-theme="dark"] .notification-modal-text { color: var(--mrd-fg2); }
-html[data-theme="dark"] .notification-modal-secondary { background: var(--mrd-surf2); border-color: var(--mrd-border); color: var(--mrd-fg); }
-html[data-theme="dark"] .notification-modal-close { background: transparent; border-color: var(--mrd-border); color: var(--mrd-fg3); }
 /* ─── WIDGET FEEDBACK TESTEUR ─────────────────────────────── */
 .fb-root { position: fixed; inset: 0; pointer-events: none; z-index: 9990; }
 /* Pastille ronde — moitié cachée sur le bord droit */
