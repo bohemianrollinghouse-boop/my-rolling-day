@@ -1,4 +1,4 @@
-import { DEFAULT_MEMBER_COLOR } from "./constants.js";
+import { DEFAULT_MEMBER_COLOR, THEME_COLOR_DARK, THEME_COLOR_LIGHT } from "./constants.js";
 import { BottomNav, SidebarNav } from "./components/nav/BottomNav.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
@@ -280,7 +280,7 @@ export function App() {
       const savedTheme = localStorage.getItem("mrd-theme") || "light";
       const isDark = savedTheme === "dark";
       document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-      const themeColor = isDark ? "#1F1A17" : "#FAF4ED";
+      const themeColor = isDark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT;
       document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", themeColor));
       const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
       if (sb) sb.setAttribute("content", isDark ? "black" : "default");

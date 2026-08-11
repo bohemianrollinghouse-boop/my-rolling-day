@@ -1,4 +1,4 @@
-import { APP_VERSION, DEFAULT_MEMBER_COLOR } from "../../constants.js";
+import { APP_VERSION, DEFAULT_MEMBER_COLOR, THEME_COLOR_DARK, THEME_COLOR_LIGHT } from "../../constants.js";
 import { html, useEffect, useState } from "../../lib.js";
 import brandMarkWhite from "../../assets/brand/mark-white.svg";
 import { applyStatusBarTheme } from "../../utils/statusBar.js";
@@ -178,7 +178,9 @@ export function SettingsView({
     root.setAttribute("data-theme", isDark ? "dark" : "light");
     try {
       localStorage.setItem("mrd-theme", appearanceMode);
-      const themeColor = isDark ? "#1F1A17" : "#FAF4ED";
+      // Doit rester égal à --mrd-bg des deux thèmes, et à la couleur
+      // posée par applyStatusBarTheme() en natif.
+      const themeColor = isDark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT;
       document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", themeColor));
       const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
       if (sb) sb.setAttribute("content", isDark ? "black" : "default");

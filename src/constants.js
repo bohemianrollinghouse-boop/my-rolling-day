@@ -70,6 +70,14 @@ export const BADGE_PALETTE = [
    et aux erreurs, l'utiliser en décoration brouille ce signal. */
 export const DEFAULT_BADGE_COLOR = BADGE_PALETTE[1][1];
 
+/* Couleur du chrome navigateur (<meta name="theme-color">) et de la
+   barre de statut Android. Doivent être des hex littéraux : les API
+   natives ne lisent pas les variables CSS. Ce sont les rendus exacts
+   de --mrd-bg dans chaque thème — les changer ici sans changer le
+   token (ou l'inverse) crée une bande de couleur en haut de l'écran. */
+export const THEME_COLOR_LIGHT = "#FAF4ED";
+export const THEME_COLOR_DARK = "#211A15";
+
 export const APP_VERSION = "0.1.0 beta";
 
 export const TABS = [
