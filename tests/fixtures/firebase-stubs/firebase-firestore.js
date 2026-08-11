@@ -16,52 +16,81 @@ const DEFAULT_PROFILE = {
 
 // ── Coordination test ─────────────────────────────────────────────────────────
 
+const CREATOR_PERSON = {
+  id: "e2e-person-001",
+  displayName: DEFAULT_PROFILE.displayName,
+  color: "#DC2626",
+  type: "adult",
+  profileMode: "app_user",
+  active: true,
+  linkedAccountId: USER_ID,
+  canCompleteTasks: true,
+  role: "admin",
+  mood: "",
+  message: "",
+};
+
+const CREATOR_MEMBER = {
+  uid: USER_ID,
+  role: "admin",
+  displayName: DEFAULT_PROFILE.displayName,
+  email: DEFAULT_PROFILE.email,
+};
+
 if (!window.__e2eStubs) {
   window.__e2eStubs = {
     familyCreated: false,
     createdFamilyId: null,
     batchCommitCount: 0,
+    // État courant : les listeners qui s'abonnent APRÈS la création du foyer
+    // doivent le voir aussi, sinon l'app reste bloquée sur un foyer sans membre
+    // (plannerUnlocked = hasFamily && people.length > 0).
+    people: [],
+    members: [],
     profileListeners: [],
+    familyListeners: [],
     peopleListeners: [],
     membersListeners: [],
     inviteListeners: [],
     plannerListeners: [],
 
+    currentProfile() {
+      if (!this.familyCreated) return DEFAULT_PROFILE;
+      const fId = this.createdFamilyId || FAMILY_ID;
+      return { ...DEFAULT_PROFILE, familyIds: [fId], currentFamilyId: fId, pendingOnboardingFamilyId: "" };
+    },
+
+    /** Document foyer, tel que le lit watchFamilies() — null tant qu'il n'existe pas. */
+    currentFamily() {
+      if (!this.familyCreated) return null;
+      return { id: this.createdFamilyId || FAMILY_ID, name: "Mon Foyer E2E", inviteCode: "E2ECODE", memberCount: 1 };
+    },
+
     _onBatchCommit(ops) {
       this.familyCreated = true;
       this.batchCommitCount++;
-      const fId = this.createdFamilyId || FAMILY_ID;
-      const profileWithFamily = {
-        ...DEFAULT_PROFILE,
-        familyIds: [fId],
-        currentFamilyId: fId,
-        pendingOnboardingFamilyId: "",
-      };
+      this.people = [CREATOR_PERSON];
+      this.members = [CREATOR_MEMBER];
 
-      // 1. Re-fire profil utilisateur avec famille (déclenche listFamilies)
+      // 1. Re-fire profil utilisateur avec famille (déclenche watchFamilies)
       setTimeout(() => {
-        const snap = makeSnap(true, profileWithFamily);
+        const snap = makeSnap(true, this.currentProfile());
         for (const cb of this.profileListeners) {
           try { cb(snap); } catch (e) { console.warn("[e2e-stub] profile listener error", e); }
         }
       }, 120);
 
+      // 1 bis. Re-fire le document foyer pour les abonnements deja ouverts
+      setTimeout(() => {
+        const snap = makeSnap(true, this.currentFamily());
+        for (const cb of this.familyListeners) {
+          try { cb(snap); } catch (e) { console.warn("[e2e-stub] family listener error", e); }
+        }
+      }, 200);
+
       // 2. Re-fire watchFamilyPeople — le créateur arrive comme personne liée
       setTimeout(() => {
-        const person = {
-          id: "e2e-person-001",
-          displayName: DEFAULT_PROFILE.displayName,
-          color: "#DC2626",
-          type: "adult",
-          profileMode: "app_user",
-          active: true,
-          linkedAccountId: USER_ID,
-          canCompleteTasks: true,
-          role: "admin",
-          mood: "",
-          message: "",
-        };
-        const snapList = makeSnapList([person], false);
+        const snapList = makeSnapList(this.people, false);
         for (const cb of this.peopleListeners) {
           try { cb(snapList); } catch (e) { console.warn("[e2e-stub] people listener error", e); }
         }
@@ -69,8 +98,7 @@ if (!window.__e2eStubs) {
 
       // 3. Re-fire watchFamilyMembers
       setTimeout(() => {
-        const member = { uid: USER_ID, role: "admin", displayName: DEFAULT_PROFILE.displayName, email: DEFAULT_PROFILE.email };
-        const snapList = makeSnapList([member], false);
+        const snapList = makeSnapList(this.members, false);
         for (const cb of this.membersListeners) {
           try { cb(snapList); } catch (e) { console.warn("[e2e-stub] members listener error", e); }
         }
@@ -201,22 +229,33 @@ export function onSnapshot(ref, callbackOrOptions, onError) {
   const stubs = window.__e2eStubs;
 
   const isProfile = path.includes(USER_ID) && !path.includes("families/");
+  // Document foyer lui-même (« families/<id> ») : c'est ce que suit watchFamilies()
+  const isFamilyDoc = /^families\/[^/]+$/.test(path);
   const isPeople = path.includes("/people") || (path.includes("families/") && path.endsWith("/people"));
   const isMembers = path.includes("/member");
   const isPlanner = path.includes("planner");
   const isInvite = path.includes("invitation");
 
   if (isProfile && !stubs.profileListeners.includes(callback)) stubs.profileListeners.push(callback);
+  else if (isFamilyDoc && !stubs.familyListeners.includes(callback)) stubs.familyListeners.push(callback);
   else if (isPeople && !stubs.peopleListeners.includes(callback)) stubs.peopleListeners.push(callback);
   else if (isMembers && !stubs.membersListeners.includes(callback)) stubs.membersListeners.push(callback);
   else if (isInvite && !stubs.inviteListeners.includes(callback)) stubs.inviteListeners.push(callback);
   else if (isPlanner && !stubs.plannerListeners.includes(callback)) stubs.plannerListeners.push(callback);
 
-  // Tir initial après un court délai
+  // Tir initial après un court délai — reflète l'état courant du stub, pas un
+  // état figé : un abonnement ouvert après la création du foyer doit voir le
+  // foyer et ses membres.
   setTimeout(() => {
     try {
-      if (isProfile) callback(makeSnap(true, DEFAULT_PROFILE));
-      else if (isPeople || isMembers || isInvite) callback(makeSnapList([], false));
+      if (isProfile) callback(makeSnap(true, stubs.currentProfile()));
+      else if (isFamilyDoc) {
+        const family = stubs.currentFamily();
+        callback(family ? makeSnap(true, family) : makeSnap(false, null));
+      }
+      else if (isPeople) callback(makeSnapList(stubs.people, false));
+      else if (isMembers) callback(makeSnapList(stubs.members, false));
+      else if (isInvite) callback(makeSnapList([], false));
       else if (isPlanner) callback(makeSnap(false, null));
       else callback(makeSnap(false, null));
     } catch (e) { console.warn("[e2e-stub] onSnapshot initial fire error", path, e); }
@@ -225,6 +264,7 @@ export function onSnapshot(ref, callbackOrOptions, onError) {
   return () => {
     const remove = (arr) => { const i = arr.indexOf(callback); if (i !== -1) arr.splice(i, 1); };
     remove(stubs.profileListeners);
+    remove(stubs.familyListeners);
     remove(stubs.peopleListeners);
     remove(stubs.membersListeners);
     remove(stubs.inviteListeners);

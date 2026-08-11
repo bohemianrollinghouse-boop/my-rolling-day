@@ -51,6 +51,9 @@ export async function startStaticServer(rootDirectory, port = 0) {
     url: `http://127.0.0.1:${address.port}`,
     port: address.port,
     async close() {
+      // Sans cela, une connexion keep-alive encore ouverte (navigateur de test,
+      // agent fetch) suffit a faire attendre `close()` indefiniment.
+      server.closeAllConnections?.();
       await new Promise((resolvePromise, rejectPromise) => {
         server.close((error) => (error ? rejectPromise(error) : resolvePromise()));
       });

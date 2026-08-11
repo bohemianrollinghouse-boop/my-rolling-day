@@ -3,12 +3,13 @@
  *
  * Section 1 (Node.js pur, toujours exécutée) :
  *   – Structure NAV_TABS : 5 onglets dans le bon ordre
- *   – getBottomId : résolution des alias (mine/daily/weekly/monthly → tasks)
- *   – Libellés attendus : Accueil, Tâches, Agenda, Repas, Listes
+ *   – getBottomId : résolution des alias (mine/daily/weekly/monthly → tasks,
+ *     écrans du menu « Plus » → quick)
+ *   – Libellés attendus : Accueil, Tâches, Agenda, Repas, Plus
  *
  * Section 2 (CDP, skippée si pas de navigateur headless) :
- *   – Atteint la page d'accueil via les stubs Firebase (même technique que
- *     profile-creation.test.js)
+ *   – Atteint la page d'accueil sur un build Vite où Firebase est remplacé par
+ *     les stubs (voir helpers/e2e-build.js)
  *   – Clique chaque onglet du BottomNav et vérifie que :
  *       (a) l'app ne crashe pas (__APP_BOOT_STATE__ toujours "react-mounted")
  *       (b) le bouton actif porte aria-current="page"
@@ -19,13 +20,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { resolve, join } from "node:path";
 
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
-
-const projectRoot = resolve(import.meta.dirname, "..", "..");
+import { buildE2eApp } from "../helpers/e2e-build.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Répliques des fonctions pures de BottomNav.js (testées sans React)
@@ -36,50 +34,20 @@ const NAV_TABS = [
   { id: "tasks",  label: "Tâches"  },
   { id: "agenda", label: "Agenda"  },
   { id: "meals",  label: "Repas"   },
-  { id: "lists",  label: "Listes"  },
+  { id: "quick",  label: "Plus"    },
 ];
+
+/* Écrans secondaires : plus d'onglet dédié, ils passent par le bouton « Plus ». */
+const QUICK_MENU_IDS = ["lists", "notes", "inventory", "recipes", "history"];
 
 function getBottomId(tab) {
   if (["mine", "daily", "weekly", "monthly"].includes(tab)) return "tasks";
   if (tab === "agenda") return "agenda";
   if (tab === "meals")  return "meals";
-  if (tab === "lists")  return "lists";
+  if (QUICK_MENU_IDS.includes(tab)) return "quick";
   if (tab === "home")   return "home";
   return "home";
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Import map — redirige Firebase CDN vers les stubs locaux
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FIREBASE_CDN_VERSION = "10.12.5";
-const FIREBASE_CDN_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_CDN_VERSION}`;
-const STUB_MODULES = [
-  "firebase-app",
-  "firebase-auth",
-  "firebase-firestore",
-  "firebase-messaging",
-  "firebase-analytics",
-  "firebase-storage",
-  "firebase-functions",
-];
-
-function buildImportMapHtml() {
-  const imports = {};
-  for (const mod of STUB_MODULES) {
-    imports[`${FIREBASE_CDN_BASE}/${mod}.js`] =
-      `/tests/fixtures/firebase-stubs/${mod}.js`;
-  }
-  return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-}
-
-const ORIGINAL_INDEX_HTML = readFileSync(join(projectRoot, "index.html"), "utf8");
-const MODIFIED_INDEX_HTML = ORIGINAL_INDEX_HTML.replace(
-  /<script type="module"/,
-  `${buildImportMapHtml()}\n    <script type="module"`,
-);
-
-const STUB_INDEX_PATH = join(projectRoot, "e2e-navigation.html");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers CDP
@@ -187,7 +155,7 @@ async function reachHomePage(session) {
 
 test("NAV_TABS : contient exactement 5 onglets dans le bon ordre", () => {
   assert.equal(NAV_TABS.length, 5);
-  assert.deepEqual(NAV_TABS.map((t) => t.id), ["home", "tasks", "agenda", "meals", "lists"]);
+  assert.deepEqual(NAV_TABS.map((t) => t.id), ["home", "tasks", "agenda", "meals", "quick"]);
 });
 
 test("NAV_TABS : tous les libellés sont définis et non vides", () => {
@@ -208,7 +176,14 @@ test("getBottomId : les onglets directs retournent leur propre id", () => {
   assert.equal(getBottomId("home"),   "home");
   assert.equal(getBottomId("agenda"), "agenda");
   assert.equal(getBottomId("meals"),  "meals");
-  assert.equal(getBottomId("lists"),  "lists");
+});
+
+test("getBottomId : les écrans du menu « Plus » pointent vers 'quick'", () => {
+  assert.equal(getBottomId("lists"),     "quick");
+  assert.equal(getBottomId("notes"),     "quick");
+  assert.equal(getBottomId("inventory"), "quick");
+  assert.equal(getBottomId("recipes"),   "quick");
+  assert.equal(getBottomId("history"),   "quick");
 });
 
 test("getBottomId : un onglet inconnu repasse sur 'home'", () => {
@@ -226,8 +201,8 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
   let browserLaunchError = null;
 
   t.before(async () => {
-    writeFileSync(STUB_INDEX_PATH, MODIFIED_INDEX_HTML, "utf8");
-    serverHandle = await startStaticServer(projectRoot);
+    // Build Vite avec Firebase aliasé sur les stubs (voir helpers/e2e-build.js)
+    serverHandle = await startStaticServer(await buildE2eApp());
     try {
       browserHandle = await launchBrowser(9225);
     } catch (err) {
@@ -239,12 +214,11 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
   t.after(async () => {
     if (browserHandle) try { await browserHandle.close(); } catch { /* ignoré */ }
     if (serverHandle) await serverHandle.close();
-    try { unlinkSync(STUB_INDEX_PATH); } catch { /* ignoré */ }
   });
 
   async function openStubbed() {
     const session = await openPageSession(browserHandle);
-    await session.send("Page.navigate", { url: `${serverHandle.url}/e2e-navigation.html` });
+    await session.send("Page.navigate", { url: `${serverHandle.url}/` });
     await session.waitForEvent("Page.loadEventFired", 15_000);
     return session;
   }
@@ -316,12 +290,6 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
           charText:     "Repas",
         },
         {
-          navLabel:    "Listes",
-          // ListsView a son propre header (.lists-page-header), pas de .mrd-screen-hdr-title
-          charSelector: ".lists-page-header",
-          charText:     "Listes",
-        },
-        {
           navLabel:    "Accueil",
           // Home n'a pas de header .mrd-screen-hdr-title, mais .mrd-home est présent
           charSelector: ".mrd-home",
@@ -388,9 +356,53 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
     }
   });
 
-  // ── [3] Pas d'écran fatal sur la page d'accueil après navigation aller-retour
+  // ── [3] Le bouton « Plus » ouvre les écrans secondaires ────────────────────
+  // Listes, Notes, Inventaire, Recettes et Historique ne sont plus des onglets
+  // du BottomNav : ils vivent dans le menu du bouton « Plus ».
 
-  await t.test("[3] pas d'écran fatal après navigation aller-retour", async (st) => {
+  await t.test("[3] le menu « Plus » ouvre les écrans secondaires (Listes)", async (st) => {
+    if (!browserHandle) {
+      st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
+      return;
+    }
+
+    const session = await openStubbed();
+    try {
+      assert.ok(await reachHomePage(session), "Prérequis : .mrd-bnav doit être visible");
+
+      await click(session, '.mrd-bnav-btn[aria-label="Plus"]');
+      assert.ok(
+        await pollForSelector(session, ".mrd-bnav-quick-menu", 3_000),
+        "Le bouton « Plus » doit ouvrir le menu rapide",
+      );
+
+      await session.send("Runtime.evaluate", {
+        expression: `
+          [...document.querySelectorAll(".mrd-bnav-quick-item")]
+            .find(btn => btn.textContent.includes("Listes"))
+            ?.click();
+        `,
+      });
+
+      assert.ok(
+        await pollForSelector(session, ".lists-page-header", 5_000),
+        "L'entrée « Listes » du menu rapide doit ouvrir l'écran Listes",
+      );
+
+      const bootState = await session.send("Runtime.evaluate", {
+        expression: "window.__APP_BOOT_STATE__",
+        returnByValue: true,
+      });
+      assert.equal(bootState.result.value, "react-mounted",
+        "L'écran Listes ne doit pas faire crasher l'app");
+    } finally {
+      await session.close();
+    }
+  });
+
+  // ── [4] Pas d'écran fatal sur la page d'accueil après navigation aller-retour
+
+  await t.test("[4] pas d'écran fatal après navigation aller-retour", async (st) => {
     if (!browserHandle) {
       st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
       return;
@@ -400,11 +412,17 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
     try {
       await reachHomePage(session);
 
-      // Aller sur Listes, puis revenir sur Accueil
+      // Aller sur Listes (via le menu « Plus »), puis revenir sur Accueil
+      await click(session, '.mrd-bnav-btn[aria-label="Plus"]');
+      await pollForSelector(session, ".mrd-bnav-quick-menu", 3_000);
       await session.send("Runtime.evaluate", {
-        expression: `document.querySelector('[aria-label="Listes"]')?.click()`,
+        expression: `
+          [...document.querySelectorAll(".mrd-bnav-quick-item")]
+            .find(btn => btn.textContent.includes("Listes"))
+            ?.click();
+        `,
       });
-      await new Promise((r) => setTimeout(r, 300));
+      await pollForSelector(session, ".lists-page-header", 5_000);
 
       await session.send("Runtime.evaluate", {
         expression: `document.querySelector('[aria-label="Accueil"]')?.click()`,

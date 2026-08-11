@@ -30,13 +30,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { resolve, join } from "node:path";
 
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
-
-const projectRoot = resolve(import.meta.dirname, "..", "..");
+import { buildE2eApp } from "../helpers/e2e-build.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Répliques des fonctions pures d'OnboardingFlow.js (testées sans React)
@@ -77,42 +74,6 @@ function nextLabel(step, profileCount) {
   return "Suivant";
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Import map — redirige Firebase CDN vers les stubs locaux
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FIREBASE_CDN_VERSION = "10.12.5";
-const FIREBASE_CDN_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_CDN_VERSION}`;
-const STUB_MODULES = [
-  "firebase-app",
-  "firebase-auth",
-  "firebase-firestore",
-  "firebase-messaging",
-  "firebase-analytics",
-  "firebase-storage",
-  "firebase-functions",
-];
-
-function buildImportMapHtml() {
-  const imports = {};
-  for (const mod of STUB_MODULES) {
-    imports[`${FIREBASE_CDN_BASE}/${mod}.js`] =
-      `/tests/fixtures/firebase-stubs/${mod}.js`;
-  }
-  return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-}
-
-// HTML modifié, construit une seule fois (le serveur est le même pour tous les tests)
-const ORIGINAL_INDEX_HTML = readFileSync(join(projectRoot, "index.html"), "utf8");
-// L'importmap doit précéder tout <script type="module">
-const MODIFIED_INDEX_HTML = ORIGINAL_INDEX_HTML.replace(
-  /<script type="module"/,
-  `${buildImportMapHtml()}\n    <script type="module"`,
-);
-
-// Chemin du fichier HTML temporaire servi à la racine du projet
-// (pour que les chemins relatifs ./src/ restent valides)
-const STUB_INDEX_PATH = join(projectRoot, "e2e-onboarding.html");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers CDP
@@ -273,11 +234,8 @@ test("CDP: création de profil — du spinner à la page d'accueil", { timeout: 
   let browserLaunchError = null;
 
   t.before(async () => {
-    // Écrire le HTML modifié (avec import map) à la racine du projet
-    // pour que les chemins relatifs ./src/ restent valides.
-    writeFileSync(STUB_INDEX_PATH, MODIFIED_INDEX_HTML, "utf8");
-
-    serverHandle = await startStaticServer(projectRoot);
+    // Build Vite avec Firebase aliasé sur les stubs (voir helpers/e2e-build.js)
+    serverHandle = await startStaticServer(await buildE2eApp());
     try {
       browserHandle = await launchBrowser(9224);
     } catch (err) {
@@ -290,13 +248,12 @@ test("CDP: création de profil — du spinner à la page d'accueil", { timeout: 
     // Chrome tient parfois ses fichiers sqlite quelques ms après kill() → EBUSY ignoré
     if (browserHandle) try { await browserHandle.close(); } catch { /* ignoré */ }
     if (serverHandle) await serverHandle.close();
-    try { unlinkSync(STUB_INDEX_PATH); } catch { /* ignoré */ }
   });
 
-  /** Ouvre un onglet et navigue vers le HTML stubé. */
+  /** Ouvre un onglet sur l'application stubée. */
   async function openStubbed() {
     const session = await openPageSession(browserHandle);
-    await session.send("Page.navigate", { url: `${serverHandle.url}/e2e-onboarding.html` });
+    await session.send("Page.navigate", { url: `${serverHandle.url}/` });
     await session.waitForEvent("Page.loadEventFired", 15_000);
     return session;
   }

@@ -1,18 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
 
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
-
-const projectRoot = resolve(import.meta.dirname, "..", "..");
+import { buildE2eApp } from "../helpers/e2e-build.js";
 
 let serverHandle;
 let browserHandle;
 let browserLaunchError = null;
 
 test.before(async () => {
-  serverHandle = await startStaticServer(projectRoot);
+  // On sert le build Vite, pas les sources : celles-ci utilisent des imports
+  // npm nus qu'un navigateur ne sait pas résoudre.
+  serverHandle = await startStaticServer(await buildE2eApp());
   try {
     browserHandle = await launchBrowser();
   } catch (error) {
@@ -22,8 +22,13 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  if (browserHandle) await browserHandle.close();
-  if (serverHandle) await serverHandle.close();
+  // `finally` obligatoire : si la fermeture du navigateur echoue, le serveur
+  // HTTP doit quand meme etre ferme, sinon node ne rend jamais la main.
+  try {
+    if (browserHandle) await browserHandle.close();
+  } finally {
+    if (serverHandle) await serverHandle.close();
+  }
 });
 
 test("smoke HTTP: la page d entree est servie", async () => {
@@ -32,22 +37,23 @@ test("smoke HTTP: la page d entree est servie", async () => {
 
   assert.equal(response.status, 200);
   assert.match(html, /<title>My Rolling Day<\/title>/);
-  assert.match(html, /src=\"\.\/src\/main\.js\?v=/);
+  // Vite injecte le bundle hashé à la place du <script src="./src/main.js">
+  assert.match(html, /<script type="module"[^>]+src="\/assets\/index-[^"]+\.js"/);
 });
 
 test("smoke HTTP: les assets critiques sont servis", async () => {
   const indexResponse = await fetch(`${serverHandle.url}/`);
   const indexHtml = await indexResponse.text();
-  const mainMatch = indexHtml.match(/src=\"(\.\/src\/main\.js\?v=[^\"]+)\"/);
+  const entryMatch = indexHtml.match(/<script type="module"[^>]+src="(\/assets\/index-[^"]+\.js)"/);
 
-  assert.ok(mainMatch, "main.js versionne introuvable dans index.html");
+  assert.ok(entryMatch, "bundle d entree introuvable dans index.html");
 
-  const mainResponse = await fetch(`${serverHandle.url}/${mainMatch[1].replace(/^\.\//, "")}`);
-  const mainSource = await mainResponse.text();
+  const entryResponse = await fetch(`${serverHandle.url}${entryMatch[1]}`);
+  const entrySource = await entryResponse.text();
 
-  assert.equal(mainResponse.status, 200);
-  assert.match(mainSource, /react-mounted/);
-  assert.match(mainSource, /createRoot/);
+  assert.equal(entryResponse.status, 200);
+  assert.match(entrySource, /react-mounted/);
+  assert.match(entrySource, /__APP_BOOT_STATE__/);
 });
 
 test("smoke E2E navigateur: l application monte sans ecran fatal", async (t) => {

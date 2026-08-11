@@ -16,12 +16,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
 
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
-
-const projectRoot = resolve(import.meta.dirname, "..", "..");
+import { buildE2eApp } from "../helpers/e2e-build.js";
 
 // ---------------------------------------------------------------------------
 // Helpers purs (aucune dépendance externe)
@@ -224,7 +222,7 @@ test("CDP: auth standalone iOS PWA", { timeout: 120_000 }, async (t) => {
   let browserLaunchError = null;
 
   t.before(async () => {
-    serverHandle = await startStaticServer(projectRoot);
+    serverHandle = await startStaticServer(await buildE2eApp());
     try {
       browserHandle = await launchBrowser(9223);
     } catch (err) {
@@ -234,14 +232,25 @@ test("CDP: auth standalone iOS PWA", { timeout: 120_000 }, async (t) => {
   });
 
   t.after(async () => {
-    if (browserHandle) await browserHandle.close();
-    if (serverHandle) await serverHandle.close();
+    // `finally` obligatoire : sans lui, un echec de fermeture du navigateur
+    // laisse le serveur HTTP ouvert et node ne rend jamais la main.
+    try {
+      if (browserHandle) await browserHandle.close();
+    } finally {
+      if (serverHandle) await serverHandle.close();
+    }
   });
 
-  /** Ouvre un onglet et injecte un script avant le chargement des modules ES. */
+  /**
+   * Ouvre un onglet et injecte un script avant le chargement des modules ES.
+   * `__E2E_SIGNED_OUT` force le stub Firebase Auth à annoncer « aucun
+   * utilisateur » : sans ça l'app saute l'écran de connexion qu'on teste ici.
+   */
   async function openWithScript(source) {
     const session = await openPageSession(browserHandle);
-    await session.send("Page.addScriptToEvaluateOnNewDocument", { source });
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `window.__E2E_SIGNED_OUT = true;\n${source}`,
+    });
     return session;
   }
 
@@ -371,8 +380,9 @@ test("CDP: auth standalone iOS PWA", { timeout: 120_000 }, async (t) => {
       return;
     }
 
-    // Aucune injection — simule Safari ou Chrome normal
-    const session = await openPageSession(browserHandle);
+    // Aucune injection standalone — simule Safari ou Chrome normal
+    // (seul `__E2E_SIGNED_OUT` est posé, pour rester sur l'écran de connexion)
+    const session = await openWithScript("");
     try {
       await session.send("Page.navigate", { url: `${serverHandle.url}/` });
       await session.waitForEvent("Page.loadEventFired", 15_000);

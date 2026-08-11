@@ -31,13 +31,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { resolve, join } from "node:path";
 
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
-
-const projectRoot = resolve(import.meta.dirname, "..", "..");
+import { buildE2eApp } from "../helpers/e2e-build.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Répliques des fonctions pures de useTasks.js (testées sans React)
@@ -198,38 +195,6 @@ function getDeadlineTasksForTab(tab, tasks, now = new Date()) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Import map — redirige Firebase CDN vers les stubs locaux
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FIREBASE_CDN_VERSION = "10.12.5";
-const FIREBASE_CDN_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_CDN_VERSION}`;
-const STUB_MODULES = [
-  "firebase-app",
-  "firebase-auth",
-  "firebase-firestore",
-  "firebase-messaging",
-  "firebase-analytics",
-  "firebase-storage",
-  "firebase-functions",
-];
-
-function buildImportMapHtml() {
-  const imports = {};
-  for (const mod of STUB_MODULES) {
-    imports[`${FIREBASE_CDN_BASE}/${mod}.js`] =
-      `/tests/fixtures/firebase-stubs/${mod}.js`;
-  }
-  return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-}
-
-const ORIGINAL_INDEX_HTML = readFileSync(join(projectRoot, "index.html"), "utf8");
-const MODIFIED_INDEX_HTML = ORIGINAL_INDEX_HTML.replace(
-  /<script type="module"/,
-  `${buildImportMapHtml()}\n    <script type="module"`,
-);
-
-const STUB_INDEX_PATH = join(projectRoot, "e2e-tasks.html");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers CDP
@@ -747,8 +712,8 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
   let browserLaunchError = null;
 
   t.before(async () => {
-    writeFileSync(STUB_INDEX_PATH, MODIFIED_INDEX_HTML, "utf8");
-    serverHandle = await startStaticServer(projectRoot);
+    // Build Vite avec Firebase aliasé sur les stubs (voir helpers/e2e-build.js)
+    serverHandle = await startStaticServer(await buildE2eApp());
     try {
       browserHandle = await launchBrowser(9226);
     } catch (err) {
@@ -760,12 +725,11 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
   t.after(async () => {
     if (browserHandle) try { await browserHandle.close(); } catch { /* ignoré */ }
     if (serverHandle) await serverHandle.close();
-    try { unlinkSync(STUB_INDEX_PATH); } catch { /* ignoré */ }
   });
 
   async function openStubbed() {
     const session = await openPageSession(browserHandle);
-    await session.send("Page.navigate", { url: `${serverHandle.url}/e2e-tasks.html` });
+    await session.send("Page.navigate", { url: `${serverHandle.url}/` });
     await session.waitForEvent("Page.loadEventFired", 15_000);
     return session;
   }

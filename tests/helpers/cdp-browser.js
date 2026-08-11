@@ -1,8 +1,10 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+
+const PROFILE_PREFIX = "mrd-e2e-browser-";
 
 const BROWSER_CANDIDATES = [
   process.env.BROWSER_PATH,
@@ -24,6 +26,80 @@ function execFileAsync(file, args) {
 
 async function pathExists(filePath) {
   return existsSync(filePath);
+}
+
+/**
+ * Arrete le navigateur et supprime son profil temporaire.
+ *
+ * Windows : `kill()` ne tue que le process lance, pas ses enfants (Edge et
+ * Chrome en creent plusieurs). Ces enfants gardent le profil verrouille, et le
+ * `rm` qui suit echoue en EBUSY. Le hook `after` du test explose alors avant de
+ * fermer le serveur HTTP, dont le handle empeche node de sortir : la suite se
+ * fige indefiniment. On tue donc l arbre de process, on attend sa sortie, puis
+ * on nettoie sans jamais laisser remonter d erreur.
+ */
+async function terminateBrowser(processHandle, userDataDir) {
+  try {
+    if (process.platform === "win32" && processHandle.pid) {
+      await execFileAsync("taskkill.exe", ["/pid", String(processHandle.pid), "/T", "/F"]).catch(() => {});
+    } else {
+      processHandle.kill();
+    }
+    await waitForProcessExit(processHandle);
+  } catch (_error) {
+    // Process deja mort : rien a faire.
+  }
+
+  try {
+    await rm(userDataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  } catch (_error) {
+    // Profil encore verrouille : un dossier temporaire orphelin ne doit pas
+    // bloquer la fin de la suite. Le balayage au lancement suivant s en chargera.
+  }
+}
+
+/**
+ * Supprime les profils d anciennes executions restes dans %TEMP%.
+ *
+ * Filet de securite : un profil que Windows tenait encore verrouille a la fin
+ * d un run (~20 Mo chacun) serait sinon la pour toujours. On ne touche qu aux
+ * dossiers d au moins une heure, jamais a ceux d un run en cours.
+ */
+async function sweepStaleProfiles(maxAgeMs = 60 * 60 * 1000) {
+  const root = tmpdir();
+  let entries;
+  try {
+    entries = await readdir(root);
+  } catch (_error) {
+    return;
+  }
+
+  const deadline = Date.now() - maxAgeMs;
+  await Promise.all(
+    entries
+      .filter((name) => name.startsWith(PROFILE_PREFIX))
+      .map(async (name) => {
+        const dir = join(root, name);
+        try {
+          const info = await stat(dir);
+          if (info.mtimeMs > deadline) return;
+          await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+        } catch (_error) {
+          // Toujours verrouille ou deja supprime : on reessaiera au run suivant.
+        }
+      }),
+  );
+}
+
+function waitForProcessExit(processHandle, timeoutMs = 5000) {
+  if (processHandle.exitCode !== null || processHandle.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    processHandle.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 export async function findAvailableBrowser() {
@@ -116,7 +192,8 @@ export async function launchBrowser(debugPort = 9222) {
   const executablePath = await findAvailableBrowser();
   if (!executablePath) return null;
 
-  const userDataDir = await mkdtemp(join(tmpdir(), "mrd-e2e-browser-"));
+  await sweepStaleProfiles();
+  const userDataDir = await mkdtemp(join(tmpdir(), PROFILE_PREFIX));
   const processHandle = spawn(
     executablePath,
     [
@@ -138,8 +215,7 @@ export async function launchBrowser(debugPort = 9222) {
   try {
     await waitForDebugger(debugPort);
   } catch (error) {
-    processHandle.kill();
-    await rm(userDataDir, { recursive: true, force: true });
+    await terminateBrowser(processHandle, userDataDir);
     throw error;
   }
 
@@ -149,8 +225,7 @@ export async function launchBrowser(debugPort = 9222) {
     process: processHandle,
     userDataDir,
     async close() {
-      processHandle.kill();
-      await rm(userDataDir, { recursive: true, force: true });
+      await terminateBrowser(processHandle, userDataDir);
     },
   };
 }

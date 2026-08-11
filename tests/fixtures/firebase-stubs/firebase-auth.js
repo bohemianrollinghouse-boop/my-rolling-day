@@ -1,5 +1,9 @@
 // E2E stub — firebase-auth.js
 // Simule un utilisateur connecté (E2E Testeur) après 350 ms.
+//
+// Un test qui a besoin de l'écran de connexion (auth.standalone) pose
+// `window.__E2E_SIGNED_OUT = true` avant le chargement des modules : le stub
+// annonce alors « aucun utilisateur ».
 
 const TEST_USER = {
   uid: "e2e-uid-profile-001",
@@ -8,6 +12,10 @@ const TEST_USER = {
 };
 
 let _auth = null;
+
+function isSignedOutMode() {
+  return typeof window !== "undefined" && window.__E2E_SIGNED_OUT === true;
+}
 
 export function getAuth(app) {
   if (!_auth) _auth = { app, currentUser: null };
@@ -19,6 +27,11 @@ export function onAuthStateChanged(auth, next) {
   if (typeof next !== "function") return () => {};
   // Délai court pour simuler la résolution Firebase Auth
   const timer = setTimeout(() => {
+    if (isSignedOutMode()) {
+      if (auth) auth.currentUser = null;
+      next(null);
+      return;
+    }
     if (auth) auth.currentUser = TEST_USER;
     next(TEST_USER);
   }, 350);
@@ -53,7 +66,10 @@ export class GoogleAuthProvider {
   setCustomParameters() { return this; }
 }
 
+export async function signInWithCredential(auth, credential) { return { user: TEST_USER, credential }; }
+
 export const browserLocalPersistence = "LOCAL";
 export const browserSessionPersistence = "SESSION";
+export const indexedDBLocalPersistence = "INDEXED_DB";
 export const inMemoryPersistence = "NONE";
 export function connectAuthEmulator() {}
