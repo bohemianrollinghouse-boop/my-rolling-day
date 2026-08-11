@@ -4,6 +4,7 @@
 // No-op en web/PWA.
 
 import { Capacitor } from "@capacitor/core";
+import { THEME_COLOR_DARK, THEME_COLOR_LIGHT } from "../constants.js";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -14,7 +15,7 @@ export async function applyStatusBarTheme(isDark) {
     // Style.Dark = texte clair sur fond sombre ; Style.Light = l'inverse
     await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
     if (Capacitor.getPlatform() === "android") {
-      await StatusBar.setBackgroundColor({ color: isDark ? "#1F1A17" : "#FAF4ED" });
+      await StatusBar.setBackgroundColor({ color: isDark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT });
     }
   } catch (error) {
     console.warn("[statusbar] applyStatusBarTheme échoué", error);

@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 /**
  * NewHouseholdWizard
  *
@@ -175,7 +176,7 @@ function StepMembers({ profiles, draft, onDraftChange, onAddProfile, onRemovePro
               const k = p.kind || "person";
               return html`
                 <div key=${p.id} className="onb-member-row">
-                  <div className="onb-member-avatar" style=${{ background: "oklch(60% 0.12 35)" }}>
+                  <div className="onb-member-avatar" style=${{ background: DEFAULT_MEMBER_COLOR }}>
                     ${k === "pet" ? "🐾" : p.firstName.slice(0, 1).toUpperCase()}
                     ${k !== "person" ? html`<span className="onb-member-avatar-badge">${kindEmoji(k)}</span>` : null}
                   </div>
@@ -222,7 +223,7 @@ function StepInvites({ profiles, selected, onToggle, total }) {
                   className=${`onb-invite-row${on ? " onb-invite-row-on" : ""}`}
                   onClick=${() => onToggle(p.id)}
                 >
-                  <div className="onb-member-avatar" style=${{ background: "oklch(60% 0.12 35)" }}>
+                  <div className="onb-member-avatar" style=${{ background: DEFAULT_MEMBER_COLOR }}>
                     ${p.firstName.slice(0, 1).toUpperCase()}
                     ${k === "child" ? html`<span className="onb-member-avatar-badge">🧒</span>` : null}
                   </div>
@@ -354,7 +355,7 @@ export function NewHouseholdWizard({
         householdName: householdName.trim(),
         profile: {
           firstName:  linkedPerson?.displayName || userProfile?.displayName || "",
-          badgeColor: linkedPerson?.color       || "#8B7355",
+          badgeColor: linkedPerson?.color       || DEFAULT_MEMBER_COLOR,
         },
         profiles:       markedProfiles,
         inviteSelected: [...inviteSelected],

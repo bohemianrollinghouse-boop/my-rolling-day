@@ -44,7 +44,7 @@ const INV_ACTION_RESTOCK = {
 
 const INV_ACTION_RESTOCK_STRONG = {
   background: "var(--mrd-sage)",
-  color: "#fff",
+  color: "var(--mrd-white)",
   border: "1px solid var(--mrd-sage)",
   boxShadow: "0 8px 18px oklch(54% 0.10 155 / 0.18)",
 };
@@ -1083,7 +1083,7 @@ export function InventoryView({
         ${selectionMode ? html`
           <button type="button"
             onClick=${(e) => { e.stopPropagation(); exitSelectionMode(); }}
-            style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", background: "var(--mrd-fg)", color: "#fff", border: "none", minHeight: 32, flexShrink: 0 }}>
+            style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", background: "var(--mrd-fg)", color: "var(--mrd-white)", border: "none", minHeight: 32, flexShrink: 0 }}>
             Annuler
           </button>
         ` : html`
@@ -1198,9 +1198,9 @@ export function InventoryView({
                 disabled=${!canConfirm}
                 style=${{
                   flex: 1, padding: "12px 0", borderRadius: 12, border: "none",
-                  background: canConfirm ? "var(--mrd-a)" : "var(--mrd-disabledBg)",
+                  background: canConfirm ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)",
                   fontSize: 14, fontWeight: 700,
-                  color: canConfirm ? "#fff" : "var(--mrd-disabledFg)",
+                  color: canConfirm ? "var(--mrd-white)" : "var(--mrd-disabledFg)",
                   cursor: canConfirm ? "pointer" : "default",
                   fontFamily: "inherit", transition: "background 0.15s, color 0.15s",
                 }}>
@@ -1406,7 +1406,7 @@ export function InventoryView({
                 `;
               })}
               <button type="submit"
-                style=${{ flex: 1.5, padding: "11px 4px", borderRadius: 12, border: "none", background: "var(--mrd-a)", fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
+                style=${{ flex: 1.5, padding: "11px 4px", borderRadius: 12, border: "none", background: "var(--mrd-aBtn)", fontSize: 13, fontWeight: 700, color: "var(--mrd-white)", cursor: "pointer", fontFamily: "inherit" }}>
                 ${editingItemId ? "Enregistrer" : "Ajouter"}
               </button>
             </div>
@@ -1524,7 +1524,7 @@ export function InventoryView({
           ${selectionMode ? html`
             <button type="button"
               onClick=${(e) => { e.stopPropagation(); exitSelectionMode(); }}
-              style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", background: "var(--mrd-fg)", color: "#fff", border: "none", minHeight: 32 }}>
+              style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", background: "var(--mrd-fg)", color: "var(--mrd-white)", border: "none", minHeight: 32 }}>
               Annuler
             </button>
           ` : html`
@@ -1603,7 +1603,7 @@ export function InventoryView({
 
       <button className="mrd-fab" onClick=${openCreateModal} title="Ajouter un article">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
       </button>
     </section>

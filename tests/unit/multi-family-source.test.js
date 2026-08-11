@@ -17,9 +17,13 @@ test("Settings : créer/rejoindre masqués dans la carte principale si foyer act
   // Carte principale : create/join visibles seulement si !currentFamily
   assert.match(settingsSource, /!\s*currentFamily[\s\S]*?Creer un foyer/);
   assert.match(settingsSource, /!\s*currentFamily[\s\S]*?Rejoindre un foyer existant/);
-  // Sous-page "Gérer le foyer en détail" : actions toujours présentes
-  assert.match(settingsSource, /Créer un nouveau foyer/);
-  assert.match(settingsSource, /Rejoindre un autre foyer/);
+  // Sous-page "Gérer le foyer en détail" : actions toujours présentes.
+  // Ancré sur le groupe et le handler plutôt que sur les libellés :
+  // les deux chaînes visées auparavant ("Créer un nouveau foyer",
+  // "Rejoindre un autre foyer") n'ont jamais existé dans le code.
+  assert.match(settingsSource, /title="Ajouter un foyer"/);
+  assert.match(settingsSource, /setShowNewHouseholdWizard\(true\)/);
+  assert.match(settingsSource, /Rejoindre un foyer avec un code/);
   // Sélecteur de foyer (chips) dans la carte principale si plusieurs foyers
   assert.match(settingsSource, /safeFamilies\.length > 1/);
 });

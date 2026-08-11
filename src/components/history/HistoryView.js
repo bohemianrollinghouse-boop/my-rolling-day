@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html } from "../../lib.js";
 import { getCurrentAppDate, pad2 } from "../../utils/date.js";
 
@@ -37,7 +38,7 @@ function groupByUser(entries, safeUsers) {
       id: userId,
       label: user?.label || "Personne",
       shortId: user?.shortId || userId,
-      color: user?.color || "#8B7355",
+      color: user?.color || DEFAULT_MEMBER_COLOR,
       entries: userEntries,
     };
   });

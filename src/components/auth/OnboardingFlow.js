@@ -1,3 +1,4 @@
+import { BADGE_PALETTE, DEFAULT_BADGE_COLOR, DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useMemo, useRef, useState } from "../../lib.js"; // v2026-05-06-cocon-1
 import { Capacitor } from "@capacitor/core";
 import brandMark from "../../assets/brand/mark.svg";
@@ -20,18 +21,7 @@ async function readClipboardText() {
   }
 }
 
-const BADGE_PALETTE = [
-  ["#7F1D1D", "#B91C1C", "#DC2626", "#F87171", "#FECACA"],
-  ["#7C2D12", "#C2410C", "#EA580C", "#FB923C", "#FED7AA"],
-  ["#713F12", "#B45309", "#D97706", "#FCD34D", "#FEF3C7"],
-  ["#14532D", "#166534", "#16A34A", "#4ADE80", "#BBF7D0"],
-  ["#164E63", "#0E7490", "#06B6D4", "#67E8F9", "#CFFAFE"],
-  ["#1E3A5F", "#1D4ED8", "#3B82F6", "#93C5FD", "#DBEAFE"],
-  ["#3B0764", "#6D28D9", "#7C3AED", "#A78BFA", "#EDE9FE"],
-  ["#881337", "#BE123C", "#E11D48", "#FB7185", "#FECDD3"],
-];
-
-const DEFAULT_COLOR = BADGE_PALETTE[0][2];
+const DEFAULT_COLOR = DEFAULT_BADGE_COLOR;
 const CREATE_STEPS = ["create-first-name", "create-badge-color", "create-household-name", "create-add-members", "create-invite-members"];
 const JOIN_STEPS = ["join-invitation-code", "join-confirm-household", "join-profile-name", "join-badge-color", "join-done"];
 const EXISTING_PROFILE_STEPS = ["existing-profile-name", "existing-badge-color", "existing-done"];
@@ -278,7 +268,7 @@ function AddMembersStep({ profiles, draft, onDraftChange, onAddProfile, onRemove
           const k = p.kind || (p.profileType === "child" ? "child" : p.profileType === "pet" ? "pet" : "person");
           return html`
             <div key=${p.id} className="onb-member-row">
-              <div className="onb-member-avatar" style=${{ background: p.badgeColor || "oklch(60% 0.12 35)" }}>
+              <div className="onb-member-avatar" style=${{ background: p.badgeColor || DEFAULT_MEMBER_COLOR }}>
                 ${k === "pet" ? "🐾" : p.firstName.slice(0, 1).toUpperCase()}
                 ${k !== "person" ? html`<span className="onb-member-avatar-badge">${kindEmoji(k)}</span>` : null}
               </div>
@@ -318,7 +308,7 @@ function InviteMembersStep({ profiles, selected, onToggle }) {
           ${eligible.map((p) => {
             const on = selected.includes(p.id);
             const k = p.kind || "person";
-            const color = p.badgeColor || "oklch(60% 0.12 35)";
+            const color = p.badgeColor || DEFAULT_MEMBER_COLOR;
             return html`
               <button
                 key=${p.id}
