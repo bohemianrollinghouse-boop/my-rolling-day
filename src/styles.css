@@ -68,6 +68,11 @@
 
   --mrd-sageDeep:   oklch(38% 0.10 155);
 
+  /* pendant de --mrd-aBtn : sauge sûre sous du texte clair, donc de
+     clarté quasi constante entre les deux thèmes (--mrd-sage, lui,
+     devient clair en sombre et ne peut pas porter de blanc) */
+  --mrd-sageBtn:    oklch(48% 0.11 155);
+
   /* ambre */
 
   --mrd-amber:      oklch(48% 0.13 55);
@@ -613,6 +618,8 @@ html[data-theme="dark"] {
   --mrd-sageMd:      oklch(38% 0.065 155);
 
   --mrd-sageDeep:    oklch(87% 0.07 155);
+
+  --mrd-sageBtn:     oklch(49.5% 0.115 155);
 
   /* ambre */
 
@@ -4485,7 +4492,7 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
   background: var(--mrd-aBtn);
   border-color: var(--mrd-aBtn);
   color: var(--mrd-white);
-  box-shadow: 0 0 0 3px oklch(89% 0.06 22 / 0.32);
+  box-shadow: var(--mrd-ringA);
 }
 .mrd-shell .ldv-chk {
   width: 26px;
@@ -4505,8 +4512,8 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
   font-family: inherit;
 }
 .mrd-shell .ldv-chk.on {
-  background: oklch(62% 0.10 155);
-  border-color: oklch(62% 0.10 155);
+  background: var(--mrd-sageBtn);
+  border-color: var(--mrd-sageBtn);
   color: var(--mrd-white);
 }
 .mrd-shell .ldv-chk.sel {

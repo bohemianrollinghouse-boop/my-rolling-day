@@ -63,6 +63,13 @@ export const BADGE_PALETTE = [
   /* Rose    */ ["#881337","#BE123C","#E11D48","#FB7185","#FECDD3"],
 ];
 
+/* Pastille pré-sélectionnée quand on choisit sa couleur de badge.
+   Doit appartenir à BADGE_PALETTE, sinon aucune pastille n'apparaît
+   active dans la grille. Orange brûlé : proche du terracotta de la
+   marque, et surtout PAS le rouge — le rouge est réservé à l'urgence
+   et aux erreurs, l'utiliser en décoration brouille ce signal. */
+export const DEFAULT_BADGE_COLOR = BADGE_PALETTE[1][1];
+
 export const APP_VERSION = "0.1.0 beta";
 
 export const TABS = [
