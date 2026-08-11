@@ -1175,7 +1175,7 @@ export function App() {
         customCondiments=${state.customCondiments || []}
         onAddCustomCondiment=${handleAddCustomCondiment}
         onDeleteCustomCondiment=${handleDeleteCustomCondiment}
-        onAddRecipe=${(recipe) => { handleAddRecipe(recipe); showToast("✓ Recette ajoutée"); }}
+        onAddRecipe=${(recipe) => { const id = handleAddRecipe(recipe); showToast("✓ Recette ajoutée"); return id; }}
         onUpdateRecipe=${(id, updates) => { handleUpdateRecipe(id, updates); showToast("✓ Recette mise à jour"); }}
         onDeleteRecipe=${(id) => { handleDeleteRecipe(id); showToast("Recette supprimée"); }}
         onLoadDemoRecipes=${handleLoadDemoRecipes}

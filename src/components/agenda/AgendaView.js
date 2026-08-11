@@ -304,7 +304,7 @@ export function AgendaView({
     [people],
   );
 
-  const [viewMode, setViewMode] = useState("day");
+  const [viewMode, setViewMode] = useState("month");
   const [focusDateKey, setFocusDateKey] = useState(localDateKey(getCurrentAppDate()));
   const [showModal, setShowModal] = useState(false);
   const [viewEntry, setViewEntry] = useState(null);

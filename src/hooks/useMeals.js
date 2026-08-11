@@ -32,6 +32,8 @@ function normalizeIncomingRecipe(recipe) {
     condiments: Array.isArray(recipe.condiments) ? recipe.condiments.map((s) => String(s).trim()).filter(Boolean) : [],
     method: String(recipe.method || "").trim(),
     photo: String(recipe.photo || ""),
+    // Date d'ajout : sert au tri de la liste des recettes
+    createdAt: String(recipe.createdAt || "") || new Date().toISOString(),
   };
 }
 
@@ -97,15 +99,15 @@ export function useMeals(updateState) {
     });
   }
 
+  /** Ajoute la recette et renvoie son id (l'appelant peut ouvrir sa fiche). */
   function handleAddRecipe(recipe) {
-    if (!recipe.name.trim()) return;
+    if (!recipe.name.trim()) return "";
+    const created = normalizeIncomingRecipe(recipe);
     updateState((previous) => ({
       ...previous,
-      recipes: [
-        ...previous.recipes,
-        normalizeIncomingRecipe(recipe),
-      ],
+      recipes: [...previous.recipes, created],
     }));
+    return created.id;
   }
 
   function handleUpdateRecipe(recipeId, recipe) {

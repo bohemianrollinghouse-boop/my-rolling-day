@@ -2,7 +2,7 @@ import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
 import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/productUtils.js";
 import { CONDIMENTS, CONDIMENT_ESSENTIALS } from "../../data/condiments.js";
 import { CategoryIcon, categoryToneClass } from "./CategoryIcons.js";
-import { VoiceCookingMode, parseMethodSteps } from "./VoiceCookingMode.js";
+import { RecipeSheet, groupIngredients, condimentLabel } from "./RecipeSheet.js";
 import drinkFallbackIllustration from "../../assets/recipe-drink-fallback.svg";
 import { scrapeRecipeFromUrl, categorizeRecipe, importErrorMessage } from "../../firebase/clientRecipes.js";
 
@@ -83,22 +83,6 @@ const UNITS = [
 
 function defaultIngredientDraft(group = "") {
   return { name: "", quantity: "", unit: "", group };
-}
-
-/** Regroupe les ingrédients par `group` en conservant l'ordre d'apparition. */
-function groupIngredients(ingredients) {
-  const groups = [];
-  const byName = new Map();
-  for (const item of ingredients) {
-    const key = String(item.group || "").trim();
-    if (!byName.has(key)) {
-      const entry = { group: key, items: [] };
-      byName.set(key, entry);
-      groups.push(entry);
-    }
-    byName.get(key).items.push(item);
-  }
-  return groups;
 }
 
 function defaultRecipeForm() {
@@ -190,19 +174,6 @@ function matchesAvailability(recipe, filterValue) {
   return true;
 }
 
-function availabilityLabel(recipe) {
-  if (recipe.availabilityMode === "all_year") return "Toute saison";
-  if (recipe.availabilityMode === "season") {
-    const seasonIds = Array.isArray(recipe.seasons) && recipe.seasons.length ? recipe.seasons : [recipe.season];
-    const seasonLabels = seasonIds.map((seasonId) => seasonById(seasonId).label);
-    const seasonMonths = [...new Set(seasonIds.flatMap((seasonId) => seasonById(seasonId).months || []))];
-    const selectedMonths = recipeMonths(recipe);
-    if (selectedMonths.length === seasonMonths.length && selectedMonths.every((month) => seasonMonths.includes(month))) return seasonLabels.filter(Boolean).join(" + ");
-    return `${seasonLabels.filter(Boolean).join(" + ")} - ${selectedMonths.map((monthId) => MONTHS.find((month) => month.id === monthId)?.label).filter(Boolean).join(", ")}`;
-  }
-  return recipeMonths(recipe).map((monthId) => MONTHS.find((month) => month.id === monthId)?.label).filter(Boolean).join(", ");
-}
-
 function toggleMonthSelection(currentMonths, monthId, allowedMonths = null) {
   const safeCurrent = uniqueMonths(currentMonths);
   const next = safeCurrent.includes(monthId) ? safeCurrent.filter((value) => value !== monthId) : [...safeCurrent, monthId];
@@ -260,9 +231,14 @@ function renderRecipeFallbackVisual(recipeLike, variant = "thumb", size = 56) {
   return html`<${CategoryIcon} categoryId=${recipeLike?.category} size=${size} framed=${false} />`;
 }
 
-function condimentLabel(condimentId) {
-  const found = CONDIMENTS.find((c) => c.id === condimentId);
-  return found ? found.label : condimentId;
+/**
+ * Rang de tri « ordre d'ajout ». `createdAt` fait foi ; les recettes plus
+ * anciennes que ce champ retombent sur leur position dans la liste (donc
+ * toujours sous les recettes horodatées, ce qui est l'ordre réel d'ajout).
+ */
+function addedRank(recipe, index) {
+  const stamp = Date.parse(String(recipe?.createdAt || ""));
+  return Number.isNaN(stamp) ? Number(index) || 0 : stamp;
 }
 
 /** Icône affichée sur la carte : emoji perso ou premier badge alimentaire. */
@@ -272,18 +248,6 @@ function recipeCardEmoji(recipe) {
   const labels = Array.isArray(recipe?.labels) ? recipe.labels : [];
   const first = labels.length ? FOOD_LABELS.find((entry) => entry.id === labels[0]) : null;
   return first ? first.icon : "🍳";
-}
-
-/** Quantité numérique mise à l'échelle des portions (virgule française). */
-function fmtScaledQty(quantity, ratio) {
-  const q = String(quantity ?? "").trim();
-  if (!q) return "";
-  const n = Number.parseFloat(q.replace(",", "."));
-  if (Number.isNaN(n)) return q;
-  const result = n * ratio;
-  const rounded = Math.round(result);
-  if (Math.abs(result - rounded) < 1e-6) return String(rounded);
-  return result.toFixed(1).replace(".", ",");
 }
 
 /** Comme compressImageToBase64, mais depuis une data URL (image importée d'un site). */
@@ -385,9 +349,6 @@ export function RecipesView({
 
   /* ── Fiche recette ────────────────────────────────────────── */
   const [sheetRecipeId, setSheetRecipeId] = useState("");
-  const [sheetServings, setSheetServings] = useState(4);
-  const [sheetTab, setSheetTab] = useState("ingredients");
-  const [voiceCookingOpen, setVoiceCookingOpen] = useState(false);
 
   const productIndex = useMemo(() => {
     const base = Array.isArray(knownProducts) && knownProducts.length ? knownProducts : inventory;
@@ -397,10 +358,13 @@ export function RecipesView({
     return [...base, ...currentIngredients];
   }, [knownProducts, inventory, form.ingredients]);
 
-  /* ── Filtrage + tri par pertinence ───────────────────────── */
+  /* ── Filtrage + tri (pertinence si recherche, sinon date d'ajout) ── */
   const filteredRecipes = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const base = (Array.isArray(recipes) ? recipes : []).filter((recipe) => {
+    const allRecipes = Array.isArray(recipes) ? recipes : [];
+    // Position d'origine : filet quand `createdAt` manque (recettes d'avant ce champ)
+    const orderById = new Map(allRecipes.map((recipe, index) => [recipe.id, index]));
+    const base = allRecipes.filter((recipe) => {
       if (!matchesAvailability(recipe, availabilityFilter)) return false;
       if (categoryFilter && recipe.category !== categoryFilter) return false;
       const recipeLabels = Array.isArray(recipe.labels) ? recipe.labels : [];
@@ -430,7 +394,8 @@ export function RecipesView({
         return String(a.name || "").localeCompare(String(b.name || ""), "fr", { sensitivity: "base" });
       });
     } else {
-      base.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "fr", { sensitivity: "base" }));
+      // Ordre d'ajout : la dernière recette créée arrive en tête de liste
+      base.sort((a, b) => addedRank(b, orderById.get(b.id)) - addedRank(a, orderById.get(a.id)));
     }
     return base;
   }, [recipes, search, availabilityFilter, categoryFilter, activeLabelFilters, activeConstraintFilters]);
@@ -445,36 +410,15 @@ export function RecipesView({
 
   function openRecipeSheet(recipe) {
     setSheetRecipeId(recipe.id);
-    setSheetServings(Math.max(1, Math.min(24, Number(recipe.servings) || 4)));
-    setSheetTab("ingredients");
   }
 
   function closeRecipeSheet() {
     setSheetRecipeId("");
-    setVoiceCookingOpen(false);
   }
 
   function openEditModalFromSheet(recipe) {
     closeRecipeSheet();
     openEditModal(recipe);
-  }
-
-  function sheetServingsRatio(recipe) {
-    const base = Math.max(1, Number(recipe?.servings) || 1);
-    return sheetServings / base;
-  }
-
-  function handleSheetAddToShopping(recipe) {
-    const ratio = sheetServingsRatio(recipe);
-    const items = (Array.isArray(recipe.ingredients) ? recipe.ingredients : [])
-      .filter((ing) => ing?.name)
-      .map((ing) => ({
-        name: ing.name,
-        quantity: fmtScaledQty(ing.quantity, ratio),
-        unit: String(ing.unit || "").trim(),
-      }));
-    if (!items.length) return;
-    onAddRecipeIngredientsToShopping?.(items);
   }
 
   function setServings(nextValue) {
@@ -714,8 +658,15 @@ export function RecipesView({
     const payload = buildRecipePayload(form);
     if (payload.availabilityMode === "months" && !payload.months.length) return;
     if (payload.availabilityMode === "season" && !payload.months.length) return;
-    if (editingRecipeId) { onUpdateRecipe?.(editingRecipeId, payload); } else { onAddRecipe(payload); }
+    if (editingRecipeId) {
+      onUpdateRecipe?.(editingRecipeId, payload);
+      closeEditPage();
+      return;
+    }
+    // Création : on enchaîne sur la fiche de la recette qui vient d'être ajoutée
+    const createdId = onAddRecipe(payload);
     closeEditPage();
+    if (createdId) setSheetRecipeId(createdId);
   }
 
   function deleteEditingRecipe() {
@@ -805,138 +756,6 @@ export function RecipesView({
 
   const savedCustomCondiments = (Array.isArray(customCondiments) ? customCondiments : []).filter((name) => !ESSENTIAL_ID_SET.has(name));
 
-  /* ── Fiche recette ────────────────────────────────────────── */
-  function renderRecipeSheet(recipe) {
-    const baseServings = Math.max(1, Number(recipe.servings) || 1);
-    const ratio = sheetServings / baseServings;
-    const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients.filter((item) => item?.name) : [];
-    const legacyIng = String(recipe.ingredientsLegacy || "").trim();
-    const firstLabelId = Array.isArray(recipe.labels) && recipe.labels.length ? recipe.labels[0] : null;
-    const firstLabelDef = firstLabelId ? FOOD_LABELS.find((entry) => entry.id === firstLabelId) : null;
-    const prepTimeNum = recipe.prepTime ? Number(recipe.prepTime) : NaN;
-    const cookTimeNum = recipe.cookTime ? Number(recipe.cookTime) : NaN;
-    const legacyTimeNum = recipe.time != null && recipe.time !== "" ? Number(recipe.time) : NaN;
-    const tags = Array.isArray(recipe.tags) ? recipe.tags : [];
-    const hasShoppingCta = Boolean(onAddRecipeIngredientsToShopping && ingredients.length);
-    const categoryDef = recipe.category ? CATEGORIES.find((c) => c.id === recipe.category) : null;
-
-    return html`
-      <div className="recipe-sheet">
-        <header className="mrd-back-hdr mrd-back-hdr-with-side recipe-sheet-header">
-          <div className="mrd-back-hdr-main">
-            <button type="button" className="mrd-back-btn" onClick=${closeRecipeSheet} aria-label="Retour à la liste">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-            <span className="mrd-screen-title recipe-sheet-hdr-title">${recipe.name}</span>
-          </div>
-          <div className="mrd-back-hdr-side recipe-sheet-header-actions">
-            ${onOpenMealsTab
-              ? html`<button type="button" className="mrd-task-mode-btn" onClick=${() => { onOpenMealsTab(); closeRecipeSheet(); }}>Planifier 📅</button>`
-              : null}
-            <button type="button" className="clrbtn" onClick=${() => openEditModalFromSheet(recipe)}>Modifier</button>
-          </div>
-        </header>
-
-        <div className="recipe-sheet-body">
-          <div className="mrd-meal-card recipe-sheet-hero">
-            ${recipe.photo
-              ? html`<div className="recipe-sheet-hero-photo"><img src=${recipe.photo} alt="" /></div>`
-              : html`<div className="recipe-sheet-hero-cat-icon" aria-hidden="true">${renderRecipeFallbackVisual(recipe, "hero", 108)}</div>`}
-            <h2 className="recipe-sheet-hero-title">${recipe.name}</h2>
-            <div className="recipe-sheet-hero-pills">
-              ${firstLabelDef
-                ? html`<span className=${`recipe-sheet-hero-pill recipe-sheet-hero-pill--${firstLabelDef.id}`}>${firstLabelDef.icon} ${firstLabelDef.label}</span>`
-                : null}
-              ${categoryDef ? html`<span className=${`recipe-sheet-hero-pill recipe-sheet-hero-pill-cat ${categoryToneClass(recipe.category)}`}>${categoryDef.label}</span>` : null}
-              <span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">📅 ${availabilityLabel(recipe)}</span>
-              ${!Number.isNaN(prepTimeNum) && prepTimeNum > 0
-                ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">🔪 ${prepTimeNum} min</span>`
-                : null}
-              ${!Number.isNaN(cookTimeNum) && cookTimeNum > 0
-                ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">🍳 ${cookTimeNum} min</span>`
-                : null}
-              ${Number.isNaN(prepTimeNum) && Number.isNaN(cookTimeNum) && !Number.isNaN(legacyTimeNum) && legacyTimeNum > 0
-                ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">⏱ ${legacyTimeNum} min</span>`
-                : null}
-              ${recipe.quick ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">⚡ Rapide</span>` : null}
-              ${tags.map((tag) => html`<span key=${String(tag)} className="recipe-sheet-hero-pill recipe-sheet-tag">${tag}</span>`)}
-            </div>
-
-            <div className="recipe-sheet-servings">
-              <button type="button" className="recipe-sheet-servings-btn" aria-label="Moins" onClick=${() => setSheetServings((s) => Math.max(1, s - 1))}>−</button>
-              <div className="recipe-sheet-servings-center">
-                <div className="recipe-sheet-servings-value">${sheetServings}</div>
-                <div className="recipe-sheet-servings-label">personnes</div>
-              </div>
-              <button type="button" className="recipe-sheet-servings-btn" aria-label="Plus" onClick=${() => setSheetServings((s) => Math.min(24, s + 1))}>+</button>
-            </div>
-          </div>
-
-          <div className="mrd-subtabs recipe-sheet-tabs">
-            <button type="button" className=${`mrd-subtab-btn ${sheetTab === "ingredients" ? "on" : ""}`} onClick=${() => setSheetTab("ingredients")}>Ingrédients</button>
-            <button type="button" className=${`mrd-subtab-btn ${sheetTab === "method" ? "on" : ""}`} onClick=${() => setSheetTab("method")}>Préparation</button>
-          </div>
-
-          ${sheetTab === "ingredients"
-            ? html`
-                <div className="recipe-sheet-panel recipe-sheet-panel-ingredients">
-                  ${ingredients.length
-                    ? groupIngredients(ingredients).map((section, sectionIndex) => html`
-                        <div key=${`grp-${sectionIndex}`}>
-                          ${section.group ? html`<div className="recipe-sheet-ing-group">${section.group}</div>` : null}
-                          ${section.items.map((ing, i) => html`
-                            <div key=${ing.id || `ing-${sectionIndex}-${i}`} className="recipe-sheet-ing-row">
-                              <span className="recipe-sheet-ing-name">${ing.name}</span>
-                              <span className="recipe-sheet-ing-qty">${formatQuantityUnit(fmtScaledQty(ing.quantity, ratio), ing.unit)}</span>
-                            </div>
-                          `)}
-                        </div>
-                      `)
-                    : legacyIng
-                      ? html`<div className="recipe-sheet-legacy-ing">${legacyIng}</div>`
-                      : html`<div className="recipe-sheet-empty-block">Aucun ingrédient structuré. Utilise « Modifier » pour en ajouter.</div>`}
-                  ${Array.isArray(recipe.condiments) && recipe.condiments.length
-                    ? html`
-                        <div className="recipe-sheet-condiments-block">
-                          <div className="recipe-sheet-condiments-title">Condiments</div>
-                          <div className="condiment-badge-list">${recipe.condiments.map(renderCondimentBadge)}</div>
-                        </div>
-                      `
-                    : null}
-                </div>
-              `
-            : html`
-                <div className="recipe-sheet-panel recipe-sheet-panel-method">
-                  ${parseMethodSteps(recipe.method).length
-                    ? html`
-                        <button type="button" className="voice-cook-launch" onClick=${() => setVoiceCookingOpen(true)}>
-                          🎙 Mode cuisine mains libres
-                        </button>
-                      `
-                    : null}
-                  <div className="recipe-sheet-method-text">${recipe.method || "Aucune préparation renseignée."}</div>
-                </div>
-              `}
-
-          ${voiceCookingOpen
-            ? html`<${VoiceCookingMode} recipe=${recipe} onClose=${() => setVoiceCookingOpen(false)} />`
-            : null}
-
-          ${hasShoppingCta
-            ? html`
-                <footer className="recipe-sheet-footer">
-                  <button type="button" className="recipe-sheet-cta-shopping" onClick=${() => handleSheetAddToShopping(recipe)}>
-                    🛒 Ajouter les ingrédients aux courses
-                  </button>
-                </footer>
-              `
-            : null}
-        </div>
-      </div>
-    `;
-  }
 
   /* ── Page création / édition compacte avec menus flottants ── */
   function renderEditPage() {
@@ -1448,7 +1267,16 @@ export function RecipesView({
 
   return html`
     <section className=${sectionClass}>
-      ${sheetRecipe ? renderRecipeSheet(sheetRecipe) : null}
+      ${sheetRecipe
+        ? html`<${RecipeSheet}
+            key=${sheetRecipe.id}
+            recipe=${sheetRecipe}
+            onClose=${closeRecipeSheet}
+            onEdit=${openEditModalFromSheet}
+            onPlan=${onOpenMealsTab ? () => { onOpenMealsTab(); closeRecipeSheet(); } : null}
+            onAddToShopping=${onAddRecipeIngredientsToShopping}
+          />`
+        : null}
       ${showEditPage ? renderEditPage() : null}
 
       ${!sheetRecipe && !showEditPage ? html`

@@ -321,6 +321,8 @@ function normalizeRecipe(recipe, index) {
     ingredientsLegacy: legacyIngredientsText,
     condiments,
     method: String(recipe?.method || "").trim(),
+    // Vide pour les recettes d'avant ce champ : le tri retombe alors sur la position dans la liste
+    createdAt: String(recipe?.createdAt || ""),
   };
 }
 

@@ -5,6 +5,7 @@ import { createMealShell } from "../../utils/state.js";
 import { formatQuantityUnit, normalizeProductName } from "../../utils/productUtils.js";
 import { CONDIMENTS } from "../../data/condiments.js";
 import { CategoryIcon, categoryToneClass } from "../recipes/CategoryIcons.js";
+import { RecipeSheet } from "../recipes/RecipeSheet.js";
 
 const SEASONS = [
   { id: "spring", label: "Printemps", months: [3, 4, 5] },
@@ -88,18 +89,6 @@ function matchesAvailability(recipe, filterValue, currentMonth) {
     return recipeMonths(recipe).includes(Number(filterValue.split(":")[1]));
   }
   return true;
-}
-
-function availabilityLabel(recipe) {
-  if (recipe.availabilityMode === "all_year") return "Toute saison";
-  if (recipe.availabilityMode === "season") {
-    const season = seasonById(recipe.season);
-    const seasonMonths = season.months || [];
-    const selected = recipeMonths(recipe);
-    if (selected.length === seasonMonths.length && selected.every((m) => seasonMonths.includes(m))) return season.label;
-    return `${season.label} - ${selected.map((id) => MONTHS.find((m) => m.id === id)?.label).filter(Boolean).join(", ")}`;
-  }
-  return recipeMonths(recipe).map((id) => MONTHS.find((m) => m.id === id)?.label).filter(Boolean).join(", ");
 }
 
 function availabilityLabelShort(recipe) {
@@ -249,8 +238,6 @@ export function MealsView({
   const [accordionOpen, setAccordionOpen] = useState({});
   const [pickModal, setPickModal] = useState(null);
   const [viewModal, setViewModal] = useState(null);
-  const [viewSheetServings, setViewSheetServings] = useState(4);
-  const [viewSheetTab, setViewSheetTab] = useState("ingredients");
   const [missingModal, setMissingModal] = useState(null);
   const [pickSearch, setPickSearch] = useState("");
   const [pickAvailFilter, setPickAvailFilter] = useState("all");
@@ -715,136 +702,15 @@ export function MealsView({
     `;
   }
 
-  function fmtScaledQty(quantity, ratio) {
-    const q = String(quantity ?? "").trim();
-    if (!q) return "";
-    const n = Number.parseFloat(q.replace(",", "."));
-    if (Number.isNaN(n)) return q;
-    const result = n * ratio;
-    const rounded = Math.round(result);
-    if (Math.abs(result - rounded) < 1e-6) return String(rounded);
-    return result.toFixed(1).replace(".", ",");
-  }
-
-  function renderCondimentBadge(condimentId) {
-    const c = CONDIMENTS.find((x) => x.id === condimentId);
-    return c ? html`<span key=${condimentId} className="condiment-badge">${c.label}</span>` : null;
-  }
-
   function renderRecipeDetail() {
     if (!viewModal) return null;
-    const recipe = viewModal;
-    const baseServings = Math.max(1, Number(recipe.servings) || 1);
-    const ratio = viewSheetServings / baseServings;
-    const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients.filter((item) => item?.name) : [];
-    const legacyIng = String(recipe.ingredientsLegacy || "").trim();
-    const firstLabelId = Array.isArray(recipe.labels) && recipe.labels.length ? recipe.labels[0] : null;
-    const firstLabelDef = firstLabelId ? FOOD_LABELS.find((entry) => entry.id === firstLabelId) : null;
-    const prepTimeNum = recipe.prepTime ? Number(recipe.prepTime) : NaN;
-    const cookTimeNum = recipe.cookTime ? Number(recipe.cookTime) : NaN;
-    const legacyTimeNum = recipe.time != null && recipe.time !== "" ? Number(recipe.time) : NaN;
-    const tags = Array.isArray(recipe.tags) ? recipe.tags : [];
-    const categoryDef = recipe.category ? CATEGORIES.find((c) => c.id === recipe.category) : null;
-
-    function close() {
-      setViewModal(null);
-      setViewSheetTab("ingredients");
-      setViewSheetServings(4);
-    }
-
-    return html`
-      <div className="modal-backdrop mrd-recipe-view-backdrop" onClick=${close}>
-        <div className="recipe-sheet mrd-recipe-view-sheet" onClick=${(e) => e.stopPropagation()}>
-
-          <header className="mrd-back-hdr recipe-sheet-header" style=${{ position: "sticky", top: 0, zIndex: 10 }}>
-            <div className="mrd-back-hdr-main">
-              <button type="button" className="mrd-back-btn" onClick=${close} aria-label="Fermer">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 18L18 6M6 6l12 12" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-              </button>
-              <span className="mrd-screen-title recipe-sheet-hdr-title">${recipe.name}</span>
-            </div>
-          </header>
-
-          <div className="recipe-sheet-body">
-
-            <div className="mrd-meal-card recipe-sheet-hero">
-              ${recipe.photo
-                ? html`<div className="recipe-sheet-hero-photo"><img src=${recipe.photo} alt="" /></div>`
-                : html`<div className="recipe-sheet-hero-cat-icon" aria-hidden="true"><${CategoryIcon} categoryId=${recipe.category} size=${84} framed=${false}/></div>`}
-              <h2 className="recipe-sheet-hero-title">${recipe.name}</h2>
-              <div className="recipe-sheet-hero-pills">
-                ${firstLabelDef
-                  ? html`<span className=${`recipe-sheet-hero-pill recipe-sheet-hero-pill--${firstLabelDef.id}`}>${firstLabelDef.icon} ${firstLabelDef.label}</span>`
-                  : null}
-                ${categoryDef ? html`<span className=${`recipe-sheet-hero-pill recipe-sheet-hero-pill-cat ${categoryToneClass(recipe.category)}`}>${categoryDef.label}</span>` : null}
-                <span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">📅 ${availabilityLabel(recipe)}</span>
-                ${!Number.isNaN(prepTimeNum) && prepTimeNum > 0
-                  ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">🔪 ${prepTimeNum} min</span>`
-                  : null}
-                ${!Number.isNaN(cookTimeNum) && cookTimeNum > 0
-                  ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">🍳 ${cookTimeNum} min</span>`
-                  : null}
-                ${Number.isNaN(prepTimeNum) && Number.isNaN(cookTimeNum) && !Number.isNaN(legacyTimeNum) && legacyTimeNum > 0
-                  ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">⏱ ${legacyTimeNum} min</span>`
-                  : null}
-                ${recipe.quick ? html`<span className="recipe-sheet-hero-pill recipe-sheet-hero-pill-dim">⚡ Rapide</span>` : null}
-                ${tags.map((tag) => html`<span key=${String(tag)} className="recipe-sheet-hero-pill recipe-sheet-tag">${tag}</span>`)}
-              </div>
-
-              <div className="recipe-sheet-servings">
-                <button type="button" className="recipe-sheet-servings-btn" aria-label="Moins"
-                  onClick=${() => setViewSheetServings((s) => Math.max(1, s - 1))}>−</button>
-                <div className="recipe-sheet-servings-center">
-                  <div className="recipe-sheet-servings-value">${viewSheetServings}</div>
-                  <div className="recipe-sheet-servings-label">personnes</div>
-                </div>
-                <button type="button" className="recipe-sheet-servings-btn" aria-label="Plus"
-                  onClick=${() => setViewSheetServings((s) => Math.min(24, s + 1))}>+</button>
-              </div>
-            </div>
-
-            <div className="mrd-subtabs recipe-sheet-tabs">
-              <button type="button" className=${`mrd-subtab-btn ${viewSheetTab === "ingredients" ? "on" : ""}`}
-                onClick=${() => setViewSheetTab("ingredients")}>Ingrédients</button>
-              <button type="button" className=${`mrd-subtab-btn ${viewSheetTab === "method" ? "on" : ""}`}
-                onClick=${() => setViewSheetTab("method")}>Préparation</button>
-            </div>
-
-            ${viewSheetTab === "ingredients"
-              ? html`
-                  <div className="recipe-sheet-panel recipe-sheet-panel-ingredients">
-                    ${ingredients.length
-                      ? ingredients.map((ing, i) => html`
-                          <div key=${ing.id || `ing-${i}`} className="recipe-sheet-ing-row">
-                            <span className="recipe-sheet-ing-name">${ing.name}</span>
-                            <span className="recipe-sheet-ing-qty">${formatQuantityUnit(fmtScaledQty(ing.quantity, ratio), ing.unit)}</span>
-                          </div>
-                        `)
-                      : legacyIng
-                        ? html`<div className="recipe-sheet-legacy-ing">${legacyIng}</div>`
-                        : html`<div className="recipe-sheet-empty-block">Aucun ingrédient renseigné.</div>`}
-                    ${Array.isArray(recipe.condiments) && recipe.condiments.length
-                      ? html`
-                          <div className="recipe-sheet-condiments-block">
-                            <div className="recipe-sheet-condiments-title">Condiments</div>
-                            <div className="condiment-badge-list">${recipe.condiments.map(renderCondimentBadge)}</div>
-                          </div>
-                        `
-                      : null}
-                  </div>
-                `
-              : html`
-                  <div className="recipe-sheet-panel recipe-sheet-panel-method">
-                    <div className="recipe-sheet-method-text">${recipe.method || "Aucune préparation renseignée."}</div>
-                  </div>
-                `}
-
-          </div>
-        </div>
-      </div>
-    `;
+    // Même fiche que l'onglet Recettes, simplement présentée en modale
+    return html`<${RecipeSheet}
+      key=${viewModal.id}
+      recipe=${viewModal}
+      variant="modal"
+      onClose=${() => setViewModal(null)}
+    />`;
   }
 
   function renderMissingModal() {
