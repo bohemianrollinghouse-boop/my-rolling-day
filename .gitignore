@@ -6,6 +6,11 @@ node_modules/
 .env.ios
 .env.android
 
+# Fonctions Python (import de recettes)
+functions-py/.env
+functions-py/venv/
+__pycache__/
+
 # Build output
 dist/
 src/assets/build-info.json

@@ -40,4 +40,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+ : requis pour afficher toute notification (locale ou push) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Mode cuisine vocal : écoute des commandes entre les étapes -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

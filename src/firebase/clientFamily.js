@@ -55,7 +55,12 @@ export function watchUserProfile(uid, callback, onError) {
   return onSnapshot(
     doc(db, "users", uid),
     (snapshot) => {
-      callback(snapshot.exists() ? snapshot.data() : null, snapshot.metadata.fromCache);
+      // hasPendingWrites : snapshot de latence compensée (ex. le merge
+      // d'ensureUserProfile au login) — il peut être PARTIEL (sans
+      // currentFamilyId) et ne doit pas être traité comme confirmé par le
+      // serveur, sinon l'écran "créer/rejoindre un foyer" flashe au login.
+      const provisional = snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites;
+      callback(snapshot.exists() ? snapshot.data() : null, provisional);
     },
     (error) => {
       console.error("[firestore] watchUserProfile error", error?.code, error);

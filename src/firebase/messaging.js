@@ -32,9 +32,11 @@ export function getNotificationPermissionState() {
   return getUnifiedPermissionState();
 }
 
+// ⚠️ Même piège que notify.js : ne jamais résoudre une promesse avec le proxy
+// du plugin (la détection de thenable appelle une fausse méthode native "then").
 async function pushNotificationsPlugin() {
   const module = await import("@capacitor/push-notifications");
-  return module.PushNotifications;
+  return { plugin: module.PushNotifications };
 }
 
 export async function isPushMessagingSupported() {
@@ -65,7 +67,7 @@ let nativeRegistrationPromise = null;
 async function getNativePushToken() {
   if (!nativeRegistrationPromise) {
     nativeRegistrationPromise = (async () => {
-      const plugin = await pushNotificationsPlugin();
+      const { plugin } = await pushNotificationsPlugin();
       const token = await new Promise((resolve) => {
         const timeoutId = setTimeout(() => resolve(""), 15000);
         plugin.addListener("registration", (result) => {
@@ -94,7 +96,7 @@ async function getNativePushToken() {
 }
 
 async function syncNativePushToken({ requestPermission = false } = {}) {
-  const plugin = await pushNotificationsPlugin();
+  const { plugin } = await pushNotificationsPlugin();
   let status = await plugin.checkPermissions();
   if (requestPermission && status.receive !== "granted") {
     status = await plugin.requestPermissions();
@@ -237,7 +239,7 @@ export async function syncPushToken({ requestPermission = false } = {}) {
 export async function clearPushToken() {
   if (IS_NATIVE) {
     try {
-      const plugin = await pushNotificationsPlugin();
+      const { plugin } = await pushNotificationsPlugin();
       await plugin.unregister(); // supprime le token FCM (Android) / désenregistre APNs (iOS)
       nativeRegistrationPromise = null;
       return true;
@@ -267,7 +269,7 @@ function payloadBody(payload) {
 export async function bindForegroundPushMessages(handler = null) {
   if (IS_NATIVE) {
     try {
-      const plugin = await pushNotificationsPlugin();
+      const { plugin } = await pushNotificationsPlugin();
       // Reproduit la forme de payload FCM web pour ne rien changer côté hooks
       const toWebPayload = (notification) => ({
         notification: {

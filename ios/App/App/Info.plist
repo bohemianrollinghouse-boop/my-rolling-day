@@ -3,7 +3,14 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>fr</string>
+	<!-- Localisations déclarées : sans elles, iOS affiche ses menus système
+	     (Coller / Remplissage auto, alertes…) en anglais quel que soit le
+	     réglage du téléphone. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>fr</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>My Rolling Day</string>
 	<key>CFBundleExecutable</key>
@@ -33,6 +40,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>L'appareil photo permet de prendre une photo pour illustrer une recette.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Le micro permet de passer à l'étape suivante à la voix pendant le mode cuisine.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>La reconnaissance vocale permet de contrôler la lecture des recettes sans toucher l'écran.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>La photothèque permet de choisir une photo pour illustrer une recette.</string>
 	<key>UILaunchStoryboardName</key>

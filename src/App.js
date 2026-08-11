@@ -48,7 +48,7 @@ import {
 import { checkReset, createMealShell } from "./utils/state.js";
 import { parseImportedState, shouldShowNotifPrompt, markNotifPromptGranted, markNotifPromptDismissed, getNotifPromptDismissCount } from "./utils/storage.js";
 import { Capacitor } from "@capacitor/core";
-import { initNotifications } from "./utils/notify.js";
+import { initNotifications, requestNotificationPermission } from "./utils/notify.js";
 import { applyStatusBarTheme } from "./utils/statusBar.js";
 import { usePlannerSync } from "./hooks/usePlannerSync.js";
 import { useAuth } from "./hooks/useAuth.js";
@@ -153,6 +153,9 @@ export function App() {
   const [postOnboardingState, setPostOnboardingState] = useState(null);
   const [postOnboardingInviteCodes, setPostOnboardingInviteCodes] = useState([]);
   const pendingPostOnboardingRef = useRef(null);
+  // Connexion explicite (bouton) dans cette session — déclenche la proposition
+  // de notifications une fois le foyer chargé.
+  const justLoggedInRef = useRef(false);
   const [settingsAutoOpenAddPersonSignal, setSettingsAutoOpenAddPersonSignal] = useState(0);
   const [settingsSupportPage, setSettingsSupportPage] = useState("");
   const [settingsSubPage, setSettingsSubPage] = useState("main");
@@ -187,13 +190,21 @@ export function App() {
       document.querySelector(".mrd-home")?.scrollTo(0, 0);
       if (pending.inviteCodes.length) setPostOnboardingInviteCodes(pending.inviteCodes);
       if (pending.notifState) setPostOnboardingState(pending.notifState);
-      return;
     }
-    // Re-proposition au lancement de l'app (délai écoulé après un "Plus tard")
+  }, [profileGuardActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Proposition des notifications après une connexion explicite (bouton login),
+  // une fois le foyer chargé — jamais au simple lancement de l'app.
+  // L'autre déclencheur est la fin d'onboarding (pendingPostOnboardingRef ci-dessus).
+  useEffect(() => {
+    if (!justLoggedInRef.current) return;
+    if (bootLoading || !user) return;
+    if (profileGuardActive || !currentFamilyId) return; // pas de foyer → onboarding s'en charge
+    justLoggedInRef.current = false;
     if (shouldShowNotifPrompt()) {
       setPostOnboardingState("notify");
     }
-  }, [profileGuardActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bootLoading, user, currentFamilyId, profileGuardActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canDiscardPendingSignup = pendingSignupSetup && !currentFamilyId && !linkedPerson?.id;
   const needsActivePersonChoice = plannerUnlocked && deviceMode === "shared" && !activeHouseholdPerson;
@@ -936,12 +947,14 @@ export function App() {
         onGoogleLogin=${() => {
           setPendingSignupSetup(false);
           setPendingSignupDraftName("");
+          justLoggedInRef.current = true;
           return runAuth(() => signInWithGoogle());
         }}
         onEmailLogin=${(form) => {
           setAuthEntryPage("login");
           setPendingSignupSetup(false);
           setPendingSignupDraftName("");
+          justLoggedInRef.current = true;
           return runAuth(() => signInWithEmail(form.email, form.password));
         }}
         onEmailSignup=${(form) => {
@@ -1540,8 +1553,12 @@ export function App() {
           dismissCount=${getNotifPromptDismissCount()}
           onActivate=${async () => {
             markNotifPromptGranted();
-            try { await requestPushPermission(); } catch (_) {}
+            // 1. Dialog OS seul (rapide) — la modale se ferme dès la réponse.
+            try { await requestNotificationPermission(); } catch (_) {}
             setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
+            // 2. Enregistrement du token push (peut prendre plusieurs secondes
+            //    en natif : APNs) — en arrière-plan, sans bloquer la modale.
+            requestPushPermission().catch(() => {});
           }}
           onLater=${() => {
             markNotifPromptDismissed();

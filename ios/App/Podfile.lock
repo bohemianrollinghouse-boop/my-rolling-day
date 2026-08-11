@@ -11,6 +11,12 @@ PODS:
     - Capacitor
   - CapacitorClipboard (6.0.3):
     - Capacitor
+  - CapacitorCommunityKeepAwake (5.0.1):
+    - Capacitor
+  - CapacitorCommunitySpeechRecognition (6.0.1):
+    - Capacitor
+  - CapacitorCommunityTextToSpeech (5.1.0):
+    - Capacitor
   - CapacitorCordova (6.2.1)
   - CapacitorFilesystem (6.0.4):
     - Capacitor
@@ -38,6 +44,9 @@ DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorClipboard (from `../../node_modules/@capacitor/clipboard`)"
+  - "CapacitorCommunityKeepAwake (from `../../node_modules/@capacitor-community/keep-awake`)"
+  - "CapacitorCommunitySpeechRecognition (from `../../node_modules/@capacitor-community/speech-recognition`)"
+  - "CapacitorCommunityTextToSpeech (from `../../node_modules/@capacitor-community/text-to-speech`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
   - "CapacitorLocalNotifications (from `../../node_modules/@capacitor/local-notifications`)"
@@ -60,6 +69,12 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/app"
   CapacitorClipboard:
     :path: "../../node_modules/@capacitor/clipboard"
+  CapacitorCommunityKeepAwake:
+    :path: "../../node_modules/@capacitor-community/keep-awake"
+  CapacitorCommunitySpeechRecognition:
+    :path: "../../node_modules/@capacitor-community/speech-recognition"
+  CapacitorCommunityTextToSpeech:
+    :path: "../../node_modules/@capacitor-community/text-to-speech"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFilesystem:
@@ -80,6 +95,9 @@ SPEC CHECKSUMS:
   Capacitor: c95400d761e376be9da6be5a05f226c0e865cebf
   CapacitorApp: a19ccb4f5f32d2534be5c6f524d5a9b614a1e8a7
   CapacitorClipboard: 6479f3d5c20e5f985cb72e620e11f20a351777e2
+  CapacitorCommunityKeepAwake: 6ca8e4c8db46f0cf99e33f1ca1162fbc97c8611e
+  CapacitorCommunitySpeechRecognition: 73be1a178a23856d9706886d5f40ef06a6055438
+  CapacitorCommunityTextToSpeech: ed295743e9163fd4f8370a48ab4ae144fc7127c3
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
   CapacitorFilesystem: 5b9aec35c0212bd0064e26d278c93e925864f212
   CapacitorLocalNotifications: 801867e687c42dd2b33c1e22e08f48e6738d2f72
@@ -91,6 +109,6 @@ SPEC CHECKSUMS:
   GTMAppAuth: 0ff230db599948a9ad7470ca667337803b3fc4dd
   GTMSessionFetcher: 3a63d75eecd6aa32c2fc79f578064e1214dfdec2
 
-PODFILE CHECKSUM: 3ca0bbe97126d4877b4f4622986e91c09d4bc5a2
+PODFILE CHECKSUM: bf94a347517c32c4187588759819b4271f02f286
 
 COCOAPODS: 1.16.2

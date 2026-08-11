@@ -209,6 +209,8 @@ function normalizeRecipeIngredient(item, index) {
     name: String(item?.name || item?.text || "").trim(),
     quantity: String(item?.quantity || "").trim(),
     unit: normalizeRecipeUnit(item?.unit),
+    // Groupe optionnel (« Pour la pâte », « Pour la meringue »…) — "" = aucun
+    group: String(item?.group || "").trim(),
   };
 }
 

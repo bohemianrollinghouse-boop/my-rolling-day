@@ -23,11 +23,14 @@ function maskedIconStyle(src, size, color) {
     display: "block",
     flexShrink: 0,
     background: color,
-    WebkitMaskImage: `url(${src})`,
+    // Guillemets OBLIGATOIRES : Vite inline ces SVG en data URI contenant des
+    // apostrophes — sans guillemets la propriété est invalide et le masque
+    // saute (symptôme : carré de couleur pleine à la place de l'icône).
+    WebkitMaskImage: `url("${src}")`,
     WebkitMaskRepeat: "no-repeat",
     WebkitMaskPosition: "center",
     WebkitMaskSize: "contain",
-    maskImage: `url(${src})`,
+    maskImage: `url("${src}")`,
     maskRepeat: "no-repeat",
     maskPosition: "center",
     maskSize: "contain",

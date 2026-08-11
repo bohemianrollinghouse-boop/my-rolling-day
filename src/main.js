@@ -6,15 +6,25 @@ if (window.__pushBootLog) {
   window.__pushBootLog("main-imported", "main.js charge");
 }
 
+// Overlay d'erreur SÉPARÉ de #root : écraser innerHTML du conteneur React
+// détruisait son DOM → cascade d'erreurs removeChild qui masquait l'erreur
+// d'origine. On affiche la première erreur (la cause) et on ne l'écrase pas.
+let fatalOverlayShown = false;
 function showFatalError(message) {
-  const root = document.getElementById("root");
-  if (!root) return;
-  root.innerHTML = `
-    <div style="min-height:100vh;padding:24px;font-family:DM Sans,sans-serif;background:#fff7f7;color:#8f1d1d">
-      <h1 style="margin-bottom:12px;font-size:22px">Erreur visible</h1>
-      <pre style="white-space:pre-wrap">${String(message || "Erreur inconnue")}</pre>
-    </div>
-  `;
+  if (fatalOverlayShown) return; // la première erreur est la vraie cause
+  fatalOverlayShown = true;
+  const overlay = document.createElement("div");
+  overlay.id = "mrd-fatal-overlay";
+  overlay.style.cssText =
+    "position:fixed;inset:0;z-index:99999;overflow:auto;padding:24px;padding-top:max(24px, env(safe-area-inset-top));font-family:DM Sans,sans-serif;background:#fff7f7;color:#8f1d1d";
+  const title = document.createElement("h1");
+  title.style.cssText = "margin-bottom:12px;font-size:22px";
+  title.textContent = "Erreur visible";
+  const pre = document.createElement("pre");
+  pre.style.cssText = "white-space:pre-wrap;font-size:13px";
+  pre.textContent = String(message || "Erreur inconnue");
+  overlay.append(title, pre);
+  document.body.appendChild(overlay);
 }
 
 window.addEventListener("error", (event) => {
@@ -28,7 +38,10 @@ window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason;
   // Suppress Firebase / push-messaging rejections silently — they're non-fatal.
   if (reason?.code?.startsWith?.("messaging/") || reason?.name === "FirebaseError") return;
-  showFatalError(reason?.stack || reason?.message || reason);
+  // WebKit n'inclut pas le message dans error.stack — on concatène pour diagnostiquer.
+  const detail = [reason?.message, reason?.code, reason?.stack].filter(Boolean).join("\n");
+  console.error("[fatal] unhandledrejection:", reason?.message || reason, reason?.code || "");
+  showFatalError(detail || reason);
 });
 
 const root = createRoot(document.getElementById("root"));

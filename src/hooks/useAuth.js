@@ -338,6 +338,8 @@ export function useAuth() {
 
     let cacheTimeoutId = null;
 
+    let lastProvisionalProfile = null;
+
     const unsubscribe = watchUserProfile(
       user.uid,
       (profile, fromCache) => {
@@ -350,15 +352,28 @@ export function useAuth() {
           cacheTimeoutId = null;
           setProfileFetched(true);
           setStartupStage("ready");
-        } else if (cacheTimeoutId === null) {
-          // Cache snapshot arrived but server hasn't responded yet.
-          // If the server doesn't confirm within 6 s (offline / very slow network),
-          // unblock the spinner with cached data rather than spinning forever.
-          cacheTimeoutId = setTimeout(() => {
-            if (!active) return;
-            setProfileFetched(true);
-            setStartupStage("ready");
-          }, 6000);
+        } else {
+          lastProvisionalProfile = profile;
+          if (cacheTimeoutId === null) {
+            // Cache snapshot arrived but server hasn't responded yet.
+            // If the server doesn't confirm within 6 s (offline / very slow
+            // network), unblock the spinner with cached data — MAIS uniquement
+            // si ces données provisoires portent déjà un foyer. Un profil
+            // provisoire sans currentFamilyId (ex. le write partiel
+            // d'ensureUserProfile au login) routerait vers « créer/rejoindre
+            // un foyer », où l'utilisateur peut créer un doublon. Dans ce cas
+            // on reste sur le splash jusqu'à la confirmation serveur.
+            cacheTimeoutId = setTimeout(() => {
+              if (!active) return;
+              const hasFamilyHint = Boolean(
+                lastProvisionalProfile?.currentFamilyId ||
+                (Array.isArray(lastProvisionalProfile?.familyIds) && lastProvisionalProfile.familyIds.length),
+              );
+              if (!hasFamilyHint) return;
+              setProfileFetched(true);
+              setStartupStage("ready");
+            }, 6000);
+          }
         }
       },
       (error) => {

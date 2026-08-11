@@ -496,7 +496,10 @@ button { cursor: pointer; }
 .tab { flex: 0 0 auto; white-space: nowrap; touch-action: pan-x; padding: 10px 14px; border: 1px solid transparent; background: oklch(100% 0 0 / 0.55); color: var(--mrd-fg2); font-size: 12px; font-weight: 700; border-radius: 999px; box-shadow: inset 0 0 0 1px oklch(91% 0.015 70 / 0.35); transition: transform .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease; }
 .tab.on { background: var(--mrd-white); color: var(--mrd-fg); border-color: oklch(89% 0.06 22 / 0.6); box-shadow: 0 6px 18px oklch(27% 0.05 48 / 0.08), inset 0 0 0 1px oklch(89% 0.06 22 / 0.45); }
 .tab:active { transform: scale(0.98); }
-.cnt { width: 100%; max-width: 100%; margin: 0; padding: 12px 12px 80px; overflow-x: hidden; overflow-y: auto; flex: 1; }
+/* Dégagement bas = hauteur réelle de la tab bar + home indicator (safe area),
+   sinon le bas des pages passe sous les icônes du menu (constaté en création
+   de recette sur iPhone). */
+.cnt { width: 100%; max-width: 100%; margin: 0; padding: 12px 12px calc(96px + env(safe-area-inset-bottom, 0px)); overflow-x: hidden; overflow-y: auto; flex: 1; }
 .topbar { max-width: 900px; margin: 0 auto; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sh { justify-content: space-between; margin-bottom: 10px; }
 .st { font-size: 22px; font-weight: 700; }
@@ -2979,7 +2982,10 @@ html[data-theme="dark"] .mrd-shell .rcard-recipe-thumb {
   display: flex;
   flex-direction: column;
   gap: var(--mrd-sp);
-  padding: 0 var(--mrd-sp) 88px;
+  padding: 0 var(--mrd-sp) calc(96px + env(safe-area-inset-bottom, 0px));
+  /* overflow-y:auto rend overflow-x scrollable par défaut — un menu flottant
+     qui déborde ferait alors glisser toute la page horizontalement */
+  overflow-x: hidden;
 }
 /* Carte héros = .mrd-meal-card + espacements internes */
 .mrd-shell .recipe-sheet .recipe-sheet-hero.mrd-meal-card {
@@ -3419,6 +3425,7 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
   border-radius: 12px;
   box-shadow: 0 8px 32px oklch(27% 0.05 48 / 0.14);
   min-width: 160px;
+  max-width: calc(100vw - 24px);
   overflow: hidden;
   animation: mrdDropFade 0.13s ease;
 }
@@ -5340,7 +5347,7 @@ html[data-theme="dark"] .notif-prompt-btn-secondary:hover { background: #332A24;
 /* ── Dark : auth-shell / onboarding-shell fond ── */
 html[data-theme="dark"] .auth-shell,
 html[data-theme="dark"] .onboarding-shell,
-html[data-theme="dark"] .notif-prompt-overlay { background: #100E0C; }
+html[data-theme="dark"] .notif-prompt-overlay { background: oklch(12% 0.015 50 / 0.65); }
 
 /* ── Dark : inputs auth/onboarding (surcharge contexte mrd-shell) ── */
 html[data-theme="dark"] .auth-input,
@@ -5564,38 +5571,8 @@ html[data-theme="dark"] .auth-back:hover { background: #342D27; color: #F5EBDD; 
   border-radius: 20px;
 }
 
-.notif-prompt-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  overflow-y: auto;
-  background: #F7F2EC;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  align-items: flex-start;
-  padding: calc(34px + env(safe-area-inset-top, 0px)) 18px calc(28px + env(safe-area-inset-bottom, 0px));
-}
-
-.notif-prompt-card {
-  width: 100%;
-  max-width: 430px;
-  min-height: calc(100dvh - 62px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-  margin: 0 auto;
-  justify-content: center;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 24px 0;
-}
-
-.notif-prompt-title {
-  color: #3E2C1C;
-  font-size: clamp(32px, 8vw, 42px);
-}
-
-.notif-prompt-body {
-  max-width: 380px;
-}
+/* (L'ancien override "plein écran" du prompt notifications a été retiré :
+   c'est une modale — le style de référence vit plus haut, .notif-prompt-*.) */
 
 @media (min-width: 720px) {
   .auth-shell,
@@ -6150,7 +6127,7 @@ html[data-theme="dark"] .initial-members-finish { background: #342D27; border-co
 /* Fond des shells plein-écran */
 html[data-theme="dark"] .auth-shell,
 html[data-theme="dark"] .onboarding-shell { background: #100E0C; }
-html[data-theme="dark"] .notif-prompt-overlay { background: #100E0C; }
+html[data-theme="dark"] .notif-prompt-overlay { background: oklch(12% 0.015 50 / 0.65); }
 
 /* Bouton retour fixé */
 html[data-theme="dark"] .auth-back { background: #2B241F; border-color: #40362E; color: #CDB8A5; }
@@ -6990,3 +6967,111 @@ html[data-theme="dark"] .ibx-date-input { background: oklch(22% 0.03 48); border
 html[data-theme="dark"] .ibx-home-section { background: oklch(22% 0.03 48); border-color: oklch(32% 0.03 48); }
 html[data-theme="dark"] .ibx-home-hd { border-bottom-color: oklch(28% 0.02 48); }
 html[data-theme="dark"] .ibx-home-row { border-bottom-color: oklch(28% 0.02 48); }
+
+/* ── Import de recette depuis un site ─────────────────────────── */
+.recipe-import-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.recipe-import-title { font-size: 13px; font-weight: 700; color: var(--mrd-fg2); }
+.recipe-import-row { display: flex; gap: 8px; align-items: center; }
+.recipe-import-input { flex: 1; min-width: 0; }
+.recipe-import-btn { flex-shrink: 0; padding: 10px 16px; }
+.recipe-import-btn:disabled { opacity: 0.5; }
+.recipe-import-status { font-size: 12.5px; color: var(--mrd-fg3); }
+.recipe-import-status--ok { color: var(--mrd-sage, #5E7A6B); }
+.recipe-import-status--warn { color: #B07D2B; }
+.recipe-import-status--error { color: #B3423A; }
+
+/* ── Groupes d'ingrédients ─────────────────────────────────────── */
+.recipe-sheet-ing-group {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--mrd-fg3); margin: 14px 0 4px;
+  /* 12px à gauche = aligné sur le texte des lignes d'ingrédients (padding: 12px) */
+  padding: 0 12px 4px;
+  border-bottom: 1px solid var(--mrd-borderSoft);
+}
+.recipe-sheet-ing-group:first-child { margin-top: 4px; }
+.recipe-edit-ing-group-inp { margin-top: 8px; width: 100%; font-size: 13px; }
+
+/* ── Modale de progression de l'import ─────────────────────────── */
+.recipe-import-modal-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: oklch(27% 0.05 48 / 0.5);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; padding: 28px;
+}
+.recipe-import-modal {
+  width: min(340px, 100%); background: var(--mrd-surf);
+  border-radius: 22px; border: 1px solid var(--mrd-borderSoft);
+  box-shadow: 0 28px 80px oklch(27% 0.05 48 / 0.25);
+  padding: 26px 22px 22px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  animation: mrdSlideUp 0.22s ease;
+}
+.recipe-import-modal-icon { font-size: 34px; line-height: 1; }
+.recipe-import-modal-title { font-size: 17px; font-weight: 700; color: var(--mrd-fg); }
+.recipe-import-progress {
+  width: 100%; height: 8px; border-radius: 999px;
+  background: var(--mrd-surf2); overflow: hidden;
+}
+.recipe-import-progress-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--mrd-a), var(--mrd-sage, #5E7A6B));
+  transition: width 0.6s ease;
+  background-size: 200% 100%;
+  animation: recipeImportShimmer 1.6s linear infinite;
+}
+.recipe-import-progress--error .recipe-import-progress-fill { background: #B3423A; animation: none; }
+.recipe-import-progress--warn .recipe-import-progress-fill { background: #B07D2B; animation: none; }
+@keyframes recipeImportShimmer { 0% { background-position: 0% 0; } 100% { background-position: -200% 0; } }
+.recipe-import-modal-label { font-size: 13px; color: var(--mrd-fg2); line-height: 1.5; min-height: 20px; }
+.recipe-import-modal-close { width: 100%; margin-top: 4px; }
+html[data-theme="dark"] .recipe-import-modal { background: #2B241F; border-color: #40362E; }
+@media (prefers-reduced-motion: reduce) { .recipe-import-progress-fill { animation: none; } }
+
+/* Icône de catégorie centrée dans la vignette des cartes recettes (fallback sans photo) */
+.mrd-shell .recipes-page .rcard-recipe-thumb { display: flex; align-items: center; justify-content: center; }
+
+/* ══ Mode cuisine vocal (VoiceCookingMode) ══════════════════════ */
+.voice-cook-overlay { position: fixed; inset: 0; z-index: 9990; background: var(--mrd-bg); display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top, 0px) + 12px) 20px calc(env(safe-area-inset-bottom, 0px) + 28px); }
+.voice-cook-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; position: relative; z-index: 3; }
+.voice-cook-title { font-family: var(--mrd-serif); font-weight: 600; font-size: 20px; color: var(--mrd-fg); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-cook-close { border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); border-radius: 50%; width: 32px; height: 32px; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+.voice-cook-progress { display: flex; gap: 6px; justify-content: center; margin: 14px 0 6px; flex-wrap: wrap; flex-shrink: 0; }
+.voice-cook-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mrd-border); transition: background .2s, transform .2s; }
+.voice-cook-dot.past { background: var(--mrd-fg2); }
+.voice-cook-dot.on { background: var(--mrd-a); transform: scale(1.35); }
+.voice-cook-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; min-height: 0; overflow-y: auto; padding: 8px 4px; }
+.voice-cook-step-count { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--mrd-fg2); }
+.voice-cook-step-text { font-family: var(--mrd-serif); font-size: 24px; line-height: 1.35; color: var(--mrd-fg); font-weight: 500; margin: 0; max-width: 34em; }
+.voice-cook-status { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--mrd-fg2); flex-shrink: 0; min-height: 24px; }
+.voice-cook-status--listening, .voice-cook-status--ack { color: var(--mrd-a); }
+.voice-cook-status--done { color: var(--mrd-fg); }
+.voice-cook-status-icon { font-size: 16px; }
+.voice-cook-controls { display: flex; gap: 8px; margin-top: 14px; flex-shrink: 0; position: relative; z-index: 3; }
+.voice-cook-btn { flex: 1; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg); border-radius: 14px; padding: 13px 8px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: "DM Sans", sans-serif; }
+.voice-cook-btn:disabled { opacity: .4; cursor: default; }
+.voice-cook-btn--main { background: var(--mrd-a); border-color: var(--mrd-a); color: #fff; }
+.voice-cook-empty { margin: auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; color: var(--mrd-fg2); font-size: 14px; }
+.voice-cook-empty-emoji { font-size: 40px; }
+.voice-cook-launch { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border: none; border-radius: 14px; background: var(--mrd-a); color: #fff; font-size: 14px; font-weight: 700; padding: 13px 12px; cursor: pointer; margin-bottom: 12px; font-family: "DM Sans", sans-serif; }
+html[data-theme="dark"] .voice-cook-overlay { background: var(--mrd-bg); }
+html[data-theme="dark"] .voice-cook-close, html[data-theme="dark"] .voice-cook-btn { background: #2B241F; border-color: #40362E; }
+
+/* ── Voile d'écoute : logo splash animé sur fond flouté ───────── */
+.voice-listen-veil { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: oklch(97% 0.012 72 / .55); backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1); animation: voiceVeilIn 220ms ease forwards; }
+@keyframes voiceVeilIn { from { opacity: 0; } to { opacity: 1; } }
+.voice-listen-center { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 0 24px; }
+.voice-listen-mark { position: relative; width: 132px; height: 132px; }
+.voice-listen-mark svg { display: block; }
+.voice-listen-ring { transform-origin: 48px 48px; transform-box: view-box; animation: splRotate 8s linear infinite; }
+.voice-listen-dot { transform-origin: 48px 48px; transform-box: view-box; animation: splRotate 8s linear infinite; }
+.voice-listen-inner { transform-origin: 48px 48px; transform-box: view-box; animation: voiceListenBreath 1.6s ease-in-out infinite; }
+@keyframes voiceListenBreath { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.09); opacity: .75; } }
+.voice-listen-mic { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; color: #B85F4A; font-weight: 700; }
+.voice-listen-label { font-family: var(--mrd-serif); font-size: 22px; font-weight: 600; color: var(--mrd-fg); letter-spacing: -0.01em; }
+.voice-listen-hint { font-size: 12px; color: var(--mrd-fg2); opacity: .85; }
+.voice-listen-heard { font-size: 13px; color: var(--mrd-fg2); font-style: italic; }
+html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55); }
+@media (prefers-reduced-motion: reduce) {
+  .voice-listen-ring, .voice-listen-dot, .voice-listen-inner { animation: none; }
+  .voice-listen-veil { animation: none; opacity: 1; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+}

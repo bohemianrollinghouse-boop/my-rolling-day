@@ -23,9 +23,13 @@ function mapNativePermission(display) {
   return "default"; // "prompt" / "prompt-with-rationale"
 }
 
+// ⚠️ Ne jamais retourner/résoudre le proxy du plugin directement : les promesses
+// sondent `.then` sur la valeur, et le proxy Capacitor fabrique une méthode
+// native "then()" → rejet "not implemented" + promesse qui ne se résout jamais.
+// On retourne le namespace du module et on déréférence à l'appel.
 async function localNotifications() {
   const module = await import("@capacitor/local-notifications");
-  return module.LocalNotifications;
+  return { plugin: module.LocalNotifications };
 }
 
 /** Lecture synchrone — même contrat que l'ancien `Notification.permission`. */
@@ -39,7 +43,7 @@ export function getNotificationPermissionState() {
 export async function refreshNotificationPermissionState() {
   if (!isNative) return getNotificationPermissionState();
   try {
-    const plugin = await localNotifications();
+    const { plugin } = await localNotifications();
     const status = await plugin.checkPermissions();
     cachedNativePermission = mapNativePermission(status.display);
   } catch (error) {
@@ -55,7 +59,7 @@ export async function requestNotificationPermission() {
     return Notification.requestPermission();
   }
   try {
-    const plugin = await localNotifications();
+    const { plugin } = await localNotifications();
     const status = await plugin.requestPermissions();
     cachedNativePermission = mapNativePermission(status.display);
   } catch (error) {
@@ -68,7 +72,7 @@ async function bindNativeClickListener() {
   if (clickListenerBound) return;
   clickListenerBound = true;
   try {
-    const plugin = await localNotifications();
+    const { plugin } = await localNotifications();
     await plugin.addListener("localNotificationActionPerformed", (event) => {
       const handler = clickHandlers.get(event?.notification?.id);
       if (handler) {
@@ -105,7 +109,7 @@ export async function showAppNotification(title, { body = "", onClick = null } =
 
   if (cachedNativePermission !== "granted") return;
   try {
-    const plugin = await localNotifications();
+    const { plugin } = await localNotifications();
     const id = nextNotificationId;
     nextNotificationId = (nextNotificationId % 100000) + 1;
     if (typeof onClick === "function") {

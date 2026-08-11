@@ -2,7 +2,9 @@ import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
 import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/productUtils.js";
 import { CONDIMENTS, CONDIMENT_ESSENTIALS } from "../../data/condiments.js";
 import { CategoryIcon, categoryToneClass } from "./CategoryIcons.js";
+import { VoiceCookingMode, parseMethodSteps } from "./VoiceCookingMode.js";
 import drinkFallbackIllustration from "../../assets/recipe-drink-fallback.svg";
+import { scrapeRecipeFromUrl, categorizeRecipe, importErrorMessage } from "../../firebase/clientRecipes.js";
 
 const DRINK_FALLBACK_ILLUSTRATION = drinkFallbackIllustration;
 
@@ -79,8 +81,24 @@ const UNITS = [
   { value: "l", label: "l" },
 ];
 
-function defaultIngredientDraft() {
-  return { name: "", quantity: "", unit: "" };
+function defaultIngredientDraft(group = "") {
+  return { name: "", quantity: "", unit: "", group };
+}
+
+/** Regroupe les ingrédients par `group` en conservant l'ordre d'apparition. */
+function groupIngredients(ingredients) {
+  const groups = [];
+  const byName = new Map();
+  for (const item of ingredients) {
+    const key = String(item.group || "").trim();
+    if (!byName.has(key)) {
+      const entry = { group: key, items: [] };
+      byName.set(key, entry);
+      groups.push(entry);
+    }
+    byName.get(key).items.push(item);
+  }
+  return groups;
 }
 
 function defaultRecipeForm() {
@@ -105,6 +123,7 @@ function normalizeRecipeIngredient(item, index) {
     name: String(item?.name || "").trim(),
     quantity: String(item?.quantity || "").trim(),
     unit: String(item?.unit || "").trim(),
+    group: String(item?.group || "").trim(),
   };
 }
 
@@ -267,6 +286,23 @@ function fmtScaledQty(quantity, ratio) {
   return result.toFixed(1).replace(".", ",");
 }
 
+/** Comme compressImageToBase64, mais depuis une data URL (image importée d'un site). */
+function compressImageDataUrl(dataUrl, maxSize = 300, quality = 0.60) {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+      const canvas = document.createElement("canvas");
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve("");
+    img.src = dataUrl;
+  });
+}
+
 /** Redimensionne et compresse une image en JPEG base64 (max 300×300, qualité 0.60). */
 function compressImageToBase64(file, maxSize = 300, quality = 0.60) {
   return new Promise((resolve) => {
@@ -313,7 +349,28 @@ export function RecipesView({
   const [photoError, setPhotoError] = useState("");
   const photoInputRef = useRef(null);
   const [openDropdown, setOpenDropdown] = useState(null); // "category" | "foodType" | "avail" | "constraints" | null
+
+  // Recale le menu flottant dans la fenêtre : ancré left:0 sur sa capsule, il
+  // déborde à droite quand la capsule est en fin de rangée (ex. Spécialités).
+  useEffect(() => {
+    if (!openDropdown) return;
+    const el = document.querySelector(".recipe-edit-float");
+    if (!el) return;
+    el.style.left = "";
+    const MARGIN = 12;
+    const rect = el.getBoundingClientRect();
+    const overflowRight = rect.right - (window.innerWidth - MARGIN);
+    const overflowLeft = MARGIN - rect.left;
+    if (overflowRight > 0) el.style.left = `${-overflowRight}px`;
+    else if (overflowLeft > 0) el.style.left = `${overflowLeft}px`;
+  }, [openDropdown]);
   const [form, setForm] = useState(defaultRecipeForm());
+
+  /* ── Import depuis un site ────────────────────────────────── */
+  const [importUrl, setImportUrl] = useState("");
+  // step : idle | scraping | categorizing | done ; warning = étape 2 échouée (recette quand même remplie)
+  // modal : modale de progression visible ; pct : avancement de la barre
+  const [importState, setImportState] = useState({ step: "idle", error: "", warning: "", modal: false, pct: 0 });
 
   /* ── Ingrédients ──────────────────────────────────────────── */
   const [ingredientDraft, setIngredientDraft] = useState(defaultIngredientDraft());
@@ -330,6 +387,7 @@ export function RecipesView({
   const [sheetRecipeId, setSheetRecipeId] = useState("");
   const [sheetServings, setSheetServings] = useState(4);
   const [sheetTab, setSheetTab] = useState("ingredients");
+  const [voiceCookingOpen, setVoiceCookingOpen] = useState(false);
 
   const productIndex = useMemo(() => {
     const base = Array.isArray(knownProducts) && knownProducts.length ? knownProducts : inventory;
@@ -393,6 +451,7 @@ export function RecipesView({
 
   function closeRecipeSheet() {
     setSheetRecipeId("");
+    setVoiceCookingOpen(false);
   }
 
   function openEditModalFromSheet(recipe) {
@@ -423,6 +482,8 @@ export function RecipesView({
   }
 
   function resetEditState() {
+    setImportUrl("");
+    setImportState({ step: "idle", error: "", warning: "" });
     setPhotoLoading(false);
     setPhotoError("");
     setForm(defaultRecipeForm());
@@ -435,6 +496,103 @@ export function RecipesView({
     setCustomCondimentInput("");
     setEditTab("ingredients");
     setOpenDropdown(null);
+  }
+
+  /* ── Import depuis un site (2 étapes : scraping puis analyse IA) ── */
+  async function handleImportFromUrl() {
+    let url = importUrl.trim();
+    if (!url || importState.step === "scraping" || importState.step === "categorizing") return;
+    // Liens collés sans schéma (« www.hellofresh.fr/… ») → https:// implicite
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+
+    // Étape 1 — récupération de la recette (recipe-scrapers côté serveur)
+    setImportState({ step: "scraping", error: "", warning: "", modal: true, pct: 30 });
+    let scraped;
+    try {
+      scraped = await scrapeRecipeFromUrl(url);
+    } catch (error) {
+      console.error("[recipes] import scrape error", error?.code, error?.message);
+      setImportState({ step: "idle", error: importErrorMessage(error), warning: "", modal: true, pct: 30 });
+      return;
+    }
+
+    // Remplissage de base — les ingrédients bruts servent de filet si l'IA échoue
+    const photo = scraped.image_data_url ? await compressImageDataUrl(scraped.image_data_url) : "";
+    const servingsFromYields = parseInt(String(scraped.yields || "").match(/\d+/)?.[0] || "", 10);
+    const stamp = Date.now();
+    setForm((prev) => ({
+      ...prev,
+      name: scraped.title || prev.name,
+      servings: servingsFromYields >= 1 && servingsFromYields <= 24 ? servingsFromYields : prev.servings,
+      prepTime: scraped.prep_time_min ? String(scraped.prep_time_min) : prev.prepTime,
+      cookTime: scraped.cook_time_min ? String(scraped.cook_time_min) : prev.cookTime,
+      method: scraped.instructions || prev.method,
+      photo: photo || prev.photo,
+      ingredients: (scraped.ingredients || []).map((line, index) => ({
+        id: `recipe-ingredient-${stamp}-${index}`,
+        name: String(line), quantity: "", unit: "", group: "",
+      })),
+    }));
+
+    // Étape 2 — catégorisation par l'IA
+    setImportState({ step: "categorizing", error: "", warning: "", modal: true, pct: 72 });
+    let analysis;
+    try {
+      analysis = await categorizeRecipe(scraped);
+    } catch (error) {
+      console.error("[recipes] import categorize error", error?.code, error?.message);
+      setImportState({
+        step: "done", error: "", modal: true, pct: 72,
+        warning: "Recette récupérée, mais l'analyse IA a échoué — remplis les catégories à la main.",
+      });
+      return;
+    }
+
+    const availability =
+      analysis.availability_mode === "season"
+        ? { availabilityMode: "season", seasons: analysis.seasons, season: analysis.seasons[0], seasonScope: "full", months: [] }
+        : analysis.availability_mode === "months"
+          ? { availabilityMode: "months", months: analysis.months, season: "", seasons: ["spring"] }
+          : { availabilityMode: "all_year", months: [] };
+
+    // Condiments : uniquement des ids connus de l'app
+    const knownCondimentIds = new Set(CONDIMENTS.map((c) => c.id));
+    const condiments = (Array.isArray(analysis.condiments) ? analysis.condiments : [])
+      .filter((id) => knownCondimentIds.has(id));
+
+    // Étapes de préparation : liste numérotée aérée
+    const steps = Array.isArray(analysis.steps) ? analysis.steps.map((s) => String(s).trim()).filter(Boolean) : [];
+    const methodText = steps.length
+      ? steps.map((step, index) => `${index + 1}. ${step}`).join("\n\n")
+      : "";
+
+    const aiStamp = Date.now();
+    setForm((prev) => ({
+      ...prev,
+      ...availability,
+      // Traduction : renseignée uniquement si la recette n'était pas en français
+      name: analysis.title_fr || prev.name,
+      method: methodText || prev.method,
+      category: analysis.category || prev.category,
+      foodType: analysis.food_type || prev.foodType,
+      constraints: Array.isArray(analysis.constraints) ? analysis.constraints : prev.constraints,
+      quick: Boolean(analysis.quick),
+      servings: analysis.servings >= 1 && analysis.servings <= 24 ? analysis.servings : prev.servings,
+      condiments: condiments.length ? [...new Set([...(prev.condiments || []), ...condiments])] : prev.condiments,
+      ingredients: Array.isArray(analysis.ingredients) && analysis.ingredients.length
+        ? analysis.ingredients.map((item, index) => ({
+            id: `recipe-ingredient-${aiStamp}-${index}`,
+            name: String(item.name || "").trim(),
+            quantity: String(item.quantity || "").trim(),
+            unit: String(item.unit || "").trim(),
+            group: String(item.group || "").trim(),
+          })).filter((item) => item.name)
+        : prev.ingredients,
+    }));
+    setImportState({ step: "done", error: "", warning: "", modal: true, pct: 100 });
+    setTimeout(() => {
+      setImportState((current) => (current.step === "done" && !current.warning ? { ...current, modal: false } : current));
+    }, 900);
   }
 
   function closeEditPage() {
@@ -539,7 +697,8 @@ export function RecipesView({
       ...previous,
       ingredients: [...previous.ingredients, normalizeRecipeIngredient(ingredientDraft, previous.ingredients.length)],
     }));
-    setIngredientDraft(defaultIngredientDraft());
+    // Garde le groupe courant : on saisit généralement plusieurs ingrédients par groupe
+    setIngredientDraft(defaultIngredientDraft(ingredientDraft.group));
     setIngredientSuggestions([]);
     setIngredientWarning(null);
     setAllowDuplicateIngredient(false);
@@ -684,7 +843,7 @@ export function RecipesView({
           <div className="mrd-meal-card recipe-sheet-hero">
             ${recipe.photo
               ? html`<div className="recipe-sheet-hero-photo"><img src=${recipe.photo} alt="" /></div>`
-              : html`<div className="recipe-sheet-hero-cat-icon" aria-hidden="true">${renderRecipeFallbackVisual(recipe, "hero", 84)}</div>`}
+              : html`<div className="recipe-sheet-hero-cat-icon" aria-hidden="true">${renderRecipeFallbackVisual(recipe, "hero", 108)}</div>`}
             <h2 className="recipe-sheet-hero-title">${recipe.name}</h2>
             <div className="recipe-sheet-hero-pills">
               ${firstLabelDef
@@ -724,10 +883,15 @@ export function RecipesView({
             ? html`
                 <div className="recipe-sheet-panel recipe-sheet-panel-ingredients">
                   ${ingredients.length
-                    ? ingredients.map((ing, i) => html`
-                        <div key=${ing.id || `ing-${i}`} className="recipe-sheet-ing-row">
-                          <span className="recipe-sheet-ing-name">${ing.name}</span>
-                          <span className="recipe-sheet-ing-qty">${formatQuantityUnit(fmtScaledQty(ing.quantity, ratio), ing.unit)}</span>
+                    ? groupIngredients(ingredients).map((section, sectionIndex) => html`
+                        <div key=${`grp-${sectionIndex}`}>
+                          ${section.group ? html`<div className="recipe-sheet-ing-group">${section.group}</div>` : null}
+                          ${section.items.map((ing, i) => html`
+                            <div key=${ing.id || `ing-${sectionIndex}-${i}`} className="recipe-sheet-ing-row">
+                              <span className="recipe-sheet-ing-name">${ing.name}</span>
+                              <span className="recipe-sheet-ing-qty">${formatQuantityUnit(fmtScaledQty(ing.quantity, ratio), ing.unit)}</span>
+                            </div>
+                          `)}
                         </div>
                       `)
                     : legacyIng
@@ -745,9 +909,20 @@ export function RecipesView({
               `
             : html`
                 <div className="recipe-sheet-panel recipe-sheet-panel-method">
+                  ${parseMethodSteps(recipe.method).length
+                    ? html`
+                        <button type="button" className="voice-cook-launch" onClick=${() => setVoiceCookingOpen(true)}>
+                          🎙 Mode cuisine mains libres
+                        </button>
+                      `
+                    : null}
                   <div className="recipe-sheet-method-text">${recipe.method || "Aucune préparation renseignée."}</div>
                 </div>
               `}
+
+          ${voiceCookingOpen
+            ? html`<${VoiceCookingMode} recipe=${recipe} onClose=${() => setVoiceCookingOpen(false)} />`
+            : null}
 
           ${hasShoppingCta
             ? html`
@@ -813,6 +988,65 @@ export function RecipesView({
           <!-- Backdrop invisible — ferme le dropdown ouvert -->
           ${openDropdown ? html`<div className="recipe-edit-backdrop" onClick=${closeDropdown} />` : null}
 
+          <!-- Import depuis un site (création uniquement) -->
+          ${!isEdit ? html`
+            <div className="mrd-meal-card recipe-import-card">
+              <div className="recipe-import-title">🔗 Importer depuis un site</div>
+              <div className="recipe-import-row">
+                <input
+                  className="ainp recipe-import-input"
+                  type="url"
+                  placeholder="Colle le lien d'une recette (Marmiton, 750g…)"
+                  value=${importUrl}
+                  onInput=${(e) => { setImportUrl(e.target.value); if (importState.error) setImportState({ step: "idle", error: "", warning: "" }); }}
+                  disabled=${importState.step === "scraping" || importState.step === "categorizing"}
+                />
+                <button type="button" className="aok recipe-import-btn"
+                  onClick=${handleImportFromUrl}
+                  disabled=${!importUrl.trim() || importState.step === "scraping" || importState.step === "categorizing"}>
+                  ${importState.step === "scraping" || importState.step === "categorizing" ? "…" : "Importer"}
+                </button>
+              </div>
+              ${importState.step === "done" && !importState.modal && !importState.warning ? html`
+                <div className="recipe-import-status recipe-import-status--ok">✓ Recette importée — vérifie et ajuste avant de créer.</div>` : null}
+              ${!importState.modal && importState.warning ? html`
+                <div className="recipe-import-status recipe-import-status--warn">${importState.warning}</div>` : null}
+              ${!importState.modal && importState.error ? html`
+                <div className="recipe-import-status recipe-import-status--error">${importState.error}</div>` : null}
+            </div>
+
+            <!-- Modale de progression de l'import -->
+            ${importState.modal ? html`
+              <div className="recipe-import-modal-backdrop">
+                <div className="recipe-import-modal">
+                  <div className="recipe-import-modal-icon">${importState.error ? "😕" : importState.warning ? "⚠️" : importState.pct >= 100 ? "✅" : "🔗"}</div>
+                  <div className="recipe-import-modal-title">
+                    ${importState.error ? "Import impossible"
+                      : importState.warning ? "Import partiel"
+                      : importState.pct >= 100 ? "Recette importée !"
+                      : "Import de la recette"}
+                  </div>
+                  <div className=${`recipe-import-progress ${importState.error ? "recipe-import-progress--error" : ""} ${importState.warning ? "recipe-import-progress--warn" : ""}`}>
+                    <div className="recipe-import-progress-fill" style=${{ width: `${importState.pct}%` }}></div>
+                  </div>
+                  <div className="recipe-import-modal-label">
+                    ${importState.error ? importState.error
+                      : importState.warning ? importState.warning
+                      : importState.step === "scraping" ? "Récupération de la recette sur le site…"
+                      : importState.step === "categorizing" ? "Analyse et catégorisation par l'IA…"
+                      : "Vérifie et ajuste avant de créer."}
+                  </div>
+                  ${importState.error || importState.warning ? html`
+                    <button type="button" className="aok recipe-import-modal-close"
+                      onClick=${() => setImportState((current) => ({ ...current, modal: false }))}>
+                      ${importState.warning ? "Continuer" : "Fermer"}
+                    </button>
+                  ` : null}
+                </div>
+              </div>
+            ` : null}
+          ` : null}
+
           <!-- Carte héros compacte -->
           <div className="mrd-meal-card recipe-sheet-hero recipe-sheet-hero--edit">
 
@@ -836,7 +1070,7 @@ export function RecipesView({
                   : form.category === "drink"
                     ? html`
                           <div className="recipe-edit-photo-placeholder recipe-edit-photo-placeholder--drink">
-                           ${renderRecipeFallbackVisual(form, "edit", 56)}
+                           ${renderRecipeFallbackVisual(form, "edit", 72)}
                            <span className="recipe-edit-photo-hint">Ajouter une photo</span>
                           </div>`
                   : html`
@@ -1043,6 +1277,14 @@ export function RecipesView({
                   </select>
                   <button type="button" className="aok recipe-edit-ing-add-btn" onClick=${addIngredient}>+</button>
                 </div>
+                <input className="ainp recipe-edit-ing-group-inp" list="recipe-ing-groups"
+                  placeholder="Groupe (optionnel) — ex : Pour la pâte"
+                  value=${ingredientDraft.group}
+                  onInput=${(e) => setIngredientDraft({ ...ingredientDraft, group: e.target.value })} />
+                <datalist id="recipe-ing-groups">
+                  ${[...new Set(form.ingredients.map((item) => String(item.group || "").trim()).filter(Boolean))]
+                    .map((g) => html`<option key=${g} value=${g}></option>`)}
+                </datalist>
                 ${ingredientWarning && !allowDuplicateIngredient ? html`
                   <div className="ncard" style=${{ padding: "8px 10px", marginTop: "4px" }}>
                     <div className="mini">Similaire : <strong>${ingredientWarning.name}</strong></div>
@@ -1054,17 +1296,22 @@ export function RecipesView({
                 ` : null}
               </div>
 
-              <!-- Liste des ingrédients : nom + quantité empilés -->
+              <!-- Liste des ingrédients : nom + quantité empilés, groupés si besoin -->
               ${form.ingredients.length
-                ? form.ingredients.map((ing, i) => html`
-                    <div key=${ing.id || `ing-${i}`} className="recipe-sheet-ing-row recipe-sheet-ing-row--edit">
-                      <div className="recipe-edit-ing-info">
-                        <span className="recipe-sheet-ing-name">${ing.name}</span>
-                        ${formatQuantityUnit(ing.quantity, ing.unit)
-                          ? html`<span className="recipe-edit-ing-qty-sub">${formatQuantityUnit(ing.quantity, ing.unit)}</span>`
-                          : null}
-                      </div>
-                      <button type="button" className="recipe-sheet-ing-remove" onClick=${() => removeIngredient(ing.id)}>×</button>
+                ? groupIngredients(form.ingredients).map((section, sectionIndex) => html`
+                    <div key=${`edit-grp-${sectionIndex}`}>
+                      ${section.group ? html`<div className="recipe-sheet-ing-group">${section.group}</div>` : null}
+                      ${section.items.map((ing, i) => html`
+                        <div key=${ing.id || `ing-${sectionIndex}-${i}`} className="recipe-sheet-ing-row recipe-sheet-ing-row--edit">
+                          <div className="recipe-edit-ing-info">
+                            <span className="recipe-sheet-ing-name">${ing.name}</span>
+                            ${formatQuantityUnit(ing.quantity, ing.unit)
+                              ? html`<span className="recipe-edit-ing-qty-sub">${formatQuantityUnit(ing.quantity, ing.unit)}</span>`
+                              : null}
+                          </div>
+                          <button type="button" className="recipe-sheet-ing-remove" onClick=${() => removeIngredient(ing.id)}>×</button>
+                        </div>
+                      `)}
                     </div>
                   `)
                 : html`<div className="recipe-sheet-empty-block">Aucun ingrédient ajouté.</div>`}
@@ -1349,7 +1596,7 @@ export function RecipesView({
                       <div className="rcard-recipe-thumb" aria-hidden="true">
                         ${recipe.photo
                           ? html`<img src=${recipe.photo} alt="" />`
-                          : renderRecipeFallbackVisual(recipe, "thumb", 64)}
+                          : renderRecipeFallbackVisual(recipe, "thumb", 84)}
                       </div>
                       <div className="rcard-recipe-info">
                         <div className="rcard-recipe-name">${recipe.name || "Sans titre"}</div>

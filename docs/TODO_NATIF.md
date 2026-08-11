@@ -119,7 +119,13 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
   `browserLocalPersistence` (localStorage purgeable par iOS).
 - **`getRedirectResult` sauté en natif** (`useAuth.js`) — le flux redirect
   n'existe pas avec le dialog Google natif.
-- **Firestore** : `experimentalForceLongPolling` → `experimentalAutoDetectLongPolling`.
+- **Firestore** : ~~`experimentalForceLongPolling` → `experimentalAutoDetectLongPolling`~~
+  **ANNULÉ le 9 août — ne pas retenter.** En WKWebView les streams WebChannel
+  échouent et l'auto-détection met 30-60 s à basculer en long polling : constaté
+  sur device, ~1 min bloqué sur « créer/rejoindre un foyer » après login. Le
+  long polling forcé est le bon réglage pour cette app. En complément, le
+  fallback 6 s de `useAuth` ne promeut plus un profil provisoire **sans foyer**
+  (il routerait vers créer/rejoindre, avec risque de foyer en doublon).
 - **Polices embarquées** : Cormorant Garamond 700 + DM Sans variable (latin,
   woff2 auto-hébergés), plus aucune requête `fonts.googleapis.com`.
 - **Plugins installés** : app, local-notifications, push-notifications,

@@ -1,25 +1,41 @@
 import { initializeApp } from "firebase/app";
 import {
   GoogleAuthProvider,
+  browserLocalPersistence,
   getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
 } from "firebase/auth";
 import {
   initializeFirestore,
   persistentLocalCache,
 } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
+import { Capacitor } from "@capacitor/core";
 import { FIREBASE_CONFIG, MEMBER_COLORS } from "../constants.js";
 
 // ── Initialisation Firebase (singleton) ───────────────────────────────────
 
 const app = initializeApp(FIREBASE_CONFIG);
 
-export const auth = getAuth(app);
+// Natif : getAuth() embarque browserPopupRedirectResolver, qui charge une
+// iframe apis.google.com au boot — sur origine capacitor:// elle échoue
+// ("Script error.") et BLOQUE l'init : onAuthStateChanged ne fire jamais et
+// le boot ne s'en sort que par timeout, session perdue. On initialise donc
+// sans resolver (inutile en natif : la connexion Google passe par
+// signInWithCredential, jamais par popup/redirect).
+export const auth = Capacitor.isNativePlatform()
+  ? initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    })
+  : getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache(),
-  // Auto-détection plutôt que forçage : en natif, les streams WebChannel
-  // fonctionnent et sont plus économes (latence + batterie) que le long polling.
-  experimentalAutoDetectLongPolling: true,
+  // Long polling FORCÉ, ne pas repasser en auto-détection : en WKWebView
+  // (Capacitor iOS), les streams WebChannel échouent et l'auto-détection met
+  // 30-60 s à basculer — pendant ce temps aucun snapshot serveur n'arrive
+  // (constaté : ~1 min bloqué sur « créer/rejoindre un foyer » au login).
+  experimentalForceLongPolling: true,
 });
 export const functions = getFunctions(app, "europe-west1");
 export const googleProvider = new GoogleAuthProvider();
