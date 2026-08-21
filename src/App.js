@@ -30,7 +30,7 @@ import {
 } from "./firebase/client.js";
 import { PremiumLockScreen } from "./components/premium/PremiumLockScreen.js";
 import { html, useEffect, useMemo, useRef, useState } from "./lib.js";
-import { collectKnownProducts } from "./utils/productUtils.js";
+import { collectKnownProducts, formatQuantityUnit } from "./utils/productUtils.js";
 import { productMatchKey, toBaseQuantity, fromBaseQuantity } from "./utils/units.js";
 import { readStoredActivePerson, storeActivePerson, readDeviceMode, storeDeviceMode } from "./utils/personStorage.js";
 import {
@@ -489,7 +489,7 @@ export function App() {
       taskNotifications: { ...(prev.taskNotifications || {}), ...updates },
     }));
   }
-  const { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleDeleteRecipe, handleLoadDemoRecipes } = useMeals(updateState);
+  const { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleToggleRecipeFavorite, handleDeleteRecipe, handleLoadDemoRecipes } = useMeals(updateState);
 
   function handleAddCustomCondiment(name) {
     const trimmed = String(name || "").trim();
@@ -807,6 +807,12 @@ export function App() {
     const recipeId = targetMeal[recipeKey];
     let nextInventory = previous.inventory;
     let deductedAny = false;
+    /* Produits que le stock connaissait mais n'a pas couverts jusqu'au bout.
+       Sans ça, la déduction ramenait l'article à zéro en annonçant « bien
+       déduits » : le manque disparaissait sans que personne ne le voie. Les
+       produits totalement absents de l'inventaire n'entrent pas ici — c'est le
+       rôle de la comparaison recette / courses, pas de la cuisson. */
+    const shortfalls = [];
 
     if (Boolean(previous.linkMealsToInventory) && nextCooked && recipeId) {
       const recipe = (previous.recipes || []).find((entry) => entry.id === recipeId);
@@ -819,9 +825,11 @@ export function App() {
         if (!ingredientKey || !ingredientBase) return;
 
         let remainingToDeduct = ingredientBase.value;
+        let productWasInStock = false;
         nextInventory = nextInventory.map((item) => {
-          if (remainingToDeduct <= 0) return item;
           if (productMatchKey(item.name) !== ingredientKey) return item;
+          if (item.stockState !== "empty") productWasInStock = true;
+          if (remainingToDeduct <= 0) return item;
           const itemBase = toBaseQuantity(item.quantity, item.unit);
           if (!itemBase || itemBase.kind !== ingredientBase.kind || itemBase.value <= 0) return item;
 
@@ -837,6 +845,14 @@ export function App() {
             needsRestock: nextQtyBase <= 0,
           };
         });
+
+        if (productWasInStock && remainingToDeduct > 0) {
+          shortfalls.push({
+            name: ingredient.name,
+            quantity: fromBaseQuantity(remainingToDeduct, ingredient.unit),
+            unit: ingredient.unit || "",
+          });
+        }
       });
     }
 
@@ -846,6 +862,7 @@ export function App() {
       nextCooked,
       recipeId,
       deductedAny,
+      shortfalls,
     };
   }
 
@@ -888,7 +905,24 @@ export function App() {
         setToast(null);
       }
 
-      if (computed.deductedAny) {
+      if (computed.shortfalls.length) {
+        // Le stock n'a pas suivi : on nomme ce qui a manqué plutôt que d'annoncer
+        // une déduction complète. L'annulation reste offerte, c'est souvent la
+        // bonne réponse quand on découvre qu'il n'y en avait pas assez.
+        const named = computed.shortfalls
+          .slice(0, 2)
+          .map((item) => {
+            const amount = formatQuantityUnit(item.quantity, item.unit);
+            return amount ? `${item.name} (${amount})` : item.name;
+          })
+          .join(", ");
+        const extra = computed.shortfalls.length - 2;
+        showToast(
+          `Stock trop juste : il manquait ${named}${extra > 0 ? ` et ${extra} autre${extra > 1 ? "s" : ""}` : ""}`,
+          { label: "Annuler", onClick: undoCook },
+          5000,
+        );
+      } else if (computed.deductedAny) {
         showToast(
           "Les ingrédients ont bien été déduits de votre inventaire",
           { label: "Annuler", onClick: undoCook },
@@ -1096,6 +1130,7 @@ export function App() {
           meals=${state.meals}
           recipes=${state.recipes}
           inventory=${state.inventory}
+          shoppingItems=${shoppingList?.items || []}
           linkMealsToInventory=${Boolean(state.linkMealsToInventory)}
           onToggleLinkMealsToInventory=${handleToggleMealsInventoryLink}
           onAddMissingIngredients=${(items) => {
@@ -1191,6 +1226,8 @@ export function App() {
           showToast(`✓ ${items.length} ingrédient${items.length > 1 ? "s" : ""} ajouté${items.length > 1 ? "s" : ""} à la liste de courses`);
         }}
         onOpenMealsTab=${() => setActiveTab("meals")}
+        onToggleRecipeFavorite=${handleToggleRecipeFavorite}
+        linkInventory=${Boolean(state.linkMealsToInventory)}
         onBack=${() => setActiveTab("home")}
       />`;
     } else if (activeTab === "notes") {
@@ -1445,14 +1482,19 @@ export function App() {
                 />
               `
             : html`
-                ${/* Screen header for main tabs */null}
-                ${!isSecondaryScreen && activeTab !== "lists" ? html`
+                ${/* Screen header for main tabs.
+                     « lists » pose son propre titre (le bouton « + Nouvelle »
+                     partage sa ligne), et « meals » aussi — mais seulement une
+                     fois débloqué : sous le paywall c'est le shell qui titre,
+                     sinon l'écran n'a plus de nom. Même classe des deux côtés,
+                     donc même rendu. */null}
+                ${!isSecondaryScreen && activeTab !== "lists" && !(activeTab === "meals" && isPremium) ? html`
                   <div className="mrd-screen-hdr">
                     <div className="mrd-screen-hdr-row">
                       <span className="mrd-screen-hdr-title">
                         ${{
                           daily: "Tâches", weekly: "Tâches", monthly: "Tâches", mine: "Tâches",
-                          agenda: "Agenda", meals: "Repas", lists: "Listes",
+                          agenda: "Agenda", meals: "Repas",
                         }[activeTab] || ""}
                       </span>
                     </div>

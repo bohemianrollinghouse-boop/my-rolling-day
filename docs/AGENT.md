@@ -51,8 +51,10 @@ Points importants :
 - `src/components/agenda/AgendaView.js`
 - `src/components/lists/ListsView.js`
 - `src/components/inventory/InventoryView.js`
-- `src/components/meals/MealsView.js`
-- `src/components/recipes/RecipesView.js`
+- `src/components/meals/MealsView.js` (grille semaine)
+- `src/components/meals/RecipePicker.js` (selecteur de recette d un creneau)
+- `src/components/recipes/RecipesView.js` (fiche + formulaire de recette)
+- `src/components/recipes/RecipeLibrary.js` (bibliotheque : recherche, filtres, cartes)
 - `src/components/history/HistoryView.js`
 - `src/components/settings/SettingsView.js`
 
@@ -65,6 +67,10 @@ Points importants :
 - `src/utils/date.js`
 - `src/utils/productUtils.js`
 - `src/utils/storage.js`
+- `src/utils/recipeStock.js` (comparaison recettes / inventaire, faisabilite semaine)
+- `src/utils/units.js` (conversion des unites, cle produit, somme de quantites)
+- `src/utils/recipeFilters.js` (saison, duree, regime, contraintes)
+- `src/utils/mealFill.js` (tirage automatique de la semaine)
 
 ## Regles produit a respecter
 
@@ -82,6 +88,9 @@ Points importants :
 - quand la liaison est activee, un achat peut mettre a jour l inventaire
 - les produits proches doivent etre normalises pour eviter les doublons
 - les memes produits doivent etre fusionnes avec prudence, sans fusion agressive
+- une fusion doit convertir les unites avant d additionner, et refuser la fusion
+  quand les unites ne mesurent pas la meme chose : deux lignes valent mieux
+  qu un total faux (`addStockQuantities` dans `utils/units.js`)
 
 ### Recettes / repas / inventaire
 
@@ -101,6 +110,21 @@ Points importants :
   - popup ingredients manquants
   - ajout possible a la liste de courses
   - deduction inventaire lors du passage a `OK` pour les ingredients principaux seulement
+  - dans le choix d une recette : badge faisable / nombre de manquants, filtre
+    "faisable avec mon stock", tri des faisables en tete, et suggestions
+    anti-gaspi pour les DLC proches
+- la comparaison et la deduction doivent rapprocher les produits de la meme
+  facon : meme cle produit, memes conversions d unites (`utils/units.js`)
+- la faisabilite affichee dans la grille Repas se lit a l echelle de la semaine
+  et non recette par recette : le stock est un budget que les creneaux
+  consomment dans l ordre chronologique (`computeWeekStock`). Deux repas qui
+  veulent le meme produit ne peuvent pas se declarer faisables tous les deux.
+  Les creneaux deja cuisines sont exclus du calcul, leurs ingredients ayant
+  deja quitte le stock
+- une deduction partielle ne doit jamais passer pour complete : si le stock ne
+  couvre pas tout, le message le nomme
+- une recette sans ingredients structures n est ni faisable ni manquante : elle
+  n est pas comparable au stock
 
 ## Structures importantes deja en place
 

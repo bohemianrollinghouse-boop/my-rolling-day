@@ -2,6 +2,136 @@
 
 ---
 
+## [2026-08-14] — Stock : conversion des unités à la fusion, sous-stock annoncé, faisabilité à l'échelle de la semaine
+
+Question de l'utilisateur : « si j'ajoute une deuxième fois des nouilles instantanées, j'en ai bien deux en stock ? Mais si je les cuisine une fois, il ne m'en restera pas assez pour la deuxième — est-ce que ça me le notifie ? ». Réponse : deux en stock oui, notification non. Trois trous distincts, corrigés ensemble.
+
+### 1. La fusion additionnait les nombres sans regarder les unités
+
+`mergeInventoryEntry` faisait `500 + 1` sur « 500 g de riz » et « 1 kg de riz » et gardait l'unité de la ligne existante : **501 g**. `inventoryEntriesCanMerge` ne comparait que le nom et la DLC. Le reste du code (comparaison recette, déduction) convertissait pourtant déjà proprement via `toBaseQuantity`.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/units.js` | **`addStockQuantities(target, addition)`** : somme exprimée dans l'unité de `target`. `mergeable: false` quand les deux unités ne mesurent pas la même chose (masse vs volume, « sachet » vs « boîte ») — l'appelant garde alors deux lignes plutôt qu'un total faux. `hasQuantity: false` pour « un peu de persil » des deux côtés. Une quantité absente vaut 1 (rajouter « nouilles » à « nouilles » fait 2, comportement d'origine conservé) ; une **unité** absente emprunte celle d'en face, sinon « 2 paquets » + « 1 » aurait coupé la ligne en deux. |
+| `src/hooks/useLists.js` | `inventoryEntriesCanMerge` et `mergeInventoryEntry` passent par `addStockQuantities`. Même correction sur la liste de courses (`listItemsCanMerge`, `mergeListItem`) — c'est le même défaut, et la liste alimente l'inventaire à l'achat. `upsertMergedListItems` ne replie que les lignes mutuellement compatibles (la compatibilité n'est pas transitive : une ligne sans unité s'accorde avec « riz 500 g » comme avec « riz 2 l »). Helpers locaux `readQuantityValue` / `formatQuantityValue` supprimés, devenus morts. `inventoryEntriesCanMerge` renvoie un vrai booléen (elle renvoyait `""`). |
+
+### 2. La cuisson encaissait le sous-stock en silence
+
+`Math.min(itemBase.value, remainingToDeduct)` : recette qui demande 2 paquets, 1 en stock → déduit 1, passe l'article à `empty`, et le toast annonçait quand même « Les ingrédients ont bien été déduits ». Le reste était jeté sans un mot.
+
+| Fichier | Changement |
+|---|---|
+| `src/App.js` | `computeMealCookState` renvoie `shortfalls` : les produits que le stock **connaissait** mais n'a pas couverts jusqu'au bout. Les produits totalement absents n'y entrent pas — c'est le rôle de la comparaison recette / courses, pas de la cuisson. Le toast devient « Stock trop juste : il manquait sel (20 g), riz (100 g) », avec l'annulation conservée (souvent la bonne réponse quand on découvre le manque) et 5 s au lieu de 3. |
+
+### 3. La faisabilité se calculait recette par recette, jamais à l'échelle de la semaine
+
+`computeRecipeStock` compare une recette au stock **complet**. Deux repas qui veulent le même paquet se déclaraient donc faisables tous les deux, et le manque n'apparaissait qu'après avoir coché « cuisiné » sur le premier — trop tard pour les courses.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/recipeStock.js` | **`computeWeekStock({ slots, inventory })`** : le stock devient un budget que les créneaux consomment dans l'ordre chronologique. Les créneaux **déjà cuisinés sont ignorés** (la liaison inventaire a retiré leurs ingrédients, les recompter les déduirait deux fois). Chaque créneau renvoie aussi `weekOnlyMissing` — ce qui ne manque **que** par la faute d'un repas plus tôt — et chaque manquant porte `takenBy`, les créneaux qui ont déjà puisé dans ce produit. Le rapprochement reste celui de `computeMissingIngredients` : même clé produit, mêmes conversions, même tolérance pour les ingrédients sans quantité. |
+| `src/components/meals/MealsView.js` | `buildWeekSlots(overrides)` construit les 14 créneaux (entrée + plat + dessert) ; `overrides` permet de répondre juste **au moment du choix**, sans attendre que l'état remonte. La pastille de la grille lit le calcul semaine, en **rouge** quand le manque vient d'un autre repas (la réponse n'est pas la même : décaler ou racheter, plutôt que compléter la liste), avec l'`aria-label` qui le dit. Le panneau bas gagne un bandeau « Nouilles instantanées : ton stock part déjà dans Lun midi. Il en faut une deuxième fois. ». La popup après choix d'une recette et le bilan du tirage comptent eux aussi sur la semaine — deux repas tirés qui veulent le même produit en demandent maintenant deux fois la quantité. |
+| `src/styles.css` | `.mrd-week-cell-dot.taken`, `.mrd-week-taken`, `.mrd-taken-tag` — uniquement à partir des tokens `--mrd-danger*` existants. |
+| `tests/unit/recipe-stock.test.js` | 6 tests : le premier créneau sert et le suivant est signalé (avec `takenBy`) ; stock suffisant → les deux passent ; repas déjà cuisiné non recompté ; stock absent ≠ stock déjà pris ; budget partagé entre recettes différentes ; rôles cumulés d'un même créneau. |
+| `tests/unit/stock-merge.test.js` | **Nouveau** (10 tests) : conversion, unité conservée, refus des unités incompatibles, emprunt d'unité, quantité absente = 1, quantités non chiffrables, et les deux fonctions de `useLists`. |
+
+**Bug trouvé à la vérification navigateur** : le panneau annonçait « Courses · 1 » et la popup répondait « ✓ Tout est disponible dans votre inventaire » — `openShopping` utilisait encore la comparaison isolée. Les deux lisent maintenant la même liste.
+
+Vérifié dans le navigateur en montant `MealsView` sur un jeu d'essai (2 paquets en stock, nouilles lundi midi **et** jeudi soir) : une seule pastille rouge dans toute la grille, sur jeudi soir ; bandeau « ton stock part déjà dans Lun midi » ; « Courses · 1 » ; popup « Nouilles instantanées · déjà pris par Lun midi · 2 unités ». Bascule clair / sombre correcte sur les trois nouvelles règles.
+
+## [2026-08-13] — Repas : refonte grille semaine (2a) + sélecteur de recettes (5a)
+
+Implémentation du handoff design `design_handoff_repas` (écrans **2a** et **5a** ; les étapes 1a/1b/3a du prototype sont de l'historique et n'ont pas été reprises). Objectifs du handoff : voir les 14 créneaux d'un coup sans défilement, et choisir une recette sans que filtres et tri mangent la moitié de l'écran.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/meals/MealsView.js` | **Réécrit.** Grille 7 lignes × (rail jour / midi / soir), barre de semaine + progression `N / 14`, pastille « Lier stock », bouton « ✨ Remplir », et **panneau bas permanent** (plus de modale) : vignette de catégorie, créneau, « Marquer cuisiné », trois lignes Entrée / Plat / Dessert, compteur de couverts (1–24), bouton Courses et lien Recette →. La feuille de remplissage occupe la même place quand elle est ouverte. |
+| `src/components/meals/RecipePicker.js` | **Nouveau** (écran 5a). Plein écran, remplace la grille le temps du choix : recherche, bouton « Affiner · N », rail de catégories en icônes (une seule rangée), panneau de filtres repliable (interrupteurs Rapide / Déjà en stock / De saison + régime + contraintes), rappel des filtres actifs en pastilles retirables, tri De saison / Temps / Stock / A → Z, état vide, pied fixe « Choisir « … » ». |
+| `src/utils/recipeFilters.js` | **Nouveau.** Saisonnalité (`recipeMonths`, `matchesAvailability`), durée (`recipeTotalMinutes`, `durationLabel`), `isQuickRecipe` (seuil **20 min**, celui du libellé du sélecteur — l'ancien code Repas utilisait 10), régime et contraintes. Ces règles étaient recopiées dans `MealsView` et `RecipesView`. |
+| `src/utils/mealFill.js` | **Nouveau.** `buildFillPlan` : filtre le vivier (régime, contraintes, rapide, saison, stock), exclut les doublons de la semaine, remplit soit les cases vides soit les 14 créneaux. Ne renvoie qu'un plan — la vue l'applique via `onUpdateMeal`, donc c'est testable. « Avec mon stock » est **relâché** plutôt que de ne rien remplir (règle du handoff). |
+| `src/components/recipes/RecipeSheet.js` | `fmtScaledQty` exportée et nouvelle prop `initialServings` : la fiche s'ouvre au nombre de couverts choisi dans le panneau, pas à celui de la recette. |
+| `src/components/recipes/CategoryIcons.js` | `CategoryIcon` accepte une prop `color` (icône blanche sur la pastille de catégorie sélectionnée). |
+| `src/styles.css` | Blocs `.mrd-week-*` et `.mpick-*`, uniquement à partir des tokens existants (aucun nouveau token). Les deux écrans occupent tout le `.cnt` via `:has()` — même mécanisme que la fiche recette. **116 règles mortes supprimées** (`.mrd-meals-*`, `.mrd-extras-*`, `.mrd-month-*`, `.meal-picker-*`, `.pick-*`) : plus aucune n'était référencée dans `src/`. |
+| `tests/unit/meal-fill.test.js` | **Nouveau** (10 tests) : portée, doublons, filtres, préférence plats, relâchement du filtre stock, saisonnalité, seuil « rapide » et périodes manuelles. |
+
+**Suite (même jour), retour utilisateur** — « de saison » ne savait viser que le mois courant ; il fallait pouvoir choisir la saison ou le mois à la main.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/recipeFilters.js` | `matchesPeriod(recipe, period, currentMonth)` où `period` vaut `"current"`, `"season:<id>"` ou `"month:<n>"` — reprend ce que faisait l'ancien `<select>` « Toute période » du picker, supprimé par la refonte. Plus `periodLabel` et `periodPhrase` (« au printemps » vs « en août »). |
+| `src/components/meals/RecipePicker.js` | L'interrupteur « 🍂 De saison » déplie deux rangées de pastilles quand il est actif : **Ce mois-ci / Printemps / Été / Automne / Hiver**, puis les **12 mois** (rangée qui défile). Le sous-titre suit (« Disponible au printemps »), la pastille de rappel aussi (« 🍂 janvier »), et le **tri** « De saison » classe désormais selon la période choisie et non plus selon le mois courant. |
+| `src/styles.css` | `.mpick-switch-block`, `.mpick-period`, `.mpick-months`, `.mpick-chip--sm`. Le panneau « Affiner » passe en `flex: 0 1 auto` + défilement propre et la liste garde un plancher de 96 px : déplié, le panneau se réduit lui-même au lieu d'écraser les recettes. |
+
+Vérifié dans le navigateur (mêmes conditions) : en août la liste sort ratatouille et sirop de menthe ; en cliquant **Printemps** les asperges (mars–mai) apparaissent et la ratatouille sort ; en cliquant **Janv** ce sont la galette des rois et la soupe à l'oignon. Panneau 439 px sans débordement, liste jamais sous 96 px, aucun scroll de page.
+
+Non fait : la pastille « 🍂 De saison » de la feuille **Remplir** reste sur le mois courant — la feuille est calée à ~213 px et deux rangées de plus n'y tiennent pas.
+
+**Suite 2 (même jour)** — question de l'utilisateur : « si je n'ai presque rien en stock et que je fais Remplir avec mon stock, ça remplit quand même ? ». Oui, et de deux façons incohérentes : à **zéro** recette faisable le tirage relâchait la contrainte en silence et posait 14 repas non faisables ; à **deux** faisables il n'en posait que deux et laissait le reste vide (le repli ne se déclenchait que sur un vivier totalement vide). Dans les deux cas rien à l'écran ne l'expliquait, et le bouton annonçait « Remplir 6 repas » même quand il n'allait en poser que deux.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/mealFill.js` | « Avec mon stock » **trie au lieu d'exclure** : les recettes faisables passent devant, les autres complètent la semaine. `buildFillPlan` renvoie maintenant `{ entries, stockCount, otherCount, stockAsked }`, chaque entrée portant `fromStock` — la vue peut donc dire ce qui vient du stock. Le repli silencieux disparaît : il n'y a plus de cas particulier à zéro faisable. |
+| `src/utils/recipeStock.js` | `collectUsedStockItems(recipes, inventory)` : les articles d'inventaire réellement couverts, sans doublon, avec le même `productMatchKey` que la comparaison et la déduction. |
+| `src/components/meals/MealsView.js` | Modale de bilan après le tirage : « N repas ajoutés », puis « X repas avec ce que tu as déjà : Y articles du stock » (les articles en pastilles) et « Z repas demandent des courses ». Elle n'apparaît que si « Avec mon stock » était coché. Le compteur du bouton passe par un tirage à blanc : il annonce ce qui sera réellement posé (« Remplir 0 repas », désactivé, quand toutes les recettes sont déjà placées). |
+| `src/styles.css` | `.mrd-fill-report*` — point sauge (stock) / ambre (courses), pastilles d'articles en sauge. |
+| `tests/unit/meal-fill.test.js` · `recipe-stock.test.js` | 3 tests remplacent celui du repli (rien de faisable → remplit quand même et le signale ; faisables d'abord puis complément ; sans l'option, aucun classement par faisabilité) + 1 test sur les articles utilisés. |
+
+**Suite 4 (même jour)** — « une fois qu'on a ajouté à la liste de courses, il faut qu'on voie qu'on l'a déjà fait ». Rien ne distinguait « à acheter » de « déjà demandé » : le bouton Courses réclamait indéfiniment les mêmes articles.
+
+L'état n'est **stocké nulle part** : il se lit dans la liste de courses. Il reste donc juste après un rechargement, et disparaît tout seul si l'article est retiré de la liste — un drapeau « déjà ajouté » posé sur le repas aurait menti dans les deux cas. Un article coché (acheté) ne compte plus comme en attente.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/recipeStock.js` | `splitAlreadyListed(missingItems, shoppingItems)` → `{ listed, toAdd }` et `isAlreadyListed`. Rapprochement par `productMatchKey`, donc « Tomate » sur la liste couvre « Tomates » de la recette. |
+| `src/App.js` | `shoppingItems` passé à `MealsView` (la liste de courses était déjà en portée juste au-dessus). |
+| `src/components/meals/MealsView.js` | Bouton **Courses** : `Courses · N` ne compte plus que ce qui reste à demander, et passe à **« ✓ Sur la liste »** en sauge quand tout est déjà posé. Popup des manquants : les articles déjà demandés portent une étiquette « ✓ déjà demandé », partent **décochés**, un bandeau l'annonce quand ils le sont tous, et le bouton « Ajouter à la liste » disparaît s'il n'y a rien à envoyer. Bilan du tirage : le compte exclut les articles déjà listés, et quand il ne reste rien il affiche « Rien de plus à acheter : les N articles qui manquent attendent déjà dans ta liste ». |
+| `src/styles.css` | `.mrd-listed-tag`, `.mrd-week-shop.listed`. |
+| `tests/unit/recipe-stock.test.js` | Singulier/pluriel du même produit, article coché qui ne compte plus, liste vide ou absente. |
+
+`npm run test:unit` OK (51 tests), `npm run build` OK. Vérifié de bout en bout dans le bac à sable : `Courses · 1` → ajout → **✓ Sur la liste** ; réouverture de la popup → bandeau + étiquette + plus de bouton d'ajout ; tirage → « 🛒 Ajouter 3 articles » → nouveau tirage → « 🛒 Ajouter 1 article » (seul le nouveau manquant) → tirage suivant → « Rien de plus à acheter : les 4 articles qui manquent attendent déjà dans ta liste ».
+
+**Suite 3 (même jour)** — le bilan constatait le manque sans permettre d'y répondre : demande d'un bouton qui envoie les articles manquants du tirage vers la liste de courses.
+
+| Fichier | Changement |
+|---|---|
+| `src/components/meals/MealsView.js` | Le tirage collecte les manquants de toutes les recettes posées (`computeMissingIngredients`, liaison inventaire active uniquement) et la modale gagne **« 🛒 Ajouter N articles »**, qui les passe à `onAddMissingIngredients` — le même chemin que la popup d'ingrédients manquants, donc la fusion des articles proches et l'addition des quantités restent celles de `useLists`. Quand « Avec mon stock » n'était pas coché, la modale affiche quand même la ligne « N articles manquent pour cuisiner cette semaine » suivie du bouton. |
+| `src/utils/recipeStock.js` | `countDistinctProducts` : le bouton annonce le nombre de **produits** (clé produit), pas de lignes — deux recettes qui manquent de tomates ne feront qu'une ligne de courses. |
+| `tests/unit/recipe-stock.test.js` | Test du décompte (singulier/pluriel du même produit, entrées vides). |
+
+`npm run test:unit` OK (50 tests), `npm run build` OK. Vérifié dans le bac à sable : avec un stock de 4 articles, « Remplir » sur les cases vides pose 4 repas dont 1 puisé dans le stock, et la modale annonce « 1 repas avec ce que tu as déjà : 1 article du stock — Pommes / 3 repas demandent des courses » ; en portée « toute la semaine », 3 repas sur 10 viennent du stock (4 articles). Le bouton « 🛒 Ajouter 3 articles » envoie bien `Asperges 1 kg`, `Pâte feuilletée 2`, `Chèvre 1` puis referme la modale ; sans l'option stock, « 🛒 Ajouter 7 articles ». Compteur honnête vérifié : « Remplir 0 repas » grisé quand toutes les recettes sont déjà posées. Relu en thème sombre (pastilles sauge sur fond sombre, points sauge/ambre lisibles).
+
+Écarts assumés, à valider :
+- **La vue mois disparaît**, ainsi que la bande de jours et les cartes déjeuner/dîner : 2a énumère tous les enfants de l'écran et n'en contient aucun — la grille semaine remplit le même besoin.
+- **Le texte libre** (`lunchText`, `extra`) n'est plus éditable depuis Repas ; ce qui existe déjà reste **affiché** dans la case de la grille, et compte dans la progression, donc rien n'est perdu.
+- **Retirer une recette d'un créneau** n'existe nulle part dans 2a/5a : ajouté en pied du sélecteur (« Retirer le plat du créneau »), sinon la fonction disparaissait.
+- **Anti-gaspi** : 5a n'en parle pas, mais `AGENT.md` l'exige dans le choix d'une recette — gardé sous forme d'une seule rangée de pastilles ambre au-dessus de la liste, liaison inventaire active uniquement.
+- `--mrd-a` remplacé par `--mrd-aBtn` partout où le handoff demande un aplat accent sous du texte blanc : c'est la règle du dépôt (`design-tokens.test.js`), `--mrd-a` devenant clair en thème sombre.
+- Le nombre de couverts reste un **état d'écran** (comme dans le handoff), pas une donnée enregistrée : il repart du nombre de personnes de la recette à chaque changement de créneau.
+
+`npm test` OK (158 tests, unitaires + E2E). `npm run build` OK. Vérifié dans le navigateur en 375 × 812 sur un bac à sable montant `MealsView` avec 10 recettes / 5 articles d'inventaire (fichier supprimé depuis) : les 14 créneaux tiennent sans défilement (grille 338 px, panneau 213–219 px, page 812 px, aucun scroll document), le tirage ne place pas de doublon, `4 → 6 couverts` fait bien passer les manquants de 400 g / 40 cl à 600 g / 60 cl, la bascule « cuisiné » passe le liseré en sauge, et le sélecteur ouvre / filtre / trie / choisit correctement (barre d'onglets masquée, pied fixe, liste seule à défiler). Contrastes relevés en clair et en sombre (une correction : la pastille de catégorie sélectionnée se remplit du ton foncé en sombre, `--recipe-cat-*` y étant une couleur claire). Screenshot indisponible dans cette session (panneau navigateur non affiché) — vérifications faites sur le DOM et les styles calculés.
+
+---
+
+## [2026-08-12] — Repas : suggestions à partir de l'inventaire (faisable / anti-gaspi)
+
+L'utilisateur demandait si l'app détectait ce qui reste en stock pour proposer des recettes. Seul le sens inverse existait : choisir une recette → comparer à l'inventaire → popup des manquants → liste de courses. Rien ne partait de l'inventaire.
+
+| Fichier | Changement |
+|---|---|
+| `src/utils/recipeStock.js` | **Nouveau.** Source unique de la comparaison recettes ↔ inventaire. Reprend `computeMissingIngredients` / `computeMissingCondiments` (jusque-là locales à `MealsView`) et ajoute `computeRecipeStock` (faisable / nombre de manquants / `known` à faux pour une recette sans ingrédients structurés), `recipeStockRank`, `collectExpiringItems`, `computePriorityRecipes` et `expiryShortLabel`. |
+| `src/utils/recipeStock.js` | **Correction.** `computeMissingIngredients` comparait les unités par égalité de chaîne : l'inventaire stocke `"unité"` là où les recettes normalisent en `"unite"` (`normalizeRecipeUnit`, state.js), et 1 kg de riz ne couvrait pas 200 g. Presque tout passait donc pour manquant. Elle utilise désormais `productMatchKey` + `toBaseQuantity`/`fromBaseQuantity` (`utils/units.js`), exactement comme la déduction de stock d'`App.js` — les deux chemins ne peuvent plus diverger. |
+| `src/components/meals/MealsView.js` | Sélecteur de recette : badge `✓ Faisable` / `🛒 N manquants` sur chaque carte, bascule "🥕 Faisable avec mon stock", tri des faisables en tête (puis manquants croissants), et section "À cuisiner en priorité" listant jusqu'à 3 recettes qui consomment les DLC des 7 prochains jours. Le tout **uniquement quand la liaison inventaire est active** (règle `AGENT.md`) ; les suggestions se calculent sur la liste déjà filtrée, donc elles respectent recherche, catégorie et sous-créneau (entrée/dessert). |
+| `src/utils/date.js` | `daysUntilExpiry` remonte ici (elle était locale à `InventoryView`), sur la date applicative — donc pilotable par le simulateur de date. |
+| `src/components/inventory/InventoryView.js` | Utilise `daysUntilExpiry` de `utils/date.js` au lieu de sa copie locale. |
+| `src/styles.css` | `.pick-toggle-row`, `.pick-stock-btn`, `.pick-priority*`, `.rcard-badge--stock-ok/--stock-missing` — palette sauge (faisable) et ambre (manquants/DLC) via les tokens existants, donc thème sombre compatible. |
+| `tests/unit/recipe-stock.test.js` | **Nouveau** (12 tests) : faisabilité, complément de quantité, recettes non comparables, conversions d'unités (régression du bug ci-dessus), fenêtre DLC, classement anti-gaspi. |
+
+Choix : les DLC **dépassées** sont exclues des suggestions (on ne propose pas de cuisiner un produit périmé), alors que l'encart "à consommer" de l'inventaire, lui, les affiche toujours. Les condiments n'entrent pas dans la faisabilité, puisqu'ils ne sont jamais déduits du stock.
+
+`npm test` OK (149 tests, unitaires + E2E). Vérifié dans le navigateur sur le build E2E (Firebase stubbé, `tests/.e2e-dist` servi en statique), avec un inventaire injecté via les listeners du stub — courgettes J+2, tomates J+1, crème J+5, riz en kg, poulet, pâtes : les trois recettes couvertes affichent `✓ Faisable` et remontent en tête, "Pâtes au pesto" affiche `🛒 1 manquant`, la bascule filtre bien à 3 recettes, et "À cuisiner en priorité" propose la ratatouille (tomates demain + courgettes dans 2 j) devant le gratin. Contrastes relevés en clair et en sombre sur les nouveaux éléments (une correction : `.pick-priority-card` retombait sur le noir par défaut du bouton en thème sombre). Screenshot indisponible dans cette session (panneau navigateur non affiché) — vérifications faites sur le DOM et les styles calculés.
+
+---
+
 ## [2026-08-05] — Refonte visuelle de la modale "tâche non faite" (StaleTaskModal)
 
 L'utilisateur voulait améliorer le design du `StaleTaskModal` (texte brut + boutons jusque-là) sans changer son comportement.

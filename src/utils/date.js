@@ -71,6 +71,19 @@ export function shiftSimulatedAppDate(days) {
   setSimulatedAppDateValue(formatDateTimeInputValue(base));
 }
 
+/**
+ * Nombre de jours avant la DLC (négatif si dépassée), ou null si pas de date.
+ * Comparaison au jour près, sur la date applicative (simulation incluse).
+ */
+export function daysUntilExpiry(expiryDate) {
+  if (!expiryDate) return null;
+  const today = getCurrentAppDate();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(`${expiryDate}T00:00:00`);
+  if (Number.isNaN(expiry.getTime())) return null;
+  return Math.round((expiry - today) / (1000 * 60 * 60 * 24));
+}
+
 export function localDateKey(date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }

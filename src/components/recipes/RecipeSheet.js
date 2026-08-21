@@ -92,7 +92,7 @@ export function groupIngredients(ingredients) {
 }
 
 /** Quantité numérique mise à l'échelle des portions (virgule française). */
-function fmtScaledQty(quantity, ratio) {
+export function fmtScaledQty(quantity, ratio) {
   const q = String(quantity ?? "").trim();
   if (!q) return "";
   const n = Number.parseFloat(q.replace(",", "."));
@@ -135,14 +135,17 @@ export function RecipeSheet({
   onEdit = null,
   onPlan = null,
   onAddToShopping = null,
+  initialServings = null,
 }) {
-  const [servings, setServings] = useState(() => clampServings(recipe?.servings));
+  // `initialServings` : la grille semaine ouvre la fiche au nombre de couverts
+  // choisi dans son panneau, pas au nombre de personnes de la recette.
+  const [servings, setServings] = useState(() => clampServings(initialServings || recipe?.servings));
   const [tab, setTab] = useState("ingredients");
   const [voiceOpen, setVoiceOpen] = useState(false);
 
   // Changement de recette → portions et onglets repartent de zéro
   useEffect(() => {
-    setServings(clampServings(recipe?.servings));
+    setServings(clampServings(initialServings || recipe?.servings));
     setTab("ingredients");
     setVoiceOpen(false);
   }, [recipe?.id]);

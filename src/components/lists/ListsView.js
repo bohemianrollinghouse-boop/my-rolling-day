@@ -795,7 +795,7 @@ export function ListsView({
           `
         : html`
             <div className="lists-page-header">
-              <div className="lists-page-header-title">Listes</div>
+              <div className="lists-page-header-title mrd-screen-hdr-title">Listes</div>
               <button className="list-add-btn lists-page-create-btn" onClick=${openCreateList}>+ Nouvelle</button>
             </div>
 

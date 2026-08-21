@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "../lib.js";
 import { getCurrentAppDate, localDateKey } from "../utils/date.js";
 import { normalizeProductName } from "../utils/productUtils.js";
+import { addStockQuantities } from "../utils/units.js";
 
 function todayKey() {
   return localDateKey(getCurrentAppDate());
@@ -19,21 +20,6 @@ function parseStorageLocationInput(value = "") {
     emoji: String(matched[1] || "").trim(),
     name: String(matched[2] || "").trim() || trimmed,
   };
-}
-
-function readQuantityValue(rawQuantity, emptyAsOne = false) {
-  const trimmed = String(rawQuantity || "").trim();
-  if (!trimmed) return emptyAsOne ? 1 : null;
-  const match = trimmed.match(/^\d+(?:[.,]\d+)?$/);
-  if (!match) return null;
-  const parsed = Number(match[0].replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatQuantityValue(quantity) {
-  if (quantity == null || quantity === "") return "";
-  if (Number.isInteger(quantity)) return String(quantity);
-  return String(quantity).replace(".", ",");
 }
 
 function makeEntityId(prefix) {
@@ -57,18 +43,21 @@ function normalizeListItemPayload(text = "", quantity = "", unit = "") {
 }
 
 function listItemsCanMerge(existingItem, incomingItem) {
-  return normalizeProductName(existingItem.text) === normalizeProductName(incomingItem.text);
+  if (normalizeProductName(existingItem.text) !== normalizeProductName(incomingItem.text)) return false;
+  // Des grammes et des litres ne s'additionnent pas : deux lignes honnêtes
+  // valent mieux qu'un total faux.
+  return addStockQuantities(existingItem, incomingItem).mergeable;
 }
 
 function mergeListItem(existingItem, incomingItem) {
-  const currentQuantity = readQuantityValue(existingItem.quantity, true);
-  const nextQuantity = readQuantityValue(incomingItem.quantity, true);
-  const mergedQuantity = (currentQuantity || 0) + (nextQuantity || 0);
+  const sum = addStockQuantities(existingItem, incomingItem);
   return {
     ...existingItem,
     text: incomingItem.text || existingItem.text,
-    quantity: formatQuantityValue(mergedQuantity || ""),
-    unit: incomingItem.unit || existingItem.unit || "",
+    // La somme est exprimée dans l'unité de la ligne existante : c'est elle
+    // qu'on garde, pas celle qui arrive.
+    quantity: sum.hasQuantity ? sum.quantity : existingItem.quantity || "",
+    unit: sum.unit || "",
     done: false,
     purchasedAt: "",
   };
@@ -79,46 +68,48 @@ function upsertMergedListItems(items, incomingItem) {
   const matchingItems = safeItems.filter((item) => listItemsCanMerge(item, incomingItem));
   if (!matchingItems.length) return [...safeItems, incomingItem];
 
-  const mergedItem = [...matchingItems.slice(1), incomingItem].reduce(
+  // Les lignes déjà présentes ne sont pas forcément compatibles entre elles :
+  // une ligne sans unité emprunte celle d'en face, donc « riz » peut fusionner
+  // avec « riz 500 g » comme avec « riz 2 l » sans que ces deux-là s'additionnent.
+  // On ne replie que ce qui va vraiment avec la première.
+  const anchorItem = matchingItems[0];
+  const foldedItems = matchingItems.filter((item) => item === anchorItem || listItemsCanMerge(anchorItem, item));
+
+  const mergedItem = [...foldedItems.slice(1), incomingItem].reduce(
     (current, item) => mergeListItem(current, item),
-    matchingItems[0],
+    anchorItem,
   );
 
   return [
-    ...safeItems.filter((item) => !listItemsCanMerge(item, incomingItem)),
+    ...safeItems.filter((item) => !foldedItems.includes(item)),
     mergedItem,
   ];
 }
 
 export function inventoryEntriesCanMerge(existingItem, incomingItem) {
   if (normalizeInventoryName(existingItem.name) !== normalizeInventoryName(incomingItem.name)) return false;
+  // Deux unités qui ne mesurent pas la même chose restent deux lignes : sans ce
+  // garde-fou, 500 g de riz plus 1 kg donnaient 501 g.
+  if (!addStockQuantities(existingItem, incomingItem).mergeable) return false;
   const existingExpiry = String(existingItem.expiryDate || "").trim();
   const incomingExpiry = String(incomingItem.expiryDate || "").trim();
   if (!existingExpiry && !incomingExpiry) return true;
-  return existingExpiry && incomingExpiry && existingExpiry === incomingExpiry;
+  return Boolean(existingExpiry && incomingExpiry && existingExpiry === incomingExpiry);
 }
 
 export function mergeInventoryEntry(existingItem, incomingItem) {
-  const currentQuantity = readQuantityValue(existingItem.quantity, true);
-  const nextQuantity = readQuantityValue(incomingItem.quantity, true);
-  if (currentQuantity == null && nextQuantity == null) {
-    return {
-      ...existingItem,
-      purchaseDate: incomingItem.purchaseDate || existingItem.purchaseDate,
-      stockState: "in_stock",
-      needsRestock: false,
-      note: incomingItem.note || existingItem.note || "",
-    };
-  }
-  const mergedQuantity = (currentQuantity || 0) + (nextQuantity || 0);
-  return {
+  const sum = addStockQuantities(existingItem, incomingItem);
+  const merged = {
     ...existingItem,
-    quantity: formatQuantityValue(mergedQuantity || ""),
     purchaseDate: incomingItem.purchaseDate || existingItem.purchaseDate,
     stockState: "in_stock",
     needsRestock: false,
     note: incomingItem.note || existingItem.note || "",
   };
+  // « Un peu de persil » ajouté à « un peu de persil » : rien à additionner,
+  // seule la ligne se rafraîchit.
+  if (!sum.hasQuantity) return merged;
+  return { ...merged, quantity: sum.quantity, unit: sum.unit || existingItem.unit || "" };
 }
 
 function compareInventoryEntries(left, right) {

@@ -58,6 +58,57 @@ export function fromBaseQuantity(baseValue, originalUnit) {
   return "";
 }
 
+// ── Somme de deux quantités ───────────────────────────────────────────────
+
+/** Une quantité absente vaut 1 : rajouter « nouilles » à « nouilles » fait 2. */
+function readAddend(quantity) {
+  const trimmed = String(quantity ?? "").trim();
+  if (!trimmed) return 1;
+  return parseQuantityValue(trimmed);
+}
+
+/**
+ * Additionne deux quantités de stock, exprimée dans l'unité de `target`.
+ *
+ * `mergeable: false` quand les deux unités ne mesurent pas la même chose (des
+ * grammes et des litres, un sachet et une boîte) : aucune somme n'est juste, et
+ * l'appelant garde deux lignes distinctes plutôt que d'inventer un total faux.
+ * C'est le bug d'origine : 500 g de riz plus 1 kg donnaient 501 g, parce que la
+ * fusion additionnait les nombres sans jamais regarder les unités.
+ *
+ * `hasQuantity: false` quand ni l'un ni l'autre n'annonce de nombre exploitable
+ * (« un peu de persil ») : les entrées fusionnent, la quantité ne bouge pas.
+ *
+ * Une unité absente emprunte celle d'en face : « 2 paquets » plus « 1 » parle
+ * bien de 3 paquets, refuser la fusion là couperait l'inventaire pour rien.
+ */
+export function addStockQuantities(target, addition) {
+  const targetUnit = normalizeUnitValue(target?.unit) || normalizeUnitValue(addition?.unit);
+  const additionUnit = normalizeUnitValue(addition?.unit) || normalizeUnitValue(target?.unit);
+  const unit = String(target?.unit || "").trim() || String(addition?.unit || "").trim();
+  const targetValue = readAddend(target?.quantity);
+  const additionValue = readAddend(addition?.quantity);
+
+  if (targetValue == null && additionValue == null) return { mergeable: true, hasQuantity: false, unit };
+
+  const targetBase = toBaseQuantity(targetValue ?? 0, targetUnit);
+  const additionBase = toBaseQuantity(additionValue ?? 0, additionUnit);
+
+  // Unité maison (« sachet », « boîte ») : rien à convertir, on n'additionne
+  // que si c'est mot pour mot la même.
+  if (!targetBase || !additionBase) {
+    if (targetUnit !== additionUnit) return { mergeable: false, unit };
+    return { mergeable: true, hasQuantity: true, quantity: formatQuantityValue((targetValue || 0) + (additionValue || 0)), unit };
+  }
+  if (targetBase.kind !== additionBase.kind) return { mergeable: false, unit };
+  return {
+    mergeable: true,
+    hasQuantity: true,
+    quantity: fromBaseQuantity(targetBase.value + additionBase.value, targetUnit),
+    unit,
+  };
+}
+
 // ── Correspondance de noms de produits ────────────────────────────────────
 
 export const PRODUCT_STOPWORDS = new Set(["de", "du", "des", "d", "la", "le", "les", "a", "au", "aux", "un", "une"]);

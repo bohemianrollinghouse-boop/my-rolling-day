@@ -1,4 +1,7 @@
 import "./unit/product-utils.test.js";
+import "./unit/recipe-stock.test.js";
+import "./unit/stock-merge.test.js";
+import "./unit/meal-fill.test.js";
 import "./unit/date-utils.test.js";
 import "./unit/state.test.js";
 import "./unit/firebase-config.test.js";

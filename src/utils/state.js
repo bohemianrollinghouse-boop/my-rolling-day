@@ -321,6 +321,8 @@ function normalizeRecipe(recipe, index) {
     ingredientsLegacy: legacyIngredientsText,
     condiments,
     method: String(recipe?.method || "").trim(),
+    // Étoile de la bibliothèque : filtre « ★ Favoris » et compteur de l'en-tête
+    favorite: Boolean(recipe?.favorite),
     // Vide pour les recettes d'avant ce champ : le tri retombe alors sur la position dans la liste
     createdAt: String(recipe?.createdAt || ""),
   };

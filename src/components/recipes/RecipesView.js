@@ -3,6 +3,7 @@ import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/p
 import { CONDIMENTS, CONDIMENT_ESSENTIALS } from "../../data/condiments.js";
 import { CategoryIcon, categoryToneClass } from "./CategoryIcons.js";
 import { RecipeSheet, groupIngredients, condimentLabel } from "./RecipeSheet.js";
+import { RecipeLibrary } from "./RecipeLibrary.js";
 import drinkFallbackIllustration from "../../assets/recipe-drink-fallback.svg";
 import { scrapeRecipeFromUrl, categorizeRecipe, importErrorMessage } from "../../firebase/clientRecipes.js";
 
@@ -160,20 +161,6 @@ function recipeMonths(recipe) {
   return uniqueMonths(recipe.months);
 }
 
-function matchesAvailability(recipe, filterValue) {
-  if (filterValue === "all") return true;
-  if (filterValue === "all_year") return recipe.availabilityMode === "all_year";
-  if (filterValue.startsWith("season:")) {
-    const seasonId = filterValue.split(":")[1];
-    return recipeMonths(recipe).some((month) => seasonById(seasonId).months.includes(month));
-  }
-  if (filterValue.startsWith("month:")) {
-    const monthId = Number(filterValue.split(":")[1]);
-    return recipeMonths(recipe).includes(monthId);
-  }
-  return true;
-}
-
 function toggleMonthSelection(currentMonths, monthId, allowedMonths = null) {
   const safeCurrent = uniqueMonths(currentMonths);
   const next = safeCurrent.includes(monthId) ? safeCurrent.filter((value) => value !== monthId) : [...safeCurrent, monthId];
@@ -231,16 +218,6 @@ function renderRecipeFallbackVisual(recipeLike, variant = "thumb", size = 56) {
   return html`<${CategoryIcon} categoryId=${recipeLike?.category} size=${size} framed=${false} />`;
 }
 
-/**
- * Rang de tri « ordre d'ajout ». `createdAt` fait foi ; les recettes plus
- * anciennes que ce champ retombent sur leur position dans la liste (donc
- * toujours sous les recettes horodatées, ce qui est l'ordre réel d'ajout).
- */
-function addedRank(recipe, index) {
-  const stamp = Date.parse(String(recipe?.createdAt || ""));
-  return Number.isNaN(stamp) ? Number(index) || 0 : stamp;
-}
-
 /** Icône affichée sur la carte : emoji perso ou premier badge alimentaire. */
 function recipeCardEmoji(recipe) {
   const raw = recipe?.emoji != null ? String(recipe.emoji).trim() : "";
@@ -293,17 +270,10 @@ export function RecipesView({
   onAddRecipe, onUpdateRecipe, onDeleteRecipe, onLoadDemoRecipes = null,
   onAddRecipeIngredientsToShopping = null,
   onOpenMealsTab = null,
+  onToggleRecipeFavorite = null,
+  linkInventory = false,
   onBack = null,
 }) {
-  /* ── Filtres ──────────────────────────────────────────────── */
-  const [search, setSearch] = useState("");
-  const [availabilityFilter, setAvailabilityFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [activeLabelFilters, setActiveLabelFilters] = useState([]);
-  const [activeConstraintFilters, setActiveConstraintFilters] = useState([]);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [showDietAccordion, setShowDietAccordion] = useState(false);
-  const [showConstraintAccordion, setShowConstraintAccordion] = useState(false);
 
   /* ── Page création/édition ─────────────────────────────────── */
   const [showEditPage, setShowEditPage] = useState(false);
@@ -357,48 +327,6 @@ export function RecipesView({
       : [];
     return [...base, ...currentIngredients];
   }, [knownProducts, inventory, form.ingredients]);
-
-  /* ── Filtrage + tri (pertinence si recherche, sinon date d'ajout) ── */
-  const filteredRecipes = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const allRecipes = Array.isArray(recipes) ? recipes : [];
-    // Position d'origine : filet quand `createdAt` manque (recettes d'avant ce champ)
-    const orderById = new Map(allRecipes.map((recipe, index) => [recipe.id, index]));
-    const base = allRecipes.filter((recipe) => {
-      if (!matchesAvailability(recipe, availabilityFilter)) return false;
-      if (categoryFilter && recipe.category !== categoryFilter) return false;
-      const recipeLabels = Array.isArray(recipe.labels) ? recipe.labels : [];
-      if (!activeLabelFilters.every((id) => recipeLabels.includes(id))) return false;
-      if (!activeConstraintFilters.every((id) => recipeLabels.includes(id))) return false;
-      if (query) {
-        const titleMatch = (recipe.name || "").toLowerCase().includes(query);
-        const ingredientText = (Array.isArray(recipe.ingredients) ? recipe.ingredients.map((i) => i.name || "").join(" ") : "").toLowerCase();
-        const condimentText = (Array.isArray(recipe.condiments) ? recipe.condiments.map((id) => condimentLabel(id)).join(" ") : "").toLowerCase();
-        const legacyText = (recipe.ingredientsLegacy || "").toLowerCase();
-        const tagsText = (Array.isArray(recipe.tags) ? recipe.tags.join(" ") : "").toLowerCase();
-        const categoryDef = recipe.category ? CATEGORIES.find((c) => c.id === recipe.category) : null;
-        const catText = categoryDef ? categoryDef.label.toLowerCase() : "";
-        if (!titleMatch && !ingredientText.includes(query) && !condimentText.includes(query) && !legacyText.includes(query) && !tagsText.includes(query) && !catText.includes(query)) return false;
-      }
-      return true;
-    });
-
-    if (query) {
-      base.sort((a, b) => {
-        const aTitle = (a.name || "").toLowerCase().includes(query) ? 0 : 1;
-        const bTitle = (b.name || "").toLowerCase().includes(query) ? 0 : 1;
-        if (aTitle !== bTitle) return aTitle - bTitle;
-        const aIng = (Array.isArray(a.ingredients) ? a.ingredients.map((i) => i.name || "").join(" ") : "").toLowerCase().includes(query) ? 0 : 1;
-        const bIng = (Array.isArray(b.ingredients) ? b.ingredients.map((i) => i.name || "").join(" ") : "").toLowerCase().includes(query) ? 0 : 1;
-        if (aIng !== bIng) return aIng - bIng;
-        return String(a.name || "").localeCompare(String(b.name || ""), "fr", { sensitivity: "base" });
-      });
-    } else {
-      // Ordre d'ajout : la dernière recette créée arrive en tête de liste
-      base.sort((a, b) => addedRank(b, orderById.get(b.id)) - addedRank(a, orderById.get(a.id)));
-    }
-    return base;
-  }, [recipes, search, availabilityFilter, categoryFilter, activeLabelFilters, activeConstraintFilters]);
 
   const sheetRecipe = sheetRecipeId ? (Array.isArray(recipes) ? recipes : []).find((r) => r.id === sheetRecipeId) : null;
 
@@ -564,18 +492,6 @@ export function RecipesView({
     setEditTab("ingredients");
     setOpenDropdown(null);
     setShowEditPage(true);
-  }
-
-  function toggleFilterLabel(labelId) {
-    setActiveLabelFilters((previous) =>
-      previous.includes(labelId) ? [] : [labelId],
-    );
-  }
-
-  function toggleConstraintFilter(id) {
-    setActiveConstraintFilters((previous) =>
-      previous.includes(id) ? previous.filter((v) => v !== id) : [...previous, id],
-    );
   }
 
   function toggleFormConstraint(id) {
@@ -1211,59 +1127,24 @@ export function RecipesView({
     `;
   }
 
-  const searchIcon = html`
-    <span className="recipes-page-search-icon" aria-hidden="true">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
-        <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-      </svg>
-    </span>
-  `;
-
-  function renderIngredientPreview(recipe) {
-    const list = Array.isArray(recipe.ingredients) ? recipe.ingredients.filter((item) => item?.name) : [];
-    if (list.length) {
-      const shown = list.slice(0, 4);
-      const rest = list.length - shown.length;
-      return html`
-        <div className="rcard-recipe-ingredients">
-          ${shown.map((item) => html`<span className="recipe-preview-chip" key=${item.id}>${item.name}</span>`)}
-          ${rest > 0 ? html`<span className="recipe-preview-chip recipe-preview-chip-more">+${rest}</span>` : null}
-        </div>
-      `;
-    }
-    const legacy = String(recipe.ingredientsLegacy || "").trim();
-    return html`<div className="rcard-recipe-ingredients rcard-recipe-ingredients--legacy"><span className="recipe-preview-chip recipe-preview-chip-muted">${legacy || "Aucun ingrédient"}</span></div>`;
-  }
-
-  /** Label court de disponibilité pour les cartes. */
-  function availabilityLabelShort(recipe) {
-    if (recipe.availabilityMode === "all_year") return "Toute saison";
-    if (recipe.availabilityMode === "season") {
-      const ids = Array.isArray(recipe.seasons) && recipe.seasons.length ? recipe.seasons : (recipe.season ? [recipe.season] : ["spring"]);
-      const labels = ids.map((id) => seasonById(id).label);
-      return labels.length <= 2 ? labels.join(" · ") : "Multi-saison";
-    }
-    const months = recipeMonths(recipe);
-    if (months.length === 12) return "Toute saison";
-    if (months.length <= 3) return months.map((id) => MONTHS.find((m) => m.id === id)?.label || "").filter(Boolean).join(" · ");
-    return `${months.length} mois`;
-  }
-
-  /** Label de durée pour les cartes (null si inconnu). */
-  function recipeDurationLabel(recipe) {
-    if (recipe.quick) return "⚡ Rapide";
-    const prep = recipe.prepTime ? Number(recipe.prepTime) : 0;
-    const cook = recipe.cookTime ? Number(recipe.cookTime) : 0;
-    const total = (Number.isNaN(prep) ? 0 : prep) + (Number.isNaN(cook) ? 0 : cook);
-    if (total > 0) return total <= 20 ? "⚡ Rapide" : `⏱ ${total} min`;
-    const legacy = recipe.time != null && recipe.time !== "" ? Number(recipe.time) : NaN;
-    if (!Number.isNaN(legacy) && legacy > 0) return legacy <= 20 ? "⚡ Rapide" : `⏱ ${legacy} min`;
-    return null;
-  }
-
-  const activeConstraintCount = activeConstraintFilters.length;
   const sectionClass = `rwrap recipes-page${sheetRecipe ? " recipes-page--sheet" : ""}${showEditPage ? " recipes-page--edit" : ""}`;
+
+  /* La bibliothèque est un écran à part entière (handoff 6a) : elle porte son
+     propre en-tête et ses propres filtres, et remplace la liste dès que ni la
+     fiche ni le formulaire ne sont ouverts. */
+  if (!sheetRecipe && !showEditPage) {
+    return html`<${RecipeLibrary}
+      recipes=${recipes}
+      inventory=${inventory}
+      linkInventory=${linkInventory}
+      onOpenRecipe=${openRecipeSheet}
+      onCreateRecipe=${openCreateModal}
+      onLoadDemoRecipes=${onLoadDemoRecipes}
+      onPlanRecipe=${onOpenMealsTab ? () => onOpenMealsTab() : null}
+      onToggleFavorite=${onToggleRecipeFavorite ? (recipe) => onToggleRecipeFavorite(recipe.id, !recipe.favorite) : null}
+      onBack=${onBack}
+    />`;
+  }
 
   return html`
     <section className=${sectionClass}>
@@ -1278,176 +1159,6 @@ export function RecipesView({
           />`
         : null}
       ${showEditPage ? renderEditPage() : null}
-
-      ${!sheetRecipe && !showEditPage ? html`
-
-        <!-- ── Header liste : ← Recettes … Démo + ──────────────── -->
-        <div className="recipes-list-hdr">
-          <div className="mrd-back-hdr-main">
-            ${onBack ? html`
-              <button type="button" className="mrd-back-btn" onClick=${onBack} aria-label="Retour">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
-            ` : null}
-            <span className="mrd-screen-title">Recettes</span>
-          </div>
-          <div className="recipes-list-hdr-actions">
-            ${onLoadDemoRecipes
-              ? html`<button type="button" className="clrbtn recipes-page-demo-btn" onClick=${onLoadDemoRecipes}>Démo</button>`
-              : null}
-            <button type="button" className="recipes-page-add-btn" onClick=${openCreateModal} title="Ajouter une recette">+</button>
-          </div>
-        </div>
-
-        <!-- ── Contrôles de filtrage ───────────────────────────── -->
-        <div className="recipes-page-controls">
-          <div className="recipes-page-search-wrap">
-            ${searchIcon}
-            <input
-              className="ainp recipes-page-search-input"
-              type="search"
-              enterkeyhint="search"
-              placeholder="Rechercher une recette…"
-              value=${search}
-              onInput=${(event) => setSearch(event.target.value)}
-            />
-            ${search.trim()
-              ? html`
-                  <button type="button" className="recipes-page-search-clear" onClick=${() => setSearch("")} aria-label="Effacer">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    </svg>
-                  </button>
-                `
-              : null}
-          </div>
-
-          <div className="recipes-page-selects-row">
-            <div className="recipes-page-select-col">
-              <select className="asel recipes-page-select" value=${availabilityFilter} onChange=${(e) => setAvailabilityFilter(e.target.value)}>
-                <option value="all">Toute période</option>
-                ${SEASONS.map((s) => html`<option value=${`season:${s.id}`} key=${s.id}>${s.label}</option>`)}
-                <option disabled>──</option>
-                ${MONTHS.map((m) => html`<option value=${`month:${m.id}`} key=${m.id}>${m.label}</option>`)}
-              </select>
-
-              <!-- Accordéon régime alimentaire -->
-              <div className="pick-diet-accordion">
-                <button type="button" className="pick-diet-toggle"
-                  onClick=${() => setShowDietAccordion((o) => !o)}>
-                  <span className="pick-diet-toggle-label">
-                    🥗 Régime alimentaire
-                    ${activeLabelFilters.length ? html`<span className="pick-diet-badge pick-diet-badge--dot"></span>` : null}
-                  </span>
-                  <svg className=${`pick-diet-chevron${showDietAccordion ? " open" : ""}`}
-                    width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                ${showDietAccordion ? html`
-                  <div className="pick-diet-body">
-                    ${FOOD_TYPES.map((type) => html`
-                      <button type="button" key=${type.id}
-                        className=${`recipes-filter-chip ${activeLabelFilters.includes(type.id) ? "on" : ""}`}
-                        onClick=${() => toggleFilterLabel(type.id)}>
-                        <span className="recipes-filter-chip-icon">${type.icon}</span>
-                        <span>${type.label}</span>
-                      </button>
-                    `)}
-                  </div>
-                ` : null}
-              </div>
-            </div>
-
-            <div className="recipes-page-select-col">
-              <select className="asel recipes-page-select" value=${categoryFilter} onChange=${(e) => setCategoryFilter(e.target.value)}>
-                <option value="">Toute catégorie</option>
-                ${CATEGORIES.map((cat) => html`<option value=${cat.id} key=${cat.id}>${cat.label}</option>`)}
-              </select>
-
-              <!-- Accordéon restrictions alimentaires -->
-              <div className="pick-diet-accordion">
-                <button type="button" className="pick-diet-toggle"
-                  onClick=${() => setShowConstraintAccordion((o) => !o)}>
-                  <span className="pick-diet-toggle-label">
-                    🚫 Restrictions
-                    ${activeConstraintFilters.length ? html`<span className="pick-diet-badge">${activeConstraintFilters.length}</span>` : null}
-                  </span>
-                  <svg className=${`pick-diet-chevron${showConstraintAccordion ? " open" : ""}`}
-                    width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                ${showConstraintAccordion ? html`
-                  <div className="pick-diet-body">
-                    ${CONSTRAINT_LABELS.map((c) => html`
-                      <button type="button" key=${c.id}
-                        className=${`recipes-filter-chip ${activeConstraintFilters.includes(c.id) ? "on" : ""}`}
-                        onClick=${() => toggleConstraintFilter(c.id)}>
-                        ${c.label}
-                      </button>
-                    `)}
-                  </div>
-                ` : null}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="recipes-page-list-head">
-          ${filteredRecipes.length} recette${filteredRecipes.length !== 1 ? "s" : ""}
-        </div>
-
-        <div className="rlist recipes-page-rlist">
-          ${filteredRecipes.length
-            ? filteredRecipes.map((recipe) => html`
-                <article
-                  className="rcard rcard-recipe"
-                  key=${recipe.id}
-                  tabIndex=${0}
-                  role="button"
-                  aria-label=${`Ouvrir la fiche : ${recipe.name || "Recette"}`}
-                  onClick=${() => openRecipeSheet(recipe)}
-                  onKeyDown=${(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRecipeSheet(recipe); } }}
-                >
-                  ${(() => {
-                    const firstFoodType = FOOD_TYPES.find((t) => (Array.isArray(recipe.labels) ? recipe.labels : []).includes(t.id));
-                    const categoryLabel = recipe.category ? (CATEGORIES.find((c) => c.id === recipe.category)?.label || null) : null;
-                    const shortAvail = availabilityLabelShort(recipe);
-                    const durationInfo = recipeDurationLabel(recipe);
-                    const servings = Number(recipe.servings) || 4;
-                    return html`
-                      <div className="rcard-recipe-thumb" aria-hidden="true">
-                        ${recipe.photo
-                          ? html`<img src=${recipe.photo} alt="" />`
-                          : renderRecipeFallbackVisual(recipe, "thumb", 84)}
-                      </div>
-                      <div className="rcard-recipe-info">
-                        <div className="rcard-recipe-name">${recipe.name || "Sans titre"}</div>
-                        <div className="rcard-recipe-badges">
-                          ${categoryLabel ? html`<span className=${`rcard-badge rcard-badge--cat ${categoryToneClass(recipe.category)}`}>${categoryLabel}</span>` : null}
-                          <span className="rcard-badge rcard-badge--dim">📅 ${shortAvail}</span>
-                          <span className="rcard-badge rcard-badge--dim">👥 ${servings} pers.</span>
-                          ${durationInfo ? html`<span className="rcard-badge rcard-badge--dim">${durationInfo}</span>` : null}
-                          ${firstFoodType ? html`<span className="rcard-badge rcard-badge--diet">${firstFoodType.icon} ${firstFoodType.label}</span>` : null}
-                        </div>
-                      </div>
-                    `;
-                  })()}
-                </article>
-              `)
-            : html`
-                <div className="empty recipes-page-empty">
-                  <div className="recipes-page-empty-emoji" aria-hidden="true">🍳</div>
-                  <div>Aucune recette ne correspond à ce filtre.</div>
-                </div>
-              `}
-        </div>
-      ` : null}
     </section>
   `;
 }

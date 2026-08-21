@@ -32,6 +32,8 @@ function normalizeIncomingRecipe(recipe) {
     condiments: Array.isArray(recipe.condiments) ? recipe.condiments.map((s) => String(s).trim()).filter(Boolean) : [],
     method: String(recipe.method || "").trim(),
     photo: String(recipe.photo || ""),
+    // Étoile de la bibliothèque : filtre « ★ Favoris » et compteur de l'en-tête
+    favorite: Boolean(recipe.favorite),
     // Date d'ajout : sert au tri de la liste des recettes
     createdAt: String(recipe.createdAt || "") || new Date().toISOString(),
   };
@@ -122,6 +124,21 @@ export function useMeals(updateState) {
     }));
   }
 
+  /**
+   * Étoile de la bibliothèque. À part de `handleUpdateRecipe` : celui-ci exige
+   * un nom et repasse toute la recette par la normalisation, ce qui est trop
+   * lourd — et bloquant — pour un geste qu'on répète en parcourant la liste.
+   */
+  function handleToggleRecipeFavorite(recipeId, favorite) {
+    if (!recipeId) return;
+    updateState((previous) => ({
+      ...previous,
+      recipes: previous.recipes.map((entry) =>
+        entry.id === recipeId ? { ...entry, favorite: Boolean(favorite) } : entry,
+      ),
+    }));
+  }
+
   function handleDeleteRecipe(recipeId) {
     updateState((previous) => ({
       ...previous,
@@ -143,5 +160,5 @@ export function useMeals(updateState) {
     });
   }
 
-  return { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleDeleteRecipe, handleLoadDemoRecipes };
+  return { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleToggleRecipeFavorite, handleDeleteRecipe, handleLoadDemoRecipes };
 }

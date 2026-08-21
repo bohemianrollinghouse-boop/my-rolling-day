@@ -1,5 +1,5 @@
 import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
-import { getCurrentAppDate } from "../../utils/date.js";
+import { daysUntilExpiry, getCurrentAppDate } from "../../utils/date.js";
 import { findSimilarItem, formatQuantityUnit, normalizeProductName, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
 
@@ -92,14 +92,6 @@ function compareInventoryByOrder(a, b) {
   const rightOrder = typeof b?.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
   if (leftOrder !== rightOrder) return leftOrder - rightOrder;
   return compareByName(a, b);
-}
-
-function daysUntilExpiry(expiryDate) {
-  if (!expiryDate) return null;
-  const today = getCurrentAppDate();
-  today.setHours(0, 0, 0, 0);
-  const exp = new Date(expiryDate + "T00:00:00");
-  return Math.round((exp - today) / (1000 * 60 * 60 * 24));
 }
 
 function expiryDisplay(expiryDate) {

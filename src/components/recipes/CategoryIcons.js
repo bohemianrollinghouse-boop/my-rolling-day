@@ -41,9 +41,14 @@ export function categoryToneClass(categoryId) {
   return categoryId ? `recipe-category--${categoryId}` : "";
 }
 
-export function CategoryIcon({ categoryId, size, framed = true }) {
+/**
+ * @param {string} [color] force la teinte du masque (pastille remplie du
+ *   sélecteur : icône blanche sur la couleur de la catégorie).
+ */
+export function CategoryIcon({ categoryId, size, framed = true, color = "" }) {
   const sz = size || 56;
-  const cfg = CATEGORY_CONFIG[categoryId];
+  const base = CATEGORY_CONFIG[categoryId];
+  const cfg = base && color ? { ...base, color } : base;
 
   if (!cfg) {
     return html`<span style=${{

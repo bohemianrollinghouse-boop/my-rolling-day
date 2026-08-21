@@ -302,12 +302,17 @@ html[data-theme="dark"] .mrd-bnav-quick-item:hover { background: var(--mrd-surf2
   /* Contenu recentré à une largeur de lecture confortable dans l'espace restant */
   .cnt,
   .mrd-set-page,
-  .mrd-home,
-  .mrd-screen-hdr,
-  .mrd-back-hdr {
+  .mrd-home {
     max-width: 820px;
     margin-left: auto;
     margin-right: auto;
+  }
+  /* Les en-têtes suivent la même boîte que le contenu qu'ils titrent. Avec des
+     marges auto ils se réduisaient à leur contenu et flottaient au milieu de
+     l'écran, décalés de la colonne qu'ils annoncent. */
+  .mrd-screen-hdr,
+  .mrd-back-hdr {
+    align-self: stretch;
   }
 }
 html[data-theme="dark"] .mrd-sidebar { background: var(--mrd-bg); border-color: var(--mrd-border); }
@@ -793,13 +798,6 @@ button { cursor: pointer; }
 .meal-recipe-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .meal-pick-btn { width: 100%; text-align: left; padding: 10px 12px; border: 1.5px dashed var(--mrd-border); border-radius: 10px; background: none; color: var(--mrd-fg3); font-size: 13px; cursor: pointer; transition: background .15s, color .15s; }
 .meal-pick-btn:hover { background: var(--mrd-surf3); color: var(--mrd-fg2); }
-.meal-picker-modal { max-height: min(86vh, 680px); max-height: min(86dvh, 680px); display: flex; flex-direction: column; }
-.meal-picker-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-.meal-picker-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; margin-top: 4px; min-height: 0; }
-.meal-picker-card { display: flex; flex-direction: column; text-align: left; padding: 12px 14px; background: var(--mrd-surf); border: 1px solid var(--mrd-borderSoft); border-radius: 10px; cursor: pointer; transition: background .12s, border-color .12s; }
-.meal-picker-card:hover { background: var(--mrd-surf2); border-color: var(--mrd-aMd); }
-.meal-picker-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.meal-picker-card-name { font-family: "DM Sans", sans-serif; font-size: 16px; font-weight: 600; color: var(--mrd-fg); }
 .mbadge, .miniTitle { text-transform: uppercase; letter-spacing: .4px; font-weight: 600; }
 .sitem, .hitem { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 6px; }
 .shopping-item { border-radius: 12px; border: 1px solid var(--mrd-borderSoft); background: var(--mrd-surf); }
@@ -1780,14 +1778,7 @@ html[data-theme="dark"] .foyer-code-switch-sub { color: var(--mrd-fg3); }
 html[data-theme="dark"] .foyer-code-switch-row { background: var(--mrd-bg); border-color: var(--mrd-border); }
 html[data-theme="dark"] .foyer-code-switch-title { color: var(--mrd-fg); }
 /* Accordéons */
-html[data-theme="dark"] .pick-diet-accordion { border-color: var(--mrd-border); }
-html[data-theme="dark"] .pick-diet-toggle { color: var(--mrd-fg2); }
-html[data-theme="dark"] .pick-diet-toggle:hover { background: var(--mrd-surf2); }
-html[data-theme="dark"] .pick-diet-body { border-top-color: var(--mrd-border); }
 /* Recettes filter chip */
-html[data-theme="dark"] .mrd-shell .recipes-filter-chip.on {
-  background: var(--mrd-aLt); color: var(--mrd-a); border-color: var(--mrd-aMd);
-}
 /* Segmented dark */
 html[data-theme="dark"] .seg-btn.on { background: var(--mrd-surf3); color: var(--mrd-fg); }
 /* Nom du foyer */
@@ -1911,7 +1902,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   .mslot { grid-template-columns: 1fr; }
   .meal-slot { grid-template-columns: 1fr; }
   .meal-slot-head { flex-direction: row; justify-content: space-between; padding-top: 0; }
-  .meal-picker-modal { max-height: 92vh; max-height: 92dvh; }
   .migration-box { flex-direction: column; align-items: flex-start; }
   .family-grid { grid-template-columns: 1fr; }
   .topbar { flex-direction: column; align-items: flex-start; }
@@ -2173,99 +2163,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 .mrd-shell .calendar-week-day.on .calendar-week-day-dot {
   background: var(--mrd-a);
 }
-/* ── Repas — nouveau design ───────────────────────────────── */
-/* Bande de jours */
-.mrd-meals-day-strip { display: flex; gap: 4px; padding-bottom: 12px; }
-.mrd-meals-day-pill { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 14px; background: var(--mrd-surf); border: 1px solid var(--mrd-borderSoft); cursor: pointer; transition: all 0.15s; }
-.mrd-meals-day-abbr { font-size: 11px; font-weight: 600; color: var(--mrd-fg3); line-height: 1; }
-.mrd-meals-day-num  { font-size: 15px; font-weight: 700; color: var(--mrd-fg); line-height: 1.2; }
-.mrd-meals-day-pill.today { border-color: var(--mrd-aMd); background: var(--mrd-aLt); }
-.mrd-meals-day-pill.today .mrd-meals-day-abbr,
-.mrd-meals-day-pill.today .mrd-meals-day-num  { color: var(--mrd-a); }
-.mrd-meals-day-pill.on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); box-shadow: var(--mrd-glowA); }
-.mrd-meals-day-pill.on .mrd-meals-day-abbr,
-.mrd-meals-day-pill.on .mrd-meals-day-num  { color: var(--mrd-white); }
-/* Navigation semaine */
-.mrd-meals-week-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-.mrd-meals-week-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); cursor: pointer; flex-shrink: 0; transition: background .12s; }
-.mrd-meals-week-btn:hover { background: var(--mrd-surf3); color: var(--mrd-fg); }
-.mrd-meals-week-label-btn { flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: var(--mrd-fg); background: none; border: none; cursor: pointer; padding: 4px 0; }
-.mrd-meals-week-label-btn:hover { color: var(--mrd-a); }
-.mrd-meals-view-toggle { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .12s, color .12s; flex-shrink: 0; }
-.mrd-meals-view-toggle.on { background: var(--mrd-aBtn); border-color: var(--mrd-a); color: var(--mrd-white); }
-/* Vue mois */
-.mrd-month-view { display: flex; flex-direction: column; gap: 14px; }
-.mrd-month-week { border-radius: var(--mrd-rLg); border: 1px solid var(--mrd-borderSoft); overflow: hidden; }
-.mrd-month-week.active { border-color: var(--mrd-aMd); }
-.mrd-month-week-head { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--mrd-surf2); border-bottom: 1px solid var(--mrd-borderSoft); cursor: pointer; }
-.mrd-month-week.active .mrd-month-week-head { background: var(--mrd-aLt); border-color: var(--mrd-aMd); }
-.mrd-month-week-label { font-size: 12px; font-weight: 700; color: var(--mrd-fg2); text-transform: uppercase; letter-spacing: 0.04em; }
-.mrd-month-week.active .mrd-month-week-label { color: var(--mrd-a); }
-.mrd-month-week-arrow { font-size: 16px; color: var(--mrd-fg3); }
-.mrd-month-view .mrd-meals-overview-row { border-radius: 0; border: none; border-bottom: 1px solid var(--mrd-borderSoft); margin-bottom: 0; }
-.mrd-month-view .mrd-meals-overview-row:last-child { border-bottom: none; }
-.mrd-month-view .mrd-meals-overview-row.out-of-month { opacity: 0.4; }
-/* Cartes déjeuner / dîner */
-.mrd-meals-day-slots { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.mrd-meals-slot-card { background: var(--mrd-surf); border-radius: var(--mrd-rLg); border: 1px solid var(--mrd-borderSoft); box-shadow: var(--mrd-shadowSm); }
-.mrd-meals-slot-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
-.mrd-meals-slot-left { display: flex; align-items: center; gap: 7px; }
-.mrd-meals-slot-icon { font-size: 18px; line-height: 1; }
-.mrd-meals-slot-label { font-size: 11px; font-weight: 700; color: var(--mrd-fg3); letter-spacing: 0.08em; }
-.mrd-meals-cook-btn { padding: 7px 14px; border-radius: 99px; font-size: 12px; font-weight: 600; border: 1.5px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); cursor: pointer; transition: all 0.18s; white-space: nowrap; }
-.mrd-meals-cook-btn.on { background: var(--mrd-sage); border-color: var(--mrd-sage); color: var(--mrd-white); box-shadow: 0 3px 10px oklch(54% 0.10 155 / 0.25); }
-.mrd-meals-cook-btn--sm { padding: 4px 9px; font-size: 14px; min-width: 32px; text-align: center; }
-.mrd-meals-cook-btn--sm.on { background: var(--mrd-sage); border-color: var(--mrd-sage); color: var(--mrd-white); }
-.mrd-meals-slot-body { padding: 0 14px 14px; }
-.mrd-meals-recipe-name { font-family: "DM Sans", sans-serif; font-weight: 600; font-size: 22px; color: var(--mrd-fg); letter-spacing: -0.01em; line-height: 1.15; margin-bottom: 8px; }
-.mrd-meals-selected-row { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 8px; }
-.mrd-meals-selected-emoji { flex-shrink: 0; line-height: 1; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: transparent; border-radius: 0; border: none; }
-.mrd-meals-selected-name { flex: 1; min-width: 0; font-family: "DM Sans", sans-serif; font-size: 16px; font-weight: 600; color: var(--mrd-fg); letter-spacing: -0.01em; line-height: 1.25; white-space: normal; word-break: break-word; }
-.mrd-meals-selected-btns { flex-shrink: 0; display: flex; gap: 6px; align-items: center; }
-.mrd-meals-icon-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .12s, color .12s; }
-.mrd-meals-icon-btn:hover { background: var(--mrd-surf3); color: var(--mrd-fg); }
-.mrd-meals-icon-btn.danger { color: var(--mrd-fg3); }
-.mrd-meals-icon-btn.danger:hover { background: var(--mrd-dangerLt); color: var(--mrd-danger); border-color: var(--mrd-dangerMd); }
-.mrd-meals-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
-.mrd-meals-tag { padding: 4px 9px; border-radius: 99px; font-size: 11px; font-weight: 500; background: var(--mrd-surf2); color: var(--mrd-fg2); border: 1px solid var(--mrd-borderSoft); }
-.mrd-meals-slot-actions { display: flex; gap: 10px; } /* legacy - replaced by .mrd-meals-selected-actions */
-.mrd-meals-action-link { font-size: 12px; font-weight: 600; color: var(--mrd-a); background: none; border: none; padding: 0; cursor: pointer; }
-.mrd-meals-action-link.danger { color: var(--mrd-fg3); }
-.mrd-meals-pick-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 13px; border-radius: var(--mrd-r); border: 1.5px dashed var(--mrd-border); background: none; color: var(--mrd-fg3); font-size: 13px; cursor: pointer; transition: background 0.15s; }
-/* ── Accordéon extras ── */
-.mrd-extras-accordion { border-top: 1px solid var(--mrd-borderSoft); }
-.mrd-extras-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; font-size: 12px; font-weight: 500; color: var(--mrd-fg3); background: transparent; border: none; cursor: pointer; text-align: left; gap: 8px; -webkit-tap-highlight-color: transparent; }
-.mrd-extras-toggle:hover,
-.mrd-extras-toggle:focus,
-.mrd-extras-toggle:active { background: transparent; outline: none; }
-.mrd-extras-accordion.has-content .mrd-extras-toggle { color: var(--mrd-fg2); }
-.mrd-extras-chevron { flex-shrink: 0; transition: transform .18s ease; }
-.mrd-extras-chevron.open { transform: rotate(180deg); }
-.mrd-extras-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
-.mrd-extras-section { display: flex; flex-direction: column; gap: 5px; }
-.mrd-extras-label { font-size: 10px; font-weight: 700; color: var(--mrd-fg3); text-transform: uppercase; letter-spacing: 0.07em; }
-.mrd-extras-body .mrd-extras-section:nth-child(1) .mrd-extras-label { color: var(--recipe-cat-starter); }
-.mrd-extras-body .mrd-extras-section:nth-child(2) .mrd-extras-label { color: var(--recipe-cat-dessert); }
-.mrd-extras-pick-btn { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: var(--mrd-r); border: 1px dashed var(--mrd-border); background: none; color: var(--mrd-a); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .12s; width: 100%; }
-.mrd-extras-pick-btn:hover { background: var(--mrd-aLt); }
-.mrd-meals-pick-btn:hover { background: var(--mrd-surf2); color: var(--mrd-fg2); }
-/* Aperçu de la semaine */
-.mrd-meals-overview-row { width: 100%; display: flex; align-items: stretch; gap: 0; height: 68px; border-radius: var(--mrd-r); background: var(--mrd-surf); border: 1px solid var(--mrd-borderSoft); margin-bottom: 6px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; overflow: hidden; }
-.mrd-meals-overview-row:hover { background: var(--mrd-surf2); border-color: var(--mrd-border); }
-.mrd-meals-overview-row.selected { background: var(--mrd-surf2); border-color: var(--mrd-aMd); }
-.mrd-meals-overview-row.today { border-left: 3px solid var(--mrd-a); }
-.mrd-meals-overview-day { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 46px; flex-shrink: 0; padding: 10px 6px; background: var(--mrd-surf2); border-right: 1px solid var(--mrd-borderSoft); gap: 1px; }
-.mrd-meals-overview-row.today .mrd-meals-overview-day { background: var(--mrd-aLt); border-right-color: var(--mrd-aMd); }
-.mrd-meals-overview-abbr { font-size: 9px; font-weight: 700; color: var(--mrd-fg3); text-transform: uppercase; letter-spacing: 0.06em; }
-.mrd-meals-overview-date { font-size: 17px; font-weight: 800; color: var(--mrd-fg); line-height: 1; }
-.mrd-meals-overview-row.today .mrd-meals-overview-abbr,
-.mrd-meals-overview-row.today .mrd-meals-overview-date { color: var(--mrd-a); }
-.mrd-meals-overview-slots { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0; }
-.mrd-meals-overview-slot { display: flex; align-items: center; gap: 7px; padding: 0 12px; height: 34px; flex-shrink: 0; }
-.mrd-meals-overview-slot:first-child { border-bottom: 1px solid var(--mrd-borderSoft); }
-.mrd-meals-overview-slot-icon { font-size: 13px; flex-shrink: 0; line-height: 1; }
-.mrd-meals-overview-slot-name { font-size: 12px; font-weight: 500; color: var(--mrd-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mrd-meals-overview-slot-name.empty { color: var(--mrd-fg3); font-style: italic; }
 /* ── Repas (héritage) ─────────────────────────────────────── */
 .mrd-shell .meal-slot { border-top-color: var(--mrd-borderSoft); }
 .mrd-shell .meal-recipe-selected { background: var(--mrd-surf2); border-radius: var(--mrd-r); }
@@ -2274,20 +2171,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 .mrd-shell .meal-pick-btn:hover { background: var(--mrd-surf2); color: var(--mrd-fg2); }
 .mrd-shell .dcook { background: var(--mrd-surf2); border-radius: 50%; border: 1.5px solid var(--mrd-border); color: var(--mrd-fg3); transition: all .18s; }
 .mrd-shell .dcook.on { background: var(--mrd-sage); border-color: var(--mrd-sage); color: var(--mrd-white); }
-.mrd-shell .meal-picker-card { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); border-radius: var(--mrd-r); }
-.mrd-shell .meal-picker-card:hover { background: var(--mrd-surf2); border-color: var(--mrd-border); }
-.mrd-shell .meal-picker-card-name { color: var(--mrd-fg); }
-/* ── Picker recette (modal popup) ── */
-.mrd-shell .meal-picker-backdrop { align-items: center; }
-.mrd-shell .meal-picker-backdrop .modal-card { width: min(580px, calc(100% - 24px)); max-height: min(88vh, 760px); max-height: min(88dvh, 760px); border-radius: 24px; margin-top: 0; }
-.mrd-shell .meal-picker-modal { max-height: min(88vh, 760px); max-height: min(88dvh, 760px); display: flex; flex-direction: column; }
-.mrd-shell .meal-picker-modal .task-modal-head { padding: var(--mrd-sp) var(--mrd-sp) 0; margin-bottom: 12px; }
-.mrd-shell .meal-picker-overlay-body { flex: 1; overflow-y: auto; padding: 0 var(--mrd-sp) var(--mrd-sp); display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-.mrd-shell .pick-quick-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 20px; border: 1.5px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; align-self: flex-start; }
-.mrd-shell .pick-quick-btn.on { background: oklch(75% 0.14 85 / 0.18); border-color: oklch(65% 0.16 85); color: oklch(45% 0.14 85); font-weight: 600; }
-/* Cartes recettes dans le picker — même style que la page Recettes */
-.mrd-shell .meal-picker-modal .rcard.rcard-recipe { display: flex; flex-direction: row; align-items: center; gap: 14px; padding: 10px 12px; border-radius: var(--mrd-r); box-shadow: var(--mrd-shadowSm); cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
-.mrd-shell .meal-picker-modal .rcard.rcard-recipe:active { transform: scale(0.992); }
 .mrd-shell .daymeal { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); }
 /* ── Listes & courses ─────────────────────────────────────── */
 .mrd-shell .shopping-item { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); border-radius: 12px; transition: background .12s; }
@@ -2425,14 +2308,8 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   justify-content: space-between;
   margin-bottom: 10px;
 }
-.mrd-shell .lists-page-header-title {
-  font-family: var(--mrd-serif);
-  font-size: 30px;
-  font-weight: 600;
-  color: var(--mrd-fg);
-  letter-spacing: -0.025em;
-  line-height: 1.04;
-}
+/* La typographie vient de .mrd-screen-hdr-title (classe posée en plus dans
+   ListsView) : un seul titre d'écran, une seule définition. */
 .mrd-shell .lists-page-create-btn {
   flex-shrink: 0;
   border-radius: 999px;
@@ -2815,102 +2692,18 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 /* ── Recettes — page layout ───────────────────────────────── */
 .mrd-shell .recipes-page { gap: var(--mrd-sp); }
 /* Header liste recettes : ← Recettes … Démo + */
-.mrd-shell .recipes-list-hdr {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 48px;
-  padding-bottom: 4px;
-}
-.mrd-shell .recipes-list-hdr .mrd-back-hdr-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-.mrd-shell .recipes-list-hdr-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.mrd-shell .recipes-page-add-btn {
-  width: 38px; height: 38px; border: none; border-radius: 999px;
-  background: var(--mrd-aBtn); color: var(--mrd-white);
-  font-size: 25px; line-height: 1;
-  display: inline-flex; align-items: center; justify-content: center;
-  box-shadow: var(--mrd-glowA);
-  flex-shrink: 0;
-}
 .mrd-shell .recipes-page-demo-btn {
   min-height: 32px; padding: 0 12px; border-radius: 999px;
   font-size: 12px; font-weight: 600;
   color: var(--mrd-fg2); background: var(--mrd-surf); border: 1px solid var(--mrd-border);
 }
 /* Bloc de contrôles (recherche + filtres) */
-.mrd-shell .recipes-page-controls {
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 0; background: transparent; border: none; box-shadow: none;
-}
 /* Barre de recherche */
-.mrd-shell .recipes-page-search-wrap {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--mrd-surf2); border: 1px solid var(--mrd-border);
-  border-radius: 12px; padding: 8px 10px; box-shadow: var(--mrd-shadowSm);
-}
-.mrd-shell .recipes-page-search-icon { display: flex; color: var(--mrd-fg3); flex-shrink: 0; }
-.mrd-shell .recipes-page-search-wrap .recipes-page-search-input {
-  flex: 1; min-width: 0; min-height: 0; border: none; border-radius: 0;
-  padding: 0; background: transparent; box-shadow: none; font-size: 13px;
-}
-.mrd-shell .recipes-page-search-wrap .recipes-page-search-input:focus { outline: none; box-shadow: none; }
-.mrd-shell .recipes-page-search-clear {
-  display: flex; align-items: center; justify-content: center;
-  padding: 4px; border: none; background: transparent;
-  color: var(--mrd-fg3); border-radius: 8px; cursor: pointer; flex-shrink: 0;
-}
-.mrd-shell .recipes-page-search-clear:hover { color: var(--mrd-fg2); background: var(--mrd-surf2); }
 /* Ligne de selects : période + catégorie */
-.mrd-shell .recipes-page-selects-row {
-  display: flex; gap: 8px; align-items: flex-start;
-}
-.mrd-shell .recipes-page-select-col {
-  display: flex; flex-direction: column; gap: 6px; flex: 1 1 0; min-width: 0;
-}
-.mrd-shell .recipes-page-selects-row .asel {
-  width: 100%; min-height: 40px; border-radius: 12px;
-  padding: 0 10px; background: var(--mrd-surf2); border-color: var(--mrd-border);
-  color: var(--mrd-fg); font-size: 13px; font-weight: 600;
-}
 /* accordéons dans la colonne recettes : chips plus petits */
-.mrd-shell .recipes-page-select-col .pick-diet-accordion { font-size: 13px; }
-.mrd-shell .recipes-page-select-col .pick-diet-toggle { padding: 9px 12px; font-size: 13px; min-height: 40px; white-space: nowrap; }
-.mrd-shell .recipes-page-select-col .pick-diet-body { gap: 5px; padding: 8px 10px 10px; }
-.mrd-shell .recipes-page-select-col .recipes-filter-chip { font-size: 12px; padding: 5px 9px; }
 /* Badges types alimentaires : grille 4 colonnes égales */
-.mrd-shell .recipes-page-badges-scroll {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
 /* Chips filtres (types + contraintes) */
-.mrd-shell .recipes-filter-chip {
-  border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2);
-  border-radius: 12px; min-height: 42px; padding: 5px 4px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  font-size: 11px; font-weight: 600;
-  white-space: normal; text-align: center; cursor: pointer; width: 100%;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.mrd-shell .recipes-filter-chip.on { background: var(--mrd-aLt); color: var(--mrd-a); border-color: var(--mrd-aMd); }
-.mrd-shell .recipes-filter-chip-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
 /* Compteur recettes */
-.mrd-shell .recipes-page-list-head {
-  font-size: 11px; font-weight: 600; color: var(--mrd-fg3);
-  margin: 0 0 var(--mrd-sp); letter-spacing: 0.02em;
-}
 /* Chips ingrédients */
 .mrd-shell .recipe-ingredient-chip { background: var(--mrd-surf); border-color: var(--mrd-border); }
 .mrd-shell .recipe-ingredient-chip-name { color: var(--mrd-fg); }
@@ -2919,12 +2712,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 .mrd-shell .recipe-servings-btn,
 .mrd-shell .recipe-servings-value,
 .mrd-shell .recipe-servings-note { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg); }
-.mrd-shell .recipes-page .recipes-page-rlist {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: var(--mrd-sp);
-}
 /* ── Carte recette — grille 2 colonnes avec photo en haut ── */
 .mrd-shell .recipes-page .rcard.rcard-recipe {
   display: flex;
@@ -2962,10 +2749,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   display: block;
 }
 /* Partie texte avec padding interne */
-.mrd-shell .recipes-page .rcard-recipe-info {
-  padding: 8px 10px 10px;
-  gap: 5px;
-}
 /* Nom sur 2 lignes max */
 .mrd-shell .recipes-page .rcard-recipe-name {
   font-size: 14px;
@@ -3006,13 +2789,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   padding: 0;
 }
 /* Partie droite */
-.mrd-shell .rcard-recipe-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 .mrd-shell .rcard-recipe-name {
   font-family: "DM Sans", sans-serif;
   font-size: 17px;
@@ -3025,12 +2801,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   color: var(--mrd-fg);
 }
 /* Badges d'info */
-.mrd-shell .rcard-recipe-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
 .mrd-shell .rcard-badge {
   display: inline-flex;
   align-items: center;
@@ -3071,6 +2841,18 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 .mrd-shell .recipe-sheet-hero-pill-cat.recipe-category--drink { color: var(--recipe-cat-drink); background: var(--recipe-cat-drink-bg); border-color: var(--recipe-cat-drink-line); }
 .mrd-shell .rcard-badge--cat.recipe-category--base,
 .mrd-shell .recipe-sheet-hero-pill-cat.recipe-category--base { color: var(--recipe-cat-base); background: var(--recipe-cat-base-bg); border-color: var(--recipe-cat-base-line); }
+.mrd-shell .rcard-badge--stock-ok {
+  color: var(--mrd-sageDeep);
+  background: var(--mrd-sageLt);
+  border: 1px solid var(--mrd-sageMd);
+  font-weight: 600;
+}
+.mrd-shell .rcard-badge--stock-missing {
+  color: var(--mrd-amber);
+  background: var(--mrd-amberLt);
+  border: 1px solid var(--mrd-amberMd);
+  font-weight: 600;
+}
 .mrd-shell .rcard-badge--diet {
   color: var(--mrd-fg2);
   background: var(--mrd-surf2);
@@ -3087,10 +2869,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   font-size: 14px;
 }
 .mrd-shell .recipes-page-empty-emoji { font-size: 36px; line-height: 1; }
-html[data-theme="dark"] .mrd-shell .recipes-page-search-wrap {
-  background: var(--mrd-surf2);
-  border-color: var(--mrd-border);
-}
 html[data-theme="dark"] .mrd-shell .rcard-recipe-thumb {
   background: var(--mrd-surf2);
   border-color: var(--mrd-borderSoft);
@@ -4991,7 +4769,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
 .mrd-shell .ldv-item-name,
 .mrd-shell .settings-title,
 .mrd-shell .mrd-meal-name,
-.mrd-shell .mrd-meals-recipe-name,
 .mrd-shell .cblktitle {
   font-family: "DM Sans", sans-serif;
   font-size: 15px;
@@ -5003,7 +4780,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
 .mrd-shell .task-assignee,
 .mrd-shell .lists-page-list-card-subtitle,
 .mrd-shell .ldv-item-qty,
-.mrd-shell .mrd-meals-tag,
 .mrd-shell .cblksub {
   font-size: 12px;
   font-weight: 500;
@@ -5059,11 +4835,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
 }
 .mrd-home .mrd-home-meal-sub-label { font-size: 9px; }
 .mrd-home .mrd-meal-name--empty { font-size: 11px; color: var(--mrd-fg3); }
-/* Repas détail / recette */
-.mrd-shell .mrd-meals-recipe-name {
-  line-height: 1.3;
-  margin-bottom: 6px;
-}
 /* Agenda : conserver comportement overflow */
 .mrd-shell .cblktitle {
   line-height: 1.3;
@@ -5124,70 +4895,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
   padding: 12px var(--mrd-sp);
 }
 /* ── Accordéon régime alimentaire dans le picker de repas ── */
-.pick-diet-accordion {
-  border: 1px solid var(--mrd-borderSoft);
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--mrd-surf);
-}
-.pick-diet-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 14px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font: inherit;
-  color: var(--mrd-fg2);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  gap: 8px;
-}
-.pick-diet-toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.pick-diet-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 50%;
-  background: var(--mrd-aBtn);
-  color: var(--mrd-white);
-  font-size: 10px;
-  font-weight: 700;
-}
-.pick-diet-badge--dot {
-  width: 8px;
-  min-width: 8px;
-  height: 8px;
-  padding: 0;
-}
-.pick-diet-chevron {
-  flex-shrink: 0;
-  transition: transform .2s ease;
-  color: var(--mrd-fg3);
-}
-.pick-diet-chevron.open { transform: rotate(180deg); }
-.pick-diet-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  padding: 10px 14px 14px;
-  border-top: 1px solid var(--mrd-borderSoft);
-  background: var(--mrd-surf2);
-}
 /* ── Palette de couleurs badge ── */
 .badge-palette-grid {
   display: flex;
@@ -7022,3 +6729,405 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
   .voice-listen-ring, .voice-listen-dot, .voice-listen-inner { animation: none; }
   .voice-listen-veil { animation: none; opacity: 1; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 }
+
+/* ═══ REPAS · GRILLE SEMAINE (2a) & SÉLECTEUR DE RECETTES (5a) ═══
+   Les deux écrans occupent tout le .cnt : la grille tient les 14 créneaux sans
+   défilement et le panneau bas se pose au-dessus de la barre d'onglets. */
+
+.mrd-shell main.cnt:has(.mrd-week),
+.mrd-shell main.cnt:has(.mpick) {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Le sélecteur a son propre pied fixe : la barre d'onglets s'efface. */
+.mrd-shell:has(.mpick) .mrd-bnav { display: none; }
+.mrd-shell:has(.mpick) .mrd-screen { padding-bottom: 0; }
+
+.mrd-week, .mpick { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Teinte de catégorie propagée aux enfants (vignettes de la grille et du
+   sélecteur) — pendant CSS de CATEGORY_CONFIG. */
+.recipe-category--starter   { --cat: var(--recipe-cat-starter);   --cat-bg: var(--recipe-cat-starter-bg);   --cat-line: var(--recipe-cat-starter-line); }
+.recipe-category--main      { --cat: var(--recipe-cat-main);      --cat-bg: var(--recipe-cat-main-bg);      --cat-line: var(--recipe-cat-main-line); }
+.recipe-category--dessert   { --cat: var(--recipe-cat-dessert);   --cat-bg: var(--recipe-cat-dessert-bg);   --cat-line: var(--recipe-cat-dessert-line); }
+.recipe-category--breakfast { --cat: var(--recipe-cat-breakfast); --cat-bg: var(--recipe-cat-breakfast-bg); --cat-line: var(--recipe-cat-breakfast-line); }
+.recipe-category--drink     { --cat: var(--recipe-cat-drink);     --cat-bg: var(--recipe-cat-drink-bg);     --cat-line: var(--recipe-cat-drink-line); }
+.recipe-category--base      { --cat: var(--recipe-cat-base);      --cat-bg: var(--recipe-cat-base-bg);      --cat-line: var(--recipe-cat-base-line); }
+
+/* ── 2a · barre de semaine ─────────────────────────────────── */
+/* Titre « Repas » sur sa propre ligne, comme les autres onglets ; le sélecteur
+   de semaine vient dessous. La semaine passe en second plan (19 px contre 23
+   avant) : ce n'est plus elle qui titre l'écran. */
+.mrd-week-hdr { flex: none; padding: 12px var(--mrd-sp) 0; }
+.mrd-week-nav { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px var(--mrd-sp) 0; }
+.mrd-week-arrow { flex: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 15px; cursor: pointer; }
+.mrd-week-arrow:hover { background: var(--mrd-surf2); color: var(--mrd-fg); }
+.mrd-week-title { min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.mrd-week-range { font-family: var(--mrd-serif); font-size: 19px; font-weight: 600; color: var(--mrd-fg); white-space: nowrap; }
+.mrd-week-kicker { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mrd-fg3); white-space: nowrap; }
+
+.mrd-week-progress { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px var(--mrd-sp); }
+.mrd-week-track { flex: 1; min-width: 24px; height: 4px; border-radius: 999px; background: var(--mrd-surf3); overflow: hidden; }
+.mrd-week-track-fill { display: block; height: 100%; border-radius: 999px; background: var(--mrd-a); transition: width .18s ease-out; }
+.mrd-week-ratio { flex: none; font-size: 11px; color: var(--mrd-fg3); }
+.mrd-week-pill { flex: none; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.mrd-week-pill.on { background: var(--mrd-sageLt); border-color: var(--mrd-sage); color: var(--mrd-sageDeep); }
+.mrd-week-pill--fill,
+.mrd-week-pill--fill.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-week-pill--fill.on { box-shadow: var(--mrd-glowASoft); }
+
+/* ── 2a · grille des 14 créneaux ───────────────────────────── */
+.mrd-week-heads { flex: none; display: grid; grid-template-columns: 44px 1fr 1fr; gap: 6px; padding: 0 14px 6px; }
+.mrd-week-heads span { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-fg3); }
+
+.mrd-week-grid { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 0 14px; display: flex; flex-direction: column; gap: 5px; }
+.mrd-week-row { display: grid; grid-template-columns: 44px 1fr 1fr; gap: 6px; align-items: stretch; }
+.mrd-week-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; }
+.mrd-week-rail-abbr { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-week-rail-num { font-family: var(--mrd-serif); font-size: 16px; font-weight: 600; color: var(--mrd-fg); }
+.mrd-week-rail.past .mrd-week-rail-num { color: var(--mrd-fg3); }
+.mrd-week-rail.today { background: var(--mrd-aBtn); }
+.mrd-week-rail.today .mrd-week-rail-abbr,
+.mrd-week-rail.today .mrd-week-rail-num { color: var(--mrd-white); }
+
+.mrd-week-cell { position: relative; display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 6px 8px 6px 11px; border-radius: 13px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); text-align: left; overflow: hidden; cursor: pointer; }
+.mrd-week-cell.is-empty { background: transparent; border-style: dashed; }
+.mrd-week-cell.past { opacity: .62; }
+.mrd-week-cell.on { background: var(--mrd-aLt); border-color: var(--mrd-a); border-style: solid; opacity: 1; }
+.mrd-week-cell-bar { position: absolute; left: 4px; top: 8px; bottom: 8px; width: 3px; border-radius: 999px; background: var(--mrd-aMd); }
+.mrd-week-cell.is-empty .mrd-week-cell-bar { background: transparent; }
+.mrd-week-cell.cooked .mrd-week-cell-bar { background: var(--mrd-sage); }
+.mrd-week-cell-icon { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--cat-bg, transparent); }
+.mrd-week-cell.is-empty .mrd-week-cell-icon { background: transparent; border: 1px dashed var(--mrd-border); }
+.mrd-week-cell-plus { font-size: 11px; line-height: 1; color: var(--mrd-fg3); }
+.mrd-week-cell-name { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.15; color: var(--mrd-fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mrd-week-cell.past .mrd-week-cell-name { color: var(--mrd-fg2); }
+.mrd-week-cell.is-empty .mrd-week-cell-name { color: var(--mrd-fg3); }
+.mrd-week-cell-dot { flex: none; width: 7px; height: 7px; border-radius: 999px; background: transparent; }
+.mrd-week-cell-dot.on { background: var(--mrd-amber); }
+/* Manque causé par un autre repas de la semaine, pas par un stock vide. */
+.mrd-week-cell-dot.taken { background: var(--mrd-danger); }
+
+.mrd-week-spacer { flex: 1 1 auto; min-height: 0; }
+
+/* ── 2a · panneau bas (détail ou feuille de remplissage) ───── */
+.mrd-week-panel { flex: none; margin: 6px 12px 8px; border-radius: 22px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); box-shadow: var(--mrd-shadowSheet); overflow: hidden; animation: mrdWeekPanel .16s ease-out; }
+@keyframes mrdWeekPanel { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.mrd-week-panel-hdr { display: flex; align-items: center; gap: 11px; padding: 12px 14px 11px; background: var(--mrd-aLt); }
+.mrd-week-panel-hdr.is-empty { background: var(--mrd-surf2); }
+.mrd-week-panel-thumb { flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--cat-bg, var(--mrd-surf)); }
+.mrd-week-panel-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mrd-week-panel-kicker { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-a); }
+.mrd-week-panel-hdr.is-empty .mrd-week-panel-kicker { color: var(--mrd-fg3); }
+.mrd-week-panel-title { font-family: var(--mrd-serif); font-size: 21px; font-weight: 600; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrd-week-panel-title.is-empty { color: var(--mrd-fg3); }
+.mrd-week-cook { flex: none; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.mrd-week-cook.on { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sageDeep); }
+.mrd-week-cook:disabled { opacity: .45; cursor: default; }
+
+.mrd-week-panel-body { padding: 8px 14px 10px; display: flex; flex-direction: column; gap: 8px; }
+.mrd-week-panel-rows { display: flex; flex-direction: column; gap: 4px; }
+.mrd-week-panel-row { display: flex; align-items: center; gap: 9px; width: 100%; height: 28px; padding: 0 10px; border: none; border-radius: 10px; background: var(--mrd-bg); text-align: left; cursor: pointer; }
+.mrd-week-panel-row:hover { background: var(--mrd-surf2); }
+.mrd-week-panel-role { flex: none; width: 48px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-week-panel-name { flex: 1; min-width: 0; font-size: 13px; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrd-week-panel-name.is-empty { color: var(--mrd-fg3); }
+.mrd-week-panel-cue { flex: none; width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; background: var(--mrd-surf); color: var(--mrd-fg3); }
+
+/* Avertissement « ce stock part déjà dans un autre repas de la semaine ». */
+.mrd-week-taken { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 11px; background: var(--mrd-dangerLt); color: var(--mrd-dangerDeep); font-size: 11.5px; line-height: 1.35; }
+.mrd-week-taken-dot { flex: none; width: 6px; height: 6px; margin-top: 5px; border-radius: 999px; background: var(--mrd-danger); }
+.mrd-week-taken strong { font-weight: 600; }
+
+.mrd-week-panel-actions { display: flex; align-items: center; gap: 6px; }
+.mrd-week-servings { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; height: 32px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); }
+.mrd-week-servings-btn { width: 22px; height: 24px; border: none; border-radius: 8px; background: transparent; color: var(--mrd-fg2); font-size: 14px; line-height: 1; cursor: pointer; }
+.mrd-week-servings-value { min-width: 56px; text-align: center; font-size: 11.5px; font-weight: 500; color: var(--mrd-fg); }
+.mrd-week-shop { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; height: 32px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11.5px; font-weight: 500; cursor: pointer; }
+.mrd-week-shop-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--mrd-fg3); }
+.mrd-week-shop.ok { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sageDeep); }
+.mrd-week-shop.ok .mrd-week-shop-dot { background: var(--mrd-sage); }
+.mrd-week-shop.missing { background: var(--mrd-amberLt); border-color: var(--mrd-amberMd); color: var(--mrd-amberDeep); }
+.mrd-week-shop.missing .mrd-week-shop-dot { background: var(--mrd-amber); }
+.mrd-week-recipe { flex: 1; display: flex; align-items: center; justify-content: center; height: 32px; border: none; border-radius: 11px; background: var(--mrd-aLt); color: var(--mrd-a); font-family: var(--mrd-sans); font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.mrd-week-shop:disabled, .mrd-week-recipe:disabled { opacity: .45; cursor: default; }
+
+/* ── 2a · feuille de remplissage ───────────────────────────── */
+.mrd-week-fill-hdr { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px 10px; background: var(--mrd-aLt); }
+.mrd-week-fill-title { font-family: var(--mrd-serif); font-size: 21px; font-weight: 600; color: var(--mrd-fg); }
+.mrd-week-fill-hdr-btns { display: flex; align-items: center; gap: 8px; }
+.mrd-week-fill-reset { height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11.5px; cursor: pointer; }
+.mrd-week-fill-close { flex: none; width: 28px; height: 28px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 13px; cursor: pointer; }
+.mrd-week-fill-body { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.mrd-week-fill-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mrd-week-chip { height: 27px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.mrd-week-chip.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-week-fill-run { display: flex; align-items: center; gap: 8px; }
+.mrd-week-fill-scope { flex: none; display: flex; gap: 4px; }
+.mrd-week-scope { height: 38px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11px; cursor: pointer; }
+.mrd-week-scope.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-week-fill-cta { flex: 1; height: 38px; border: none; border-radius: 13px; background: var(--mrd-aBtn); color: var(--mrd-white); font-family: var(--mrd-sans); font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: var(--mrd-glowA); }
+.mrd-week-fill-cta:disabled { background: var(--mrd-disabledBg); color: var(--mrd-disabledFg); box-shadow: none; cursor: default; }
+
+/* ── 5a · sélecteur de recettes ────────────────────────────── */
+.mpick-hdr { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 18px; }
+.mpick-back { flex: none; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 15px; cursor: pointer; }
+.mpick-title { flex: 1; min-width: 0; font-family: var(--mrd-serif); font-size: 21px; font-weight: 600; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mpick-searchrow { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 18px 10px; }
+.mpick-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 13px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); color: var(--mrd-fg3); }
+.mpick-search-input { flex: 1; min-width: 0; border: none; background: transparent; font-family: var(--mrd-sans); font-size: 13.5px; color: var(--mrd-fg); }
+.mpick-search-input:focus { outline: none; }
+.mpick-search-input::placeholder { color: var(--mrd-fg3); }
+.mpick-refine { flex: none; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 13px; border-radius: 13px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.mpick-refine.on { background: var(--mrd-aLt); border-color: var(--mrd-a); color: var(--mrd-a); }
+
+.mpick-rail { flex: none; display: flex; gap: 2px; padding: 0 12px 10px; overflow-x: auto; scrollbar-width: none; }
+.mpick-rail::-webkit-scrollbar { display: none; }
+.mpick-rail-item { flex: none; width: 50px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; border: none; background: transparent; cursor: pointer; }
+.mpick-rail-dot { width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center; background: var(--mrd-surf); border: 1px solid var(--mrd-border); }
+.mpick-rail-item.on .mpick-rail-dot { background: var(--cat, var(--mrd-aBtn)); border-color: var(--cat, var(--mrd-aBtn)); }
+.mpick-rail-all { font-size: 11px; letter-spacing: .04em; color: var(--mrd-fg3); line-height: 1; }
+.mpick-rail-item.on .mpick-rail-all { color: var(--mrd-white); }
+.mpick-rail-label { font-family: var(--mrd-sans); font-size: 9.5px; line-height: 1.1; text-align: center; color: var(--mrd-fg3); }
+.mpick-rail-item.on .mpick-rail-label { color: var(--mrd-fg); font-weight: 700; }
+
+/* `flex: 0 1 auto` + son propre défilement : déplié avec le choix de période,
+   le panneau se réduit lui-même au lieu d'écraser la liste de recettes. */
+.mpick-panel { flex: 0 1 auto; overflow-y: auto; margin: 0 14px 10px; padding: 12px 13px 13px; border-radius: 18px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); display: flex; flex-direction: column; gap: 11px; }
+.mpick-switch { display: flex; align-items: center; gap: 10px; padding: 0; border: none; background: transparent; text-align: left; cursor: pointer; }
+.mpick-switch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mpick-switch-label { font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; color: var(--mrd-fg); }
+.mpick-switch-sub { font-family: var(--mrd-sans); font-size: 10.5px; color: var(--mrd-fg3); }
+.mpick-switch-track { flex: none; width: 40px; height: 23px; padding: 3px; border-radius: 999px; background: var(--mrd-switchOff); display: flex; align-items: center; justify-content: flex-start; transition: background .15s ease-out; }
+.mpick-switch-track.on { background: var(--mrd-aBtn); justify-content: flex-end; }
+.mpick-switch-knob { width: 17px; height: 17px; border-radius: 999px; background: var(--mrd-white); }
+.mpick-panel-sep { height: 1px; background: var(--mrd-borderSoft); }
+.mpick-group { display: flex; flex-direction: column; gap: 6px; }
+.mpick-group-label { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mpick-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mpick-chip { height: 27px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11.5px; white-space: nowrap; cursor: pointer; }
+.mpick-chip.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+.mpick-panel-foot { display: flex; align-items: center; gap: 8px; }
+.mpick-panel-clear { flex: none; height: 32px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--mrd-border); background: transparent; color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12px; cursor: pointer; }
+.mpick-panel-see { flex: 1; height: 32px; border: none; border-radius: 11px; background: var(--mrd-aLt); color: var(--mrd-a); font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+
+.mpick-active { flex: none; display: flex; gap: 5px; padding: 0 18px 8px; overflow-x: auto; scrollbar-width: none; }
+.mpick-active::-webkit-scrollbar { display: none; }
+.mpick-active-chip { flex: none; display: flex; align-items: center; gap: 5px; height: 25px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--mrd-aMd); background: var(--mrd-aLt); color: var(--mrd-a); font-family: var(--mrd-sans); font-size: 11px; white-space: nowrap; cursor: pointer; }
+.mpick-active-x { font-size: 11px; opacity: .7; }
+
+.mpick-countrow { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 18px 8px; }
+.mpick-count { flex: none; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mpick-sorts { flex: 1; min-width: 0; display: flex; justify-content: flex-end; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.mpick-sorts::-webkit-scrollbar { display: none; }
+.mpick-sort { flex: none; height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 10.5px; white-space: nowrap; cursor: pointer; }
+.mpick-sort.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+
+.mpick-list { flex: 1; min-height: 96px; overflow-y: auto; padding: 0 18px 12px; display: flex; flex-direction: column; gap: 7px; }
+.mpick-row { flex: none; display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 15px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); text-align: left; cursor: pointer; }
+.mpick-row.on { border-color: var(--mrd-a); background: var(--mrd-aLt); }
+.mpick-row-thumb { flex: none; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: var(--cat-bg, var(--mrd-surf2)); }
+.mpick-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mpick-row-name { font-size: 14px; font-weight: 500; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpick-row-sub { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mpick-row-meta { min-width: 0; font-size: 11px; color: var(--mrd-fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpick-row-stock { flex: none; padding: 2px 6px; border-radius: 999px; font-size: 9.5px; white-space: nowrap; }
+.mpick-row-stock.ok { background: var(--mrd-sageLt); color: var(--mrd-sageDeep); }
+.mpick-row-stock.missing { background: var(--mrd-amberLt); color: var(--mrd-amberDeep); }
+.mpick-row-check { flex: none; width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; background: var(--mrd-surf2); color: var(--mrd-fg3); }
+.mpick-row.on .mpick-row-check { background: var(--mrd-aBtn); color: var(--mrd-white); }
+
+.mpick-empty { margin-top: 12px; padding: 24px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; border-radius: 16px; border: 1px dashed var(--mrd-border); }
+.mpick-empty-title { font-family: var(--mrd-serif); font-size: 18px; color: var(--mrd-fg); }
+.mpick-empty-sub { font-size: 12px; color: var(--mrd-fg3); }
+.mpick-empty-clear { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12px; cursor: pointer; }
+
+.mpick-foot { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 18px calc(14px + env(safe-area-inset-bottom, 0px)); background: var(--mrd-bgGlass); border-top: 1px solid var(--mrd-border); }
+.mpick-remove { height: 32px; border-radius: 11px; border: 1px solid var(--mrd-border); background: transparent; color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12px; cursor: pointer; }
+.mpick-cta { height: 42px; border: none; border-radius: 14px; background: var(--mrd-surf3); color: var(--mrd-fg3); font-family: var(--mrd-sans); font-size: 14px; font-weight: 700; cursor: default; }
+.mpick-cta.on { background: var(--mrd-aBtn); color: var(--mrd-white); cursor: pointer; box-shadow: var(--mrd-glowA); }
+
+/* Sombre : la pastille sélectionnée se remplit du ton foncé de la catégorie —
+   en sombre --recipe-cat-* est une couleur claire, une icône blanche dessus
+   tomberait à ~2:1. */
+html[data-theme="dark"] .mpick-rail-item.on .mpick-rail-dot { background: var(--cat-line, var(--mrd-aBtn)); border-color: var(--cat, var(--mrd-aBtn)); }
+
+/* Anti-gaspi : une rangée de rappels, jamais plus (règle produit — les DLC
+   proches doivent rester proposées dans le choix d une recette). */
+.mpick-urgent { flex: none; display: flex; align-items: center; gap: 5px; padding: 0 18px 8px; overflow-x: auto; scrollbar-width: none; }
+.mpick-urgent::-webkit-scrollbar { display: none; }
+.mpick-urgent-label { flex: none; font-size: 12px; line-height: 1; }
+.mpick-urgent-chip { flex: none; display: flex; align-items: center; gap: 5px; height: 25px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--mrd-amberMd); background: var(--mrd-amberLt); color: var(--mrd-amberDeep); font-family: var(--mrd-sans); font-size: 11px; white-space: nowrap; cursor: pointer; }
+.mpick-urgent-item { font-size: 10px; opacity: .75; }
+
+/* Choix manuel de la periode du filtre « de saison » : saison, ou mois precis.
+   Ne se deplie que quand l interrupteur est actif. */
+.mpick-switch-block { display: flex; flex-direction: column; gap: 8px; }
+.mpick-period { display: flex; flex-direction: column; gap: 5px; }
+.mpick-months { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+.mpick-months::-webkit-scrollbar { display: none; }
+.mpick-months .mpick-chip { flex: none; }
+.mpick-chip--sm { height: 24px; padding: 0 9px; font-size: 11px; }
+
+/* Bilan du tirage automatique (modale) */
+.mrd-fill-report { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.mrd-fill-report-line { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; color: var(--mrd-fg2); }
+.mrd-fill-report-dot { flex: none; width: 7px; height: 7px; margin-top: 5px; border-radius: 999px; background: var(--mrd-fg3); }
+.mrd-fill-report-line.ok .mrd-fill-report-dot { background: var(--mrd-sage); }
+.mrd-fill-report-line.miss .mrd-fill-report-dot { background: var(--mrd-amber); }
+.mrd-fill-report-line strong { color: var(--mrd-fg); font-weight: 600; }
+.mrd-fill-report-items { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 15px; }
+.mrd-fill-report-item { padding: 3px 8px; border-radius: 999px; background: var(--mrd-sageLt); color: var(--mrd-sageDeep); font-size: 11px; }
+
+/* « Deja demande » : marque un manquant qui attend deja sur la liste de courses */
+.mrd-listed-tag { flex: none; padding: 2px 7px; border-radius: 999px; background: var(--mrd-sageLt); color: var(--mrd-sageDeep); font-size: 10.5px; white-space: nowrap; }
+/* « Deja pris par » : ce manquant part dans un repas plus tot dans la semaine */
+.mrd-taken-tag { flex: none; padding: 2px 7px; border-radius: 999px; background: var(--mrd-dangerLt); color: var(--mrd-dangerDeep); font-size: 10.5px; white-space: nowrap; }
+.mrd-week-shop.listed { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sageDeep); }
+.mrd-week-shop.listed .mrd-week-shop-dot { background: var(--mrd-sage); }
+
+/* ── 6a · bibliothèque de recettes (onglet Recettes, vue liste) ──
+   Même grammaire que le sélecteur des repas (.mpick-*) : rangée de
+   catégories en icônes, un seul « Affiner », rappel en pastilles.
+   Bloc distinct malgré la ressemblance : le sélecteur est un écran
+   plein qui gère son propre défilement (flex: none / flex: 1), la
+   bibliothèque vit dans .cnt et défile avec la page.
+   .cnt porte déjà 14px de marge latérale — d'où les +4px des blocs
+   (18px d'écran) et les -2px de la rangée de catégories (12px). */
+.mrd-shell .recipes-page--lib { gap: 0; }
+
+.mrd-shell .rlib-hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 8px; }
+.mrd-shell .rlib-titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mrd-shell .rlib-title { font-family: var(--mrd-serif); font-weight: 600; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; color: var(--mrd-fg); }
+.mrd-shell .rlib-subtitle { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .rlib-hdr-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mrd-shell .rlib-add { width: 36px; height: 36px; flex-shrink: 0; border: none; border-radius: 13px; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 19px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+
+.mrd-shell .rlib-searchrow { display: flex; align-items: center; gap: 8px; padding: 0 4px 10px; }
+.mrd-shell .rlib-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 13px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); color: var(--mrd-fg3); }
+.mrd-shell .rlib-search-input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: none; border-radius: 0; box-shadow: none; background: transparent; font-family: var(--mrd-sans); font-size: 13.5px; color: var(--mrd-fg); }
+.mrd-shell .rlib-search-input:focus { outline: none; box-shadow: none; }
+.mrd-shell .rlib-search-input::placeholder { color: var(--mrd-fg3); }
+.mrd-shell .rlib-refine { flex: none; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 13px; border-radius: 13px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.mrd-shell .rlib-refine.on { background: var(--mrd-aLt); border-color: var(--mrd-a); color: var(--mrd-a); }
+
+.mrd-shell .rlib-rail { display: flex; gap: 2px; margin: 0 -2px; padding: 0 0 10px; overflow-x: auto; scrollbar-width: none; }
+.mrd-shell .rlib-rail::-webkit-scrollbar { display: none; }
+.mrd-shell .rlib-rail-item { flex: none; width: 50px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; border: none; background: transparent; cursor: pointer; }
+.mrd-shell .rlib-rail-dot { width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center; background: var(--mrd-surf); border: 1px solid var(--mrd-border); }
+.mrd-shell .rlib-rail-item.on .rlib-rail-dot { background: var(--cat, var(--mrd-aBtn)); border-color: var(--cat, var(--mrd-aBtn)); }
+.mrd-shell .rlib-rail-all { font-size: 11px; letter-spacing: .04em; line-height: 1; color: var(--mrd-fg3); }
+.mrd-shell .rlib-rail-item.on .rlib-rail-all { color: var(--mrd-white); }
+.mrd-shell .rlib-rail-label { font-family: var(--mrd-sans); font-size: 9.5px; line-height: 1.1; text-align: center; color: var(--mrd-fg3); }
+.mrd-shell .rlib-rail-item.on .rlib-rail-label { color: var(--mrd-fg); font-weight: 700; }
+
+.mrd-shell .rlib-panel { margin: 0 0 10px; padding: 12px 13px 13px; border-radius: 18px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); display: flex; flex-direction: column; gap: 11px; animation: rlib-panel-in .15s ease-out; }
+@keyframes rlib-panel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mrd-shell .rlib-panel { animation: none; } }
+
+.mrd-shell .rlib-switch { display: flex; align-items: center; gap: 10px; padding: 0; border: none; background: transparent; text-align: left; cursor: pointer; }
+.mrd-shell .rlib-switch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mrd-shell .rlib-switch-label { font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; color: var(--mrd-fg); }
+.mrd-shell .rlib-switch-sub { font-family: var(--mrd-sans); font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .rlib-switch-track { flex: none; width: 40px; height: 23px; padding: 3px; border-radius: 999px; background: var(--mrd-switchOff); display: flex; align-items: center; justify-content: flex-start; transition: background .15s ease-out; }
+.mrd-shell .rlib-switch-track.on { background: var(--mrd-aBtn); justify-content: flex-end; }
+.mrd-shell .rlib-switch-knob { width: 17px; height: 17px; border-radius: 999px; background: var(--mrd-white); }
+
+.mrd-shell .rlib-panel-sep { height: 1px; background: var(--mrd-borderSoft); }
+.mrd-shell .rlib-group { display: flex; flex-direction: column; gap: 6px; }
+.mrd-shell .rlib-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mrd-shell .rlib-group-label { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .rlib-group-summary { font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .rlib-group-summary.on { color: var(--mrd-a); }
+.mrd-shell .rlib-group-note { font-size: 10.5px; line-height: 1.3; color: var(--mrd-fg3); }
+
+.mrd-shell .rlib-seasons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.mrd-shell .rlib-season { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 5px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); cursor: pointer; }
+.mrd-shell .rlib-season.on { background: var(--mrd-aLt); border-color: var(--mrd-a); color: var(--mrd-a); }
+.mrd-shell .rlib-season-icon { font-size: 13px; line-height: 1; }
+.mrd-shell .rlib-season-label { font-size: 10.5px; }
+
+.mrd-shell .rlib-months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+.mrd-shell .rlib-month { position: relative; height: 24px; padding: 0; border-radius: 7px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg3); font-family: var(--mrd-sans); font-size: 10px; cursor: pointer; }
+.mrd-shell .rlib-month.on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); color: var(--mrd-white); }
+/* Zone tapable élargie : la tuile ne fait que 24px de haut. */
+.mrd-shell .rlib-month::after { content: ""; position: absolute; inset: -10px 0; }
+
+.mrd-shell .rlib-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mrd-shell .rlib-chip { height: 27px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11.5px; white-space: nowrap; cursor: pointer; }
+.mrd-shell .rlib-chip.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+
+.mrd-shell .rlib-select { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); text-align: left; cursor: pointer; }
+.mrd-shell .rlib-select.on { background: var(--mrd-aLt); border-color: var(--mrd-a); }
+.mrd-shell .rlib-select-summary { flex: 1; min-width: 0; font-family: var(--mrd-sans); font-size: 12.5px; color: var(--mrd-fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrd-shell .rlib-select.on .rlib-select-summary { color: var(--mrd-a); }
+.mrd-shell .rlib-select-caret { flex: none; font-size: 10px; color: var(--mrd-fg3); }
+.mrd-shell .rlib-select-list { border-radius: 12px; border: 1px solid var(--mrd-border); background: var(--mrd-bg); overflow: hidden; }
+.mrd-shell .rlib-select-row { width: 100%; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 11px; border: none; background: transparent; color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12.5px; text-align: left; cursor: pointer; }
+.mrd-shell .rlib-select-row + .rlib-select-row { border-top: 1px solid var(--mrd-borderSoft); }
+.mrd-shell .rlib-select-row.on { background: var(--mrd-aLt); color: var(--mrd-fg); }
+.mrd-shell .rlib-select-box { flex: none; width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); display: grid; place-items: center; font-size: 10px; color: transparent; }
+.mrd-shell .rlib-select-box.on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-shell .rlib-select-label { flex: 1; min-width: 0; }
+
+.mrd-shell .rlib-panel-foot { display: flex; align-items: center; gap: 8px; }
+.mrd-shell .rlib-panel-clear { flex: none; height: 32px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--mrd-border); background: transparent; color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12px; white-space: nowrap; cursor: pointer; }
+.mrd-shell .rlib-panel-see { flex: 1; height: 32px; border: none; border-radius: 11px; background: var(--mrd-aLt); color: var(--mrd-a); font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+
+.mrd-shell .rlib-active { display: flex; gap: 5px; padding: 0 4px 8px; overflow-x: auto; scrollbar-width: none; }
+.mrd-shell .rlib-active::-webkit-scrollbar { display: none; }
+.mrd-shell .rlib-active-chip { position: relative; flex: none; display: flex; align-items: center; gap: 5px; height: 25px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--mrd-aMd); background: var(--mrd-aLt); color: var(--mrd-a); font-family: var(--mrd-sans); font-size: 11px; white-space: nowrap; cursor: pointer; }
+.mrd-shell .rlib-active-chip::after { content: ""; position: absolute; inset: -9px -2px; }
+.mrd-shell .rlib-active-x { font-size: 11px; opacity: .7; }
+
+.mrd-shell .rlib-countrow { display: flex; align-items: center; gap: 8px; padding: 0 4px 8px; }
+.mrd-shell .rlib-count { flex: none; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .rlib-sorts { flex: 1; min-width: 0; display: flex; justify-content: flex-end; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.mrd-shell .rlib-sorts::-webkit-scrollbar { display: none; }
+.mrd-shell .rlib-sort { position: relative; flex: none; height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 10.5px; white-space: nowrap; cursor: pointer; }
+.mrd-shell .rlib-sort.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-shell .rlib-sort::after { content: ""; position: absolute; inset: -10px -2px; }
+
+.mrd-shell .rlib-list { display: flex; flex-direction: column; gap: 7px; padding: 0 4px; }
+
+.mrd-shell .rlib-card { display: flex; flex-direction: column; gap: 9px; padding: 12px 13px 11px; border-radius: 18px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); }
+.mrd-shell .rlib-card-head { display: flex; align-items: flex-start; gap: 8px; }
+.mrd-shell .rlib-card-open { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 12px; padding: 0; border: none; background: transparent; text-align: left; cursor: pointer; }
+.mrd-shell .rlib-card-thumb { flex: none; width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; overflow: hidden; background: var(--cat-bg, var(--mrd-surf2)); }
+.mrd-shell .rlib-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mrd-shell .rlib-card-headtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mrd-shell .rlib-card-name { font-family: var(--mrd-serif); font-weight: 600; font-size: 19px; line-height: 1.12; color: var(--mrd-fg); text-wrap: pretty; }
+.mrd-shell .rlib-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 11px; color: var(--mrd-fg2); }
+.mrd-shell .rlib-card-meta > * + *::before { content: "·"; margin-right: 5px; color: var(--mrd-fg3); }
+.mrd-shell .rlib-card-cat { color: var(--cat, var(--mrd-fg2)); }
+.mrd-shell .rlib-card-quick { color: var(--mrd-a); }
+.mrd-shell .rlib-card-star { flex: none; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: none; background: transparent; color: var(--mrd-switchOff); font-size: 17px; line-height: 1; cursor: pointer; }
+.mrd-shell .rlib-card-star.on { color: var(--mrd-a); }
+
+.mrd-shell .rlib-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.mrd-shell .rlib-tag { padding: 3px 8px; border-radius: 999px; background: var(--mrd-surf2); color: var(--mrd-fg2); font-size: 10px; }
+.mrd-shell .rlib-tag--diet { background: var(--mrd-sageLt); color: var(--mrd-sageDeep); }
+.mrd-shell .rlib-tag--more { color: var(--mrd-fg3); }
+
+.mrd-shell .rlib-card-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid var(--mrd-borderSoft); }
+.mrd-shell .rlib-card-status { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mrd-shell .rlib-card-stock { font-size: 10.5px; font-weight: 500; }
+.mrd-shell .rlib-card-stock.ok { color: var(--mrd-sageDeep); }
+.mrd-shell .rlib-card-stock.missing { color: var(--mrd-amber); }
+.mrd-shell .rlib-card-avail { font-size: 10px; color: var(--mrd-fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrd-shell .rlib-card-actions { flex: none; display: flex; gap: 6px; }
+.mrd-shell .rlib-card-btn { height: 27px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--mrd-border); background: transparent; color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 11px; white-space: nowrap; cursor: pointer; }
+.mrd-shell .rlib-card-btn--plan { background: var(--mrd-aLt); border-color: var(--mrd-aMd); color: var(--mrd-a); font-weight: 500; }
+
+.mrd-shell .rlib-empty { padding: 24px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; border-radius: 16px; border: 1px dashed var(--mrd-border); }
+.mrd-shell .rlib-empty-title { font-family: var(--mrd-serif); font-size: 18px; color: var(--mrd-fg); }
+.mrd-shell .rlib-empty-sub { font-size: 12px; color: var(--mrd-fg3); }
+.mrd-shell .rlib-empty-clear { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12px; cursor: pointer; }
+
+/* Sombre : la pastille sélectionnée se remplit du ton foncé de la catégorie —
+   en sombre --recipe-cat-* est clair, une icône blanche dessus tomberait à ~2:1. */
+html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { background: var(--cat-line, var(--mrd-aBtn)); border-color: var(--cat, var(--mrd-aBtn)); }
