@@ -4,11 +4,15 @@ Read this file before touching feature code.
 
 ## Runtime model
 
-- Static app, no build step, no bundler.
-- React 18 + HTM syntax via `src/lib.js` (esm.sh CDN).
-- ES modules loaded directly from `index.html`.
-- Firebase SDK loaded from gstatic CDN via `import` statements with `?v=...` cache-busting.
-- Global CSS in one file: `src/styles.css`.
+- **Vite + npm** (bundler depuis le commit `201c442`). `npm run dev` en local,
+  `npm run build` vers `dist/`.
+- React 18 + syntaxe HTM via `src/lib.js`. **Pas de JSX** : les composants
+  écrivent des templates ``html`...` ``.
+- Imports npm nus (`import React from "react"`, `import { getAuth } from "firebase/auth"`).
+- Firebase depuis npm (`firebase` en dépendance), plus depuis le CDN gstatic.
+- CSS global dans un seul fichier : `src/styles.css` (~7 100 lignes), tokens
+  `--mrd-*` comme unique source de vérité couleur.
+- Capacitor 6 pour iOS / Android (`capacitor.config.json`, `webDir: "dist"`).
 
 ## Top-level data flow
 
@@ -190,22 +194,47 @@ Two separate systems:
 - `src/utils/state.js` — daily/weekly/monthly reset, recurring task cycles, normalization, backward-compat migrations
 - `src/utils/storage.js` — JSON import/export parser
 
-## Cache-busting rule
+## Cache-busting — règle supprimée
 
-All imports use `?v=...` query strings. Since there is no bundler, each unique URL = a separate module instance. **All imports of the same file must use the identical version string** to avoid duplicate module initialization (especially critical for `client.js` which calls `initializeApp()`).
-
-When touching any file:
-1. Update its own version string (if it has one)
-2. Update the version string in every file that imports it
-3. Bump `index.html` if needed for mobile cache refresh
-
-Current aligned version: `?v=2026-05-08-offline-cache-1` (all `client.js` imports).
+**Obsolète.** Les suffixes `?v=...` étaient nécessaires quand les modules
+étaient chargés à l'unité par le navigateur : chaque URL distincte donnait une
+instance de module distincte, et un `client.js` chargé deux fois appelait
+`initializeApp()` deux fois. Vite résout et dédoublonne les modules au build :
+il n'y a plus rien à aligner. Ne pas réintroduire de `?v=` dans les imports.
 
 ## Important dependencies
 
-- React 18 + HTM (CDN)
-- Firebase Auth, Firestore, Cloud Messaging (CDN)
-- Firebase Admin SDK (Cloud Functions only, not in frontend)
-- Node test runner for local tests (`node:test`)
+- React 18 + HTM (npm)
+- Firebase Auth, Firestore, Cloud Messaging (npm)
+- Capacitor 6 + plugins (`@capacitor/*`, `@capacitor-community/*`)
+- Vite (devDependency, unique outil de build)
+- Firebase Admin SDK (Cloud Functions uniquement, pas dans le frontend)
+- Node test runner pour les tests locaux (`node:test`)
 
-`package.json` is minimal. No visible bundler or framework router.
+## Routage
+
+**Aucun router.** L'écran affiché est dérivé de `useState` dans `App.js` :
+`activeTab`, `showSettings`, `settingsSubPage`, `settingsSupportPage`. Les
+décisions de haut niveau (chargement / auth / onboarding / app) sont dans
+`src/hooks/useAppRouting.js`.
+
+→ Ce point change avec la migration Ionic : voir `docs/MIGRATION_IONIC.md`.
+
+## Tests
+
+```
+npm test          # unitaires + e2e
+npm run test:unit
+npm run test:e2e
+```
+
+Les suites e2e (`tests/e2e/`) pilotent un Chrome headless par CDP sur un vrai
+build Vite où Firebase est remplacé par les stubs de
+`tests/fixtures/firebase-stubs/` (voir `tests/helpers/e2e-build.js`).
+
+⚠️ Les sections CDP se **skippent silencieusement** si aucun navigateur n'est
+trouvé — la suite affiche alors « 0 fail » sans avoir rien vérifié. Les chemins
+sont dans `tests/helpers/cdp-browser.js`. Vérifier le compteur `skipped` :
+il doit être à 0.
+
+Garde anti-régression visuelle : `tests/screenshots/` (voir son README).

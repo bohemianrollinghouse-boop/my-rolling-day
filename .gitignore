@@ -18,6 +18,12 @@ src/assets/build-info.json
 # Build de l'application servi aux tests E2E (regénéré à chaque run)
 tests/.e2e-dist/
 
+# Captures d'écran de comparaison visuelle (migration Ionic).
+# `baseline/` est la référence et reste versionnée ; les captures par phase
+# sont régénérables et pèsent ~6 Mo chacune — hors dépôt.
+tests/screenshots/*/
+!tests/screenshots/baseline/
+
 # Signature Android (identifiants + keystore hors dépôt)
 android/keystore.properties
 *.jks

@@ -4,25 +4,23 @@
 
 My Rolling Day est une application familiale de planification en francais.
 
-Le vrai projet actif est ici :
-- `C:\Users\Myenn\Documents\Codex\2026-04-17-files-mentioned-by-the-user-code\planning-react`
-
 Le prototype design se trouve a part et ne doit pas remplacer cette base.
 
 ## Stack technique
 
-- Frontend sans build complexe
-- Modules ES natifs
-- React 18 via CDN
-- Syntaxe HTM dans les composants
-- Firebase Auth + Firestore
-- CSS global dans `src/styles.css`
+- Vite + npm (bundler ; `npm run dev`, `npm run build`)
+- React 18 via npm, syntaxe HTM dans les composants
+- Firebase Auth + Firestore via npm
+- Capacitor 6 (iOS / Android)
+- CSS global dans `src/styles.css`, tokens `--mrd-*`
 
 Points importants :
-- pas de JSX
-- pas de `package.json` visible dans ce dossier
-- beaucoup d imports utilisent un suffixe `?v=...` pour le cache busting
-- si un module change, penser a verifier les imports versionnes relies
+- pas de JSX — les composants ecrivent des templates ``html`...` ``
+- les imports sont des imports npm nus, resolus par Vite
+- **plus de suffixe `?v=...`** : la regle de cache busting datait de l epoque
+  sans bundler, elle est obsolete et ne doit pas etre reintroduite
+- migration Ionic en cours : voir `docs/MIGRATION_IONIC.md` avant de toucher
+  a la navigation, a la coque d ecran ou aux overlays
 
 ## Entrees principales
 

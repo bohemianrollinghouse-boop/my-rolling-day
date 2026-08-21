@@ -63,7 +63,14 @@ if (!window.__e2eStubs) {
     /** Document foyer, tel que le lit watchFamilies() — null tant qu'il n'existe pas. */
     currentFamily() {
       if (!this.familyCreated) return null;
-      return { id: this.createdFamilyId || FAMILY_ID, name: "Mon Foyer E2E", inviteCode: "E2ECODE", memberCount: 1 };
+      return {
+        id: this.createdFamilyId || FAMILY_ID, name: "Mon Foyer E2E",
+        inviteCode: "E2ECODE", memberCount: 1,
+        // `window.__E2E_PREMIUM` debloque Repas / Inventaire / Recettes
+        // (isPremium = currentFamily.premiumOverride, cf. src/App.js). Sans lui
+        // ces trois vues rendent le paywall et ne sont pas capturables.
+        premiumOverride: Boolean(window.__E2E_PREMIUM),
+      };
     },
 
     _onBatchCommit(ops) {
@@ -256,7 +263,19 @@ export function onSnapshot(ref, callbackOrOptions, onError) {
       else if (isPeople) callback(makeSnapList(stubs.people, false));
       else if (isMembers) callback(makeSnapList(stubs.members, false));
       else if (isInvite) callback(makeSnapList([], false));
-      else if (isPlanner) callback(makeSnap(false, null));
+      else if (isPlanner) {
+        // Graine facultative : `window.__E2E_PLANNER_SEED` permet aux captures
+        // d ecran de rendre des vues peuplees (taches, repas, listes, notes)
+        // au lieu de 8 ecrans d etat vide. Absente, le comportement d origine
+        // est conserve : aucun document planner, l app cree son etat par defaut.
+        // Le document planner est enveloppe : `{ data, updatedAt, updatedBy }`
+        // (cf. saveFamilyPlanner dans src/firebase/clientPlanner.js). La graine
+        // est fournie comme etat nu, on l enveloppe ici.
+        const seed = window.__E2E_PLANNER_SEED;
+        callback(seed
+          ? makeSnap(true, { data: seed, updatedAt: null, updatedBy: USER_ID })
+          : makeSnap(false, null));
+      }
       else callback(makeSnap(false, null));
     } catch (e) { console.warn("[e2e-stub] onSnapshot initial fire error", path, e); }
   }, 80);

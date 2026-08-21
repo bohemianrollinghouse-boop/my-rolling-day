@@ -6,10 +6,26 @@ import { tmpdir } from "node:os";
 
 const PROFILE_PREFIX = "mrd-e2e-browser-";
 
+/**
+ * Chemins de navigateur par plateforme.
+ *
+ * Le harnais etait Windows uniquement : sur macOS `findAvailableBrowser()`
+ * renvoyait null et les 24 tests CDP se skippaient en silence — la suite
+ * affichait « 0 fail » sans avoir jamais ouvert de navigateur.
+ */
 const BROWSER_CANDIDATES = [
   process.env.BROWSER_PATH,
+  // macOS
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  // Windows
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  // Linux
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
 ].filter(Boolean);
 
 function execFileAsync(file, args) {
@@ -231,10 +247,26 @@ export async function launchBrowser(debugPort = 9222) {
 }
 
 export async function openPageSession(browser, targetUrl = "about:blank") {
-  await execFileAsync("curl.exe", [`http://127.0.0.1:${browser.debugPort}/json/new?${targetUrl}`]);
-  const targetsResponse = await fetch(`http://127.0.0.1:${browser.debugPort}/json/list`);
-  const targets = await targetsResponse.json();
-  const pageTarget = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
+  // `/json/new` exige un PUT depuis Chrome 111 (un GET renvoie 405). L appel
+  // passait par `curl.exe`, absent hors Windows.
+  const newTabResponse = await fetch(
+    `http://127.0.0.1:${browser.debugPort}/json/new?${targetUrl}`,
+    { method: "PUT" },
+  );
+  if (!newTabResponse.ok) {
+    throw new Error(`Ouverture d onglet refusee par le navigateur (${newTabResponse.status}).`);
+  }
+  const newTab = await newTabResponse.json();
+  // On se rattache a l onglet qu on vient d ouvrir, pas au premier venu : avec
+  // plusieurs sessions dans le meme navigateur, `find()` renvoyait l onglet
+  // d une autre suite.
+  let pageTarget = newTab.webSocketDebuggerUrl ? newTab : null;
+  if (!pageTarget) {
+    const targetsResponse = await fetch(`http://127.0.0.1:${browser.debugPort}/json/list`);
+    const targets = await targetsResponse.json();
+    pageTarget = targets.find((target) => target.id === newTab.id && target.webSocketDebuggerUrl)
+      || targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
+  }
 
   if (!pageTarget) {
     throw new Error("Aucun onglet de navigateur headless n a ete trouve.");

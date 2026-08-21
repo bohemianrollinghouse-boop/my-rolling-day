@@ -1,0 +1,254 @@
+[
+  {
+    "variant": "mobile-light",
+    "screen": "home",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "tasks-daily",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "tasks-weekly",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "tasks-monthly",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "tasks-mine",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "agenda",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "meals",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "quick-menu",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "lists",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "notes",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "inventory",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "recipes",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "history",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-light",
+    "screen": "settings",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "home",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "tasks-daily",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "tasks-weekly",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "tasks-monthly",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "tasks-mine",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "agenda",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "meals",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "quick-menu",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "lists",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "notes",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "inventory",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "recipes",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "history",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "mobile-dark",
+    "screen": "settings",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "home",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "tasks-daily",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "tasks-weekly",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "tasks-monthly",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "tasks-mine",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "agenda",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "meals",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "quick-menu",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "lists",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "notes",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "inventory",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "recipes",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "history",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "variant": "desktop-light",
+    "screen": "settings",
+    "ok": true,
+    "note": ""
+  }
+]
