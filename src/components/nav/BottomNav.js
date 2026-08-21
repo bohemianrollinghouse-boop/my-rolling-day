@@ -1,60 +1,28 @@
-import { html, useEffect, useRef, useState } from "../../lib.js";
+// Navigation — barre d'onglets Ionic (mobile) et barre latérale (bureau).
+//
+// La barre du bas était entièrement recodée à la main : positionnement absolu,
+// safe area, flou d'arrière-plan, badge, et un menu « Plus » avec son propre
+// écouteur `document mousedown` pour se refermer. Tout ça est passé à Ionic :
+// `ion-tab-bar` gère le placement et la safe area, `ion-badge` le compteur, et
+// `ion-action-sheet` le menu (fermeture au tap dehors incluse).
+//
+// La barre latérale bureau reste maison pour l'instant — elle passera en
+// `ion-split-pane` en phase 6.
+
+import { html } from "../../lib.js";
+import { IonBadge, IonLabel, IonTabBar, IonTabButton } from "@ionic/react";
 import { isPremiumTab } from "../../utils/premium.js";
+import { QUICK_SCREENS, bottomIdForTab } from "../../routes.js";
+import { IcoCal, IcoCheck, IcoFork, IcoHome, IcoPlus } from "./NavIcons.js";
 
-function IcoHome({ active }) {
-  const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
-  const sw = active ? "2.2" : "1.8";
-  return html`
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M3 12L12 3l9 9" stroke=${c} stroke-width=${sw} stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke=${c} stroke-width=${sw} stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
-}
-
-function IcoCheck({ active }) {
-  const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
-  const sw = active ? "2.2" : "1.8";
-  return html`
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke=${c} stroke-width=${sw}/>
-      <path d="M8 12l3 3 5-5" stroke=${c} stroke-width=${sw} stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
-}
-
-function IcoCal({ active }) {
-  const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
-  const sw = active ? "2.2" : "1.8";
-  return html`
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="4" width="18" height="17" rx="3" stroke=${c} stroke-width=${sw}/>
-      <path d="M3 9h18M8 2v4M16 2v4" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
-      <circle cx="8" cy="13" r="1" fill=${c}/>
-      <circle cx="12" cy="13" r="1" fill=${c}/>
-      <circle cx="16" cy="13" r="1" fill=${c}/>
-      <circle cx="8" cy="17" r="1" fill=${c}/>
-      <circle cx="12" cy="17" r="1" fill=${c}/>
-    </svg>`;
-}
-
-function IcoFork({ active }) {
-  const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
-  const sw = active ? "2.2" : "1.8";
-  return html`
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M3 2v7c0 1.1.9 2 2 2h2v11" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
-      <path d="M3 2v4M7 2v4" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
-      <path d="M17 2c0 0-2 2-2 5s2 5 2 5v8" stroke=${c} stroke-width=${sw} stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
-}
-
-function IcoPlus({ active }) {
-  const c = active ? "var(--mrd-a)" : "var(--mrd-fg3)";
-  const sw = active ? "2.2" : "1.8";
-  return html`
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M12 5v14M5 12h14" stroke=${c} stroke-width=${sw} stroke-linecap="round"/>
-    </svg>`;
-}
+/** Libellé et emoji des écrans du menu « Plus », dans l'ordre d'affichage. */
+export const QUICK_MENU_ITEMS = [
+  { id: "lists", label: "Listes", emoji: "🛒" },
+  { id: "notes", label: "Notes", emoji: "📝" },
+  { id: "inventory", label: "Inventaire", emoji: "🧺" },
+  { id: "recipes", label: "Recettes", emoji: "📚" },
+  { id: "history", label: "Historique", emoji: "📊" },
+];
 
 const NAV_TABS = [
   { id: "home", label: "Accueil", Icon: IcoHome },
@@ -64,112 +32,69 @@ const NAV_TABS = [
   { id: "quick", label: "Plus", Icon: IcoPlus },
 ];
 
-const QUICK_MENU_ITEMS = [
-  { id: "lists", label: "Listes", emoji: "🛒" },
-  { id: "notes", label: "Notes", emoji: "📝" },
-  { id: "inventory", label: "Inventaire", emoji: "🧺" },
-  { id: "recipes", label: "Recettes", emoji: "📚" },
-  { id: "history", label: "Historique", emoji: "📊" },
-];
-
-function getBottomId(tab) {
-  if (["mine", "daily", "weekly", "monthly"].includes(tab)) return "tasks";
-  if (tab === "agenda") return "agenda";
-  if (tab === "meals") return "meals";
-  if (QUICK_MENU_ITEMS.some((item) => item.id === tab)) return "quick";
-  if (tab === "home") return "home";
-  return "home";
+/* Garde : le menu « Plus » doit lister exactement les écrans que
+   `bottomIdForTab` renvoie sur « quick ». Les deux listes vivaient dans deux
+   fichiers et avaient déjà divergé une fois. */
+if (QUICK_MENU_ITEMS.length !== QUICK_SCREENS.length
+  || QUICK_MENU_ITEMS.some((item) => !QUICK_SCREENS.includes(item.id))) {
+  console.warn("[nav] QUICK_MENU_ITEMS et QUICK_SCREENS ont divergé", QUICK_MENU_ITEMS, QUICK_SCREENS);
 }
 
-function toTabId(id) {
-  if (id === "tasks") return "tasks";
-  return id;
-}
-
-export function BottomNav({ activeTab, onChange, overdueTaskCount = 0, isPremium = false }) {
-  const active = getBottomId(activeTab);
-  const [showQuickMenu, setShowQuickMenu] = useState(false);
-  const quickWrapRef = useRef(null);
-
-  useEffect(() => {
-    if (!showQuickMenu) return;
-    function onDocClick(e) {
-      if (quickWrapRef.current && !quickWrapRef.current.contains(e.target)) {
-        setShowQuickMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [showQuickMenu]);
+/**
+ * Barre d'onglets du bas.
+ *
+ * Deux choix à expliquer, parce qu'ils s'écartent de l'exemple canonique
+ * d'Ionic :
+ *
+ * 1. `selectedTab` est passé explicitement au lieu d'être déduit par Ionic. La
+ *    route des tâches est paramétrée (`/tasks/:period`) : Ionic ne peut pas
+ *    savoir seul que `/tasks/weekly` allume l'onglet « Tâches ».
+ *
+ * 2. Les boutons ne portent **pas** de `href` — la navigation passe par
+ *    `onClick`. Avec un `href`, Ionic navigue lui-même vers la racine de
+ *    l'onglet, ce qui ferait perdre la période en cours : revenir sur
+ *    « Tâches » doit rouvrir la dernière période consultée, pas repartir sur
+ *    « Aujourd'hui » (c'est ce que fait `handleBottomNavChange` dans App.js).
+ *
+ * Les icônes sont posées directement, sans `IonIcon` : ce composant attend une
+ * prop `icon` / `src` pointant sur un jeu d'icônes, pas un SVG en enfant.
+ *
+ * @param {string} activeTab       écran courant, vocabulaire `activeTab`
+ * @param {(tab: string) => void} onChange
+ * @param {() => void} onOpenQuickMenu  ouvre la feuille d'actions « Plus »
+ */
+export function BottomNav({ activeTab, onChange, onOpenQuickMenu, overdueTaskCount = 0, isPremium = false }) {
+  const selected = bottomIdForTab(activeTab);
 
   return html`
-    <nav className="mrd-bnav">
+    <${IonTabBar} slot="bottom" selectedTab=${selected} className="mrd-ion-tabbar">
       ${NAV_TABS.map(({ id, label, Icon }) => {
-        const isOn = active === id;
+        const isOn = selected === id;
         const badge = id === "tasks" && overdueTaskCount > 0 ? overdueTaskCount : 0;
         const premiumLocked = isPremiumTab(id) && !isPremium;
-        if (id === "quick") {
-          return html`
-            <div key=${id} className="mrd-bnav-quick-wrap" ref=${quickWrapRef}>
-              ${showQuickMenu ? html`
-                <div className="mrd-bnav-quick-menu">
-                  ${QUICK_MENU_ITEMS.map((item) => {
-                    const premiumLocked = isPremiumTab(item.id) && !isPremium;
-                    return html`
-                    <button
-                      key=${item.id}
-                      type="button"
-                      className="mrd-bnav-quick-item"
-                      onClick=${() => { setShowQuickMenu(false); onChange(item.id); }}
-                    >
-                      <span className="mrd-bnav-quick-item-emoji" aria-hidden="true">${item.emoji}</span>
-                      <span>${item.label}</span>
-                      ${premiumLocked ? html`<span className="mrd-bnav-premium-star" aria-hidden="true">⭐</span>` : null}
-                    </button>
-                  `;
-                  })}
-                </div>
-              ` : null}
-              <button
-                type="button"
-                className=${`mrd-bnav-btn ${isOn ? "on" : ""}`}
-                aria-label=${label}
-                aria-expanded=${showQuickMenu ? "true" : "false"}
-                onClick=${() => setShowQuickMenu((v) => !v)}
-              >
-                <div className="mrd-bnav-icon-wrap">
-                  <${Icon} active=${isOn || showQuickMenu} />
-                </div>
-                <span className="mrd-bnav-label" aria-hidden="true">${label}</span>
-                ${isOn ? html`<div className="mrd-bnav-dot"></div>` : null}
-              </button>
-            </div>
-          `;
-        }
+        const isQuick = id === "quick";
+
         return html`
-          <button
+          <${IonTabButton}
             key=${id}
-            type="button"
-            className=${`mrd-bnav-btn ${isOn ? "on" : ""}`}
+            tab=${id}
+            selected=${isOn}
             aria-label=${badge ? `${label} — ${badge} en retard` : label}
-            aria-current=${isOn ? "page" : null}
-            onClick=${() => { setShowQuickMenu(false); onChange(toTabId(id)); }}
+            onClick=${() => (isQuick ? onOpenQuickMenu() : onChange(id))}
           >
-            <div className="mrd-bnav-icon-wrap">
-              <${Icon} active=${isOn} />
-              ${badge ? html`<span className="mrd-bnav-badge" aria-hidden="true">${badge > 9 ? "9+" : badge}</span>` : null}
-              ${premiumLocked ? html`<span className="mrd-bnav-premium-star mrd-bnav-premium-star-tab" aria-hidden="true">⭐</span>` : null}
-            </div>
-            <span className="mrd-bnav-label" aria-hidden="true">${label}</span>
-            ${isOn ? html`<div className="mrd-bnav-dot"></div>` : null}
-          </button>
+            <span className="mrd-tab-icon" aria-hidden="true"><${Icon} active=${isOn} /></span>
+            <${IonLabel}>${label}<//>
+            ${badge ? html`<${IonBadge} color="danger">${badge > 9 ? "9+" : badge}<//>` : null}
+            ${premiumLocked ? html`<span className="mrd-bnav-premium-star mrd-bnav-premium-star-tab" aria-hidden="true">⭐</span>` : null}
+          <//>
         `;
       })}
-    </nav>
+    <//>
   `;
 }
 
 // ── Nav bureau (barre latérale, écrans larges) ──────────────────────────────
+// Reste maison : passera en `ion-split-pane` en phase 6.
 
 const SIDEBAR_TABS = [
   { id: "home", label: "Accueil", Icon: IcoHome },
@@ -179,7 +104,7 @@ const SIDEBAR_TABS = [
 ];
 
 export function SidebarNav({ activeTab, onChange, overdueTaskCount = 0, isPremium = false }) {
-  const active = getBottomId(activeTab);
+  const active = bottomIdForTab(activeTab);
 
   function renderItem({ id, label, Icon, emoji }) {
     const isOn = active === id || activeTab === id;
@@ -191,7 +116,7 @@ export function SidebarNav({ activeTab, onChange, overdueTaskCount = 0, isPremiu
         type="button"
         className=${`mrd-sidebar-btn ${isOn ? "on" : ""}`}
         aria-current=${isOn ? "page" : null}
-        onClick=${() => onChange(toTabId(id))}
+        onClick=${() => onChange(id)}
       >
         <span className="mrd-sidebar-btn-icon" aria-hidden="true">
           ${Icon ? html`<${Icon} active=${isOn} />` : emoji}

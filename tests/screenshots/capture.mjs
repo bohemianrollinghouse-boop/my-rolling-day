@@ -35,20 +35,20 @@ const DEBUG_PORT = 9230; // distinct des suites e2e (9222-9225)
  * cascade de clics.
  */
 const SCREENS = [
-  { id: "home",           label: "Accueil",            nav: { legacy: { tab: "Accueil" },  route: "/home" },            ready: ".mrd-home, ion-content" },
-  { id: "tasks-daily",    label: "Taches — jour",      nav: { legacy: { tab: "Tâches" },   route: "/tasks/daily" },     ready: ".task-card, .task-empty-state" },
-  { id: "tasks-weekly",   label: "Taches — semaine",   nav: { legacy: { tab: "Tâches", sub: "Semaine" },   route: "/tasks/weekly" },  ready: ".task-card, .task-empty-state" },
-  { id: "tasks-monthly",  label: "Taches — mois",      nav: { legacy: { tab: "Tâches", sub: "Mois" },      route: "/tasks/monthly" }, ready: ".task-card, .task-empty-state" },
-  { id: "tasks-mine",     label: "Taches — les miennes", nav: { legacy: { tab: "Tâches", sub: "Mes tâches" }, route: "/tasks/mine" }, ready: ".task-card, .task-empty-state" },
-  { id: "agenda",         label: "Agenda",             nav: { legacy: { tab: "Agenda" },   route: "/agenda" },          ready: ".cnt, ion-content" },
-  { id: "meals",          label: "Repas",              nav: { legacy: { tab: "Repas" },    route: "/meals" },           ready: ".cnt, ion-content" },
-  { id: "quick-menu",     label: "Menu « Plus » ouvert", nav: { legacy: { quickOpen: true }, route: null },             ready: ".mrd-bnav-quick-menu, ion-action-sheet" },
-  { id: "lists",          label: "Listes",             nav: { legacy: { quick: "Listes" },     route: "/lists" },       ready: ".cnt, ion-content" },
-  { id: "notes",          label: "Notes",              nav: { legacy: { quick: "Notes" },      route: "/notes" },       ready: ".cnt, ion-content" },
-  { id: "inventory",      label: "Inventaire",         nav: { legacy: { quick: "Inventaire" }, route: "/inventory" },   ready: ".cnt, ion-content" },
-  { id: "recipes",        label: "Recettes",           nav: { legacy: { quick: "Recettes" },   route: "/recipes" },     ready: ".cnt, ion-content" },
-  { id: "history",        label: "Historique",         nav: { legacy: { quick: "Historique" }, route: "/history" },     ready: ".cnt, ion-content" },
-  { id: "settings",       label: "Reglages",           nav: { legacy: { gear: true },      route: "/settings" },        ready: ".mrd-set-page, .cnt, ion-content" },
+  { id: "home",          label: "Accueil",              nav: { tab: "Accueil" },                      ready: ".mrd-home" },
+  { id: "tasks-daily",   label: "Taches — jour",        nav: { tab: "Tâches" },                       ready: ".task-card, .task-empty-state" },
+  { id: "tasks-weekly",  label: "Taches — semaine",     nav: { tab: "Tâches", sub: "Semaine" },       ready: ".task-card, .task-empty-state" },
+  { id: "tasks-monthly", label: "Taches — mois",        nav: { tab: "Tâches", sub: "Mois" },          ready: ".task-card, .task-empty-state" },
+  { id: "tasks-mine",    label: "Taches — les miennes", nav: { tab: "Tâches", sub: "Mes tâches" },    ready: ".task-card, .task-empty-state" },
+  { id: "agenda",        label: "Agenda",               nav: { tab: "Agenda" },                       ready: ".cnt" },
+  { id: "meals",         label: "Repas",                nav: { tab: "Repas" },                        ready: ".cnt" },
+  { id: "quick-menu",    label: "Menu « Plus » ouvert",  nav: { quickOpen: true },                     ready: ".mrd-bnav-quick-menu, ion-action-sheet" },
+  { id: "lists",         label: "Listes",               nav: { quick: "Listes" },                     ready: ".cnt" },
+  { id: "notes",         label: "Notes",                nav: { quick: "Notes" },                      ready: ".cnt" },
+  { id: "inventory",     label: "Inventaire",           nav: { quick: "Inventaire" },                 ready: ".cnt" },
+  { id: "recipes",       label: "Recettes",             nav: { quick: "Recettes" },                   ready: ".cnt" },
+  { id: "history",       label: "Historique",           nav: { quick: "Historique" },                 ready: ".cnt" },
+  { id: "settings",      label: "Reglages",             nav: { gear: true },                          ready: ".mrd-set-page, .cnt" },
 ];
 
 const VARIANTS = [
@@ -78,14 +78,34 @@ async function waitFor(session, selector, timeoutMs = 12_000) {
   return false;
 }
 
-/** Clic sur le premier element dont le texte correspond exactement. */
+/**
+ * Recherche un element dans le document ET dans les shadow roots.
+ *
+ * Necessaire depuis Ionic : `ion-action-sheet` et compagnie rendent leurs
+ * boutons dans un shadow root, hors de portee de `document.querySelector`.
+ */
+const DEEP_QUERY_HELPER = `
+  window.__mrdDeepAll = (selector) => {
+    const out = [];
+    const walk = (root) => {
+      out.push(...root.querySelectorAll(selector));
+      for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+    };
+    walk(document);
+    return out;
+  };
+`;
+
+/** Clic sur le premier element (shadow DOM inclus) dont le texte correspond. */
 async function clickByText(session, selector, text) {
   return evaluate(session, `(() => {
-    const wanted = ${JSON.stringify(text)}.trim();
-    const nodes = [...document.querySelectorAll(${JSON.stringify(selector)})];
-    const hit = nodes.find((n) => (n.textContent || "").trim() === wanted)
-             || nodes.find((n) => (n.textContent || "").trim().includes(wanted))
-             || nodes.find((n) => (n.getAttribute("aria-label") || "").trim() === wanted);
+    ${DEEP_QUERY_HELPER}
+    const wanted = ${JSON.stringify(text)}.trim().toLowerCase();
+    const nodes = window.__mrdDeepAll(${JSON.stringify(selector)});
+    const norm = (n) => (n.textContent || "").trim().toLowerCase();
+    const hit = nodes.find((n) => norm(n) === wanted)
+             || nodes.find((n) => norm(n).includes(wanted))
+             || nodes.find((n) => (n.getAttribute("aria-label") || "").trim().toLowerCase().startsWith(wanted));
     if (!hit) return false;
     hit.click();
     return true;
@@ -94,11 +114,35 @@ async function clickByText(session, selector, text) {
 
 async function clickSelector(session, selector) {
   return evaluate(session, `(() => {
-    const el = document.querySelector(${JSON.stringify(selector)});
+    ${DEEP_QUERY_HELPER}
+    const el = window.__mrdDeepAll(${JSON.stringify(selector)})[0];
     if (!el) return false;
     el.click();
     return true;
   })()`);
+}
+
+/**
+ * Attend la fin d une transition de page Ionic.
+ *
+ * `IonRouterOutlet` garde la page sortante montee le temps de l animation, en
+ * lui posant `.ion-page-hidden`. Capturer pendant ce laps donne une image a
+ * mi-course, ou deux pages superposees. On attend donc qu il ne reste qu une
+ * seule page visible et aucune page marquee invisible.
+ */
+async function waitForPageSettled(session, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const settled = await evaluate(session, `(() => {
+      const pages = [...document.querySelectorAll(".ion-page")];
+      if (!pages.length) return true; // pas encore de router : rien a attendre
+      if (pages.some((p) => p.classList.contains("ion-page-invisible"))) return false;
+      return pages.filter((p) => !p.classList.contains("ion-page-hidden")).length === 1;
+    })()`);
+    if (settled === true) return true;
+    await sleep(120);
+  }
+  return false;
 }
 
 /* ── Onboarding : atteindre la page d accueil ─────────────────────────────── */
@@ -172,63 +216,85 @@ async function dismissPostOnboarding(session) {
 
 /* ── Navigation vers un ecran ────────────────────────────────────────────── */
 
-/** Revient a l accueil, quel que soit l ecran courant. */
-async function backToHome(session, hasRouter) {
-  if (hasRouter) {
-    await evaluate(session, `window.__mrdNav ? window.__mrdNav("/home") : (location.hash = "#/home")`);
-    await sleep(500);
-    return;
+/**
+ * Selecteurs de navigation, valables avant ET apres la migration Ionic.
+ *
+ * Le meme script sert de reference pour toutes les phases : il tente d abord
+ * le selecteur Ionic, puis le selecteur maison. Sans quoi la baseline serait
+ * perdue a la premiere phase et il n y aurait plus rien a comparer.
+ */
+const TAB_SELECTORS = ["ion-tab-button", ".mrd-bnav-btn"];
+const QUICK_ITEM_SELECTORS = [".action-sheet-button", "ion-action-sheet button", ".mrd-bnav-quick-item"];
+const SUBTAB_SELECTORS = ["ion-segment-button", ".mrd-subtab-btn"];
+
+/** Clique le premier selecteur de la liste qui trouve le libelle demande. */
+async function clickAny(session, selectors, text) {
+  for (const selector of selectors) {
+    if (await clickByText(session, selector, text) === true) return true;
   }
-  // Legacy : bouton retour eventuel, puis onglet Accueil.
-  await clickSelector(session, ".mrd-back-btn");
-  await sleep(250);
-  await clickByText(session, ".mrd-bnav-btn", "Accueil");
+  return false;
+}
+
+/** Ferme une feuille d actions ouverte, si besoin. */
+async function dismissActionSheet(session) {
+  const open = await evaluate(session, `!!document.querySelector("ion-action-sheet")`);
+  if (!open) return;
+  await evaluate(session, `document.querySelector("ion-action-sheet")?.dismiss?.()`);
   await sleep(400);
 }
 
-async function detectRouter(session) {
-  return (await evaluate(session, `!!document.querySelector("ion-tab-bar, ion-router-outlet")`)) === true;
+/** Revient a l accueil, quel que soit l ecran courant. */
+async function backToHome(session) {
+  await dismissActionSheet(session);
+  // Un ecran secondaire ou les reglages : sortir d abord par le bouton retour.
+  await clickSelector(session, "ion-back-button");
+  await clickSelector(session, ".mrd-back-btn");
+  await sleep(350);
+  await clickAny(session, TAB_SELECTORS, "Accueil");
+  await waitForPageSettled(session);
+  await sleep(250);
 }
 
-async function gotoScreen(session, screen, hasRouter) {
-  const { legacy, route } = screen.nav;
+/**
+ * Amene l app sur l ecran demande, en cliquant comme un utilisateur.
+ *
+ * La navigation par URL a ete essayee puis abandonnee : `history.pushState`
+ * suivi d un `popstate` synthetique change bien l URL — la barre d onglets
+ * s allumait au bon endroit — mais ne declenche pas la navigation de React
+ * Router, donc `IonRouterOutlet` gardait la page precedente a l ecran. Les
+ * captures montraient l accueil sous le titre « Agenda ».
+ */
+async function gotoScreen(session, screen) {
+  const { tab, sub, quick, quickOpen, gear } = screen.nav;
 
-  if (hasRouter && route) {
-    await evaluate(session, `(() => {
-      const path = ${JSON.stringify(route)};
-      if (window.__mrdNav) { window.__mrdNav(path); return; }
-      history.pushState({}, "", path);
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    })()`);
-    await sleep(700);
-    return true;
-  }
+  await backToHome(session);
 
-  await backToHome(session, hasRouter);
-
-  if (legacy.gear) {
+  if (gear) {
     const ok = await clickSelector(session, `.mrd-gear-btn[aria-label="Paramètres"]`);
-    await sleep(700);
+    await waitForPageSettled(session);
+    await sleep(500);
     return ok === true;
   }
 
-  if (legacy.quickOpen || legacy.quick) {
-    await clickByText(session, ".mrd-bnav-btn", "Plus");
-    await sleep(450);
-    if (legacy.quickOpen) return true;
-    const ok = await clickByText(session, ".mrd-bnav-quick-item", legacy.quick);
-    await sleep(700);
+  if (quickOpen || quick) {
+    await clickAny(session, TAB_SELECTORS, "Plus");
+    await sleep(500);
+    if (quickOpen) return true;
+    const ok = await clickAny(session, QUICK_ITEM_SELECTORS, quick);
+    await waitForPageSettled(session);
+    await sleep(500);
     return ok === true;
   }
 
-  if (legacy.tab) {
-    await clickByText(session, ".mrd-bnav-btn", legacy.tab);
-    await sleep(600);
-    if (legacy.sub) {
-      await clickByText(session, ".mrd-subtab-btn", legacy.sub);
-      await sleep(500);
+  if (tab) {
+    const ok = await clickAny(session, TAB_SELECTORS, tab);
+    await waitForPageSettled(session);
+    await sleep(400);
+    if (sub) {
+      await clickAny(session, SUBTAB_SELECTORS, sub);
+      await sleep(400);
     }
-    return true;
+    return ok === true;
   }
   return false;
 }
@@ -282,18 +348,13 @@ async function runVariant(browser, serverUrl, variant, outDir, report) {
   await dismissPostOnboarding(session);
   await sleep(600);
 
-  const hasRouter = await detectRouter(session);
-
   for (const screen of SCREENS) {
-    if (hasRouter && screen.nav.route === null) {
-      report.push({ variant: variant.id, screen: screen.id, ok: true, note: "ignore (sans objet avec le router)" });
-      continue;
-    }
     let ok = false;
     try {
-      ok = await gotoScreen(session, screen, hasRouter);
+      ok = await gotoScreen(session, screen);
       if (ok && screen.ready) await waitFor(session, screen.ready, 6000);
-      await sleep(500);
+      await waitForPageSettled(session);
+      await sleep(400);
       await screenshot(session, join(outDir, `${variant.id}__${screen.id}.png`));
       const crashed = await evaluate(session, `window.__APP_BOOT_STATE__ !== "react-mounted" || !!document.getElementById("mrd-fatal-overlay")`);
       report.push({

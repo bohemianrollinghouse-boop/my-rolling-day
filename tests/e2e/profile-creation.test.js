@@ -12,7 +12,7 @@
  *   [7] Sélection couleur → create-household-name
  *   [8] Saisie nom du foyer → create-add-members
  *   [9] Terminer (sans membres) → onCreateHousehold → writeBatch.commit()
- *   [10] Listeners Firestore re-fire → bootLoading=false → .mrd-bnav visible
+ *   [10] Listeners Firestore re-fire → bootLoading=false → ion-tab-bar visible
  *
  * Section 1 (Node.js pur) :
  *   – makeInviteCode : format XXX-XXX
@@ -407,9 +407,9 @@ test("CDP: création de profil — du spinner à la page d'accueil", { timeout: 
     }
   });
 
-  // ── [8–10] nom du foyer → Terminer → page d'accueil (.mrd-bnav) ───────────
+  // ── [8–10] nom du foyer → Terminer → page d'accueil (ion-tab-bar) ───────────
 
-  await t.test("[8-10] nom du foyer → Terminer → .mrd-bnav", async (st) => {
+  await t.test("[8-10] nom du foyer → Terminer → ion-tab-bar", async (st) => {
     if (!browserHandle) {
       st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
       return;
@@ -460,9 +460,9 @@ test("CDP: création de profil — du spinner à la page d'accueil", { timeout: 
       await click(session, ".onb-footer-next");
 
       // Les stubs Firestore re-fire par vagues (120 ms, 320 ms, 440 ms après commit).
-      // Après la vague finale (peopleBootstrapped=true), bootLoading=false → .mrd-bnav.
-      const homeOk = await pollForSelector(session, ".mrd-bnav", 15_000);
-      assert.ok(homeOk, ".mrd-bnav (bottom nav) doit être visible après création du foyer");
+      // Après la vague finale (peopleBootstrapped=true), bootLoading=false → ion-tab-bar.
+      const homeOk = await pollForSelector(session, "ion-tab-bar", 15_000);
+      assert.ok(homeOk, "la barre d'onglets Ionic doit être visible après création du foyer");
 
       const { result: noOnboarding } = await session.send("Runtime.evaluate", {
         expression: `!document.querySelector(".onboarding-shell")`,

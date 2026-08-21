@@ -289,28 +289,98 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
 .mrd-shell { width: 100%; height: 100%; padding-top: env(safe-area-inset-top, 0px); background: var(--mrd-bg); border-radius: 0; overflow: hidden; position: relative; display: flex; flex-direction: column; }
 .mrd-statusbar { height: 44px; background: var(--mrd-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--mrd-fg); }
 .mrd-statusbar-icons { display: flex; gap: 5px; align-items: center; }
-.mrd-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 64px; }
-/* ─── BOTTOM NAV ──────────────────────────────────────────── */
-.mrd-bnav { position: absolute; bottom: 0; left: 0; right: 0; background: var(--mrd-surfGlass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--mrd-border); display: flex; padding-bottom: env(safe-area-inset-bottom, 6px); padding-top: 4px; z-index: 20; }
-.mrd-bnav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 4px; border: none; background: none; cursor: pointer; transition: transform .12s; }
-.mrd-bnav-btn.on { transform: translateY(-1px); }
-.mrd-bnav-label { font-size: 10px; font-weight: 500; color: var(--mrd-fg3); letter-spacing: .01em; }
-.mrd-bnav-btn.on .mrd-bnav-label { font-weight: 700; color: var(--mrd-a); }
-.mrd-bnav-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--mrd-a); }
-.mrd-bnav-icon-wrap { position: relative; display: inline-flex; }
-.mrd-bnav-badge { position: absolute; top: -5px; right: -7px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--mrd-danger); color: var(--mrd-white); font-size: 9px; font-weight: 700; line-height: 16px; text-align: center; pointer-events: none; }
+/* Plus de `padding-bottom` : la barre du bas etait en `position: absolute`
+   et il fallait lui reserver la place. `ion-tabs` la met dans le flux et
+   gere la safe area, la reserve creerait un vide. */
+.mrd-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+/* ─── BARRE D'ONGLETS IONIC ────────────────────────────────
+   Remplace `.mrd-bnav`, qui recodait a la main le positionnement absolu,
+   la safe area basse, le flou d arriere-plan, le badge et un menu « Plus »
+   avec son propre ecouteur `document mousedown`.
+
+   Ionic style ses composants par variables CSS, jamais par selecteurs :
+   on passe donc par `--background` & co plutot que par des regles sur
+   `ion-tab-bar`, qui perdraient contre son shadow DOM.
+   Les couleurs viennent de `theme/ionic-bridge.css`. */
+.mrd-ion-tabbar {
+  --background: var(--mrd-surfGlass);
+  --color: var(--mrd-fg3);
+  --color-selected: var(--mrd-a);
+  --border: 1px solid var(--mrd-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+/* Le libelle : Ionic met 10px/400, la maison 10px/500 — et 700 sur l onglet
+   actif, ce qui portait l accent autant que la couleur. */
+.mrd-ion-tabbar ion-tab-button {
+  font-family: var(--mrd-sans);
+}
+.mrd-ion-tabbar ion-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+.mrd-ion-tabbar .tab-selected ion-label {
+  font-weight: 700;
+}
+/* Les icones restent les SVG maison (voir components/nav/NavIcons.js) : elles
+   lisent l etat actif elles-memes, via --mrd-a / --mrd-fg3. */
+.mrd-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+}
+.mrd-ion-tabbar ion-badge {
+  /* Pastille du compteur de retards : Ionic la pose dans le flux, on la
+     ramene sur l icone comme le faisait `.mrd-bnav-badge`. */
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  margin-left: 2px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 16px;
+  border-radius: 99px;
+}
 .mrd-bnav-premium-star { font-size: 9px; line-height: 1; pointer-events: none; }
-.mrd-bnav-premium-star-tab { position: absolute; top: -3px; right: -6px; }
-.mrd-bnav-quick-wrap { flex: 1; position: relative; display: flex; }
-.mrd-bnav-quick-wrap .mrd-bnav-btn { width: 100%; }
-.mrd-bnav-quick-menu { position: absolute; bottom: calc(100% + 10px); right: 4px; background: var(--mrd-surf); border: 1px solid var(--mrd-borderSoft); border-radius: 14px; box-shadow: var(--mrd-shadowLg); min-width: 168px; overflow: hidden; z-index: 30; }
-.mrd-bnav-quick-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 600; color: var(--mrd-fg); cursor: pointer; font-family: "DM Sans", sans-serif; }
-.mrd-bnav-quick-item:hover { background: var(--mrd-surf2); }
-.mrd-bnav-quick-item-emoji { font-size: 17px; line-height: 1; }
-.mrd-bnav-quick-item .mrd-bnav-premium-star { margin-left: auto; font-size: 12px; }
-html[data-theme="dark"] .mrd-bnav-quick-menu { background: var(--mrd-surf); border-color: var(--mrd-border); }
-html[data-theme="dark"] .mrd-bnav-quick-item { color: var(--mrd-white); }
-html[data-theme="dark"] .mrd-bnav-quick-item:hover { background: var(--mrd-surf2); }
+.mrd-bnav-premium-star-tab { position: absolute; top: 0; left: 50%; margin-left: 8px; }
+
+/* Feuille d actions « Plus » — remplace `.mrd-bnav-quick-menu`. */
+.mrd-quick-sheet {
+  --background: var(--mrd-surf);
+  --color: var(--mrd-fg);
+  --button-color: var(--mrd-fg);
+}
+
+/* Page Ionic : la coque de defilement interne reste maison en phase 2
+   (`.mrd-screen` / `.cnt`). Le passage a `ion-content` est l objet de la
+   phase 3. */
+.mrd-ion-page {
+  background: var(--mrd-bg);
+}
+
+/* `IonTabs` ne rend pas seulement `<ion-tabs>` : il s enveloppe dans un
+   `<div class="ion-page">` (son PageManager), pose en `position: absolute;
+   inset: 0` sur toute la largeur. Sur ecran large ce conteneur recouvrait
+   entierement la barre laterale — elle etait bien rendue, a la bonne taille,
+   simplement cachee dessous. Diagnostic a l inspection du DOM, pas visible
+   dans le CSS.
+
+   On le remet donc dans le flux pour qu il partage la ligne avec la barre
+   laterale. Le selecteur passe par `--class` d IonTabs plutot que par
+   `.ion-page` : cette classe sert AUSSI aux pages de l outlet, qui doivent
+   rester absolues. `position: relative` est indispensable — `ion-tabs` et
+   `ion-router-outlet` sont absolus et ont besoin d un ancetre positionne. */
+.mrd-shell > .mrd-tabs-host {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
 /* ─── SIDEBAR NAV + LAYOUT BUREAU (écrans larges) ───────────
    En dessous de 900px : layout mobile inchangé (barre du bas).
    À partir de 900px : barre latérale à la place de la barre du bas,
@@ -318,8 +388,7 @@ html[data-theme="dark"] .mrd-bnav-quick-item:hover { background: var(--mrd-surf2
 .mrd-sidebar { display: none; }
 @media (min-width: 900px) {
   .mrd-shell { flex-direction: row; }
-  .mrd-screen { padding-bottom: 0; }
-  .mrd-bnav { display: none; }
+  .mrd-ion-tabbar { display: none; }
   .mrd-fab { bottom: 28px; }
   .mrd-sidebar {
     display: flex;
@@ -1730,8 +1799,9 @@ html[data-theme="dark"] .recipe-ingredient-chip { background: var(--mrd-disabled
 html[data-theme="dark"] .recipe-ingredient-chip-name { color: var(--mrd-fg); }
 html[data-theme="dark"] .recipe-ingredient-chip-qty { color: var(--mrd-fg2); }
 /* ── Dark : éléments avec couleurs codées en dur ── */
-html[data-theme="dark"] .mrd-bnav {
-  background: var(--mrd-bgGlass); border-top-color: var(--mrd-border);
+html[data-theme="dark"] .mrd-ion-tabbar {
+  --background: var(--mrd-bgGlass);
+  --border: 1px solid var(--mrd-border);
 }
 html[data-theme="dark"] .mrd-set-section {
   box-shadow: var(--mrd-shadowSm);
@@ -6804,7 +6874,7 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
   flex-direction: column;
 }
 /* Le sélecteur a son propre pied fixe : la barre d'onglets s'efface. */
-.mrd-shell:has(.mpick) .mrd-bnav { display: none; }
+.mrd-shell:has(.mpick) .mrd-ion-tabbar { display: none; }
 .mrd-shell:has(.mpick) .mrd-screen { padding-bottom: 0; }
 
 .mrd-week, .mpick { flex: 1; min-height: 0; display: flex; flex-direction: column; }

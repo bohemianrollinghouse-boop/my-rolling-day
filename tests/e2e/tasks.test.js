@@ -262,7 +262,7 @@ async function fillInput(session, selector, value) {
 }
 
 /**
- * Complète tout le flux d'onboarding et attend l'apparition de .mrd-bnav.
+ * Complète tout le flux d'onboarding et attend l'apparition de la barre d'onglets Ionic.
  * Identique à navigation.test.js.
  */
 async function reachHomePage(session) {
@@ -299,7 +299,7 @@ async function reachHomePage(session) {
   await pollForSelector(session, ".onb-footer-next", 3_000);
   await click(session, ".onb-footer-next");
 
-  const ok = await pollForSelector(session, ".mrd-bnav", 15_000);
+  const ok = await pollForSelector(session, "ion-tab-bar", 15_000);
   return ok;
 }
 
@@ -309,12 +309,29 @@ async function reachHomePage(session) {
 async function goToTasksTab(session) {
   await session.send("Runtime.evaluate", {
     expression: `
-      [...document.querySelectorAll(".mrd-bnav-btn")]
+      [...document.querySelectorAll("ion-tab-button")]
         .find(btn => btn.getAttribute("aria-label")?.startsWith("Tâches"))
         ?.click();
     `,
   });
-  await new Promise((r) => setTimeout(r, 400));
+  /* Attendre la fin de la transition : `IonRouterOutlet` garde la page
+     sortante montée le temps de l'animation, et une assertion peut sinon lire
+     le contenu de l'accueil qu'on vient de quitter. */
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const { result } = await session.send("Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(() => {
+        const pages = [...document.querySelectorAll(".ion-page")];
+        if (!pages.length) return false;
+        if (pages.some((p) => p.classList.contains("ion-page-invisible"))) return false;
+        return pages.filter((p) => !p.classList.contains("ion-page-hidden")).length === 1;
+      })()`,
+    });
+    if (result?.value === true) break;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  await new Promise((r) => setTimeout(r, 300));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -745,7 +762,7 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
     const session = await openStubbed();
     try {
       const homeOk = await reachHomePage(session);
-      assert.ok(homeOk, "Prérequis : .mrd-bnav doit être visible");
+      assert.ok(homeOk, "Prérequis : ion-tab-bar doit être visible");
 
       await goToTasksTab(session);
 

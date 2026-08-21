@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 et 1 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 à 2 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -275,35 +275,92 @@ intéressant qu'avant.
 `THEME_COLOR_DARK` (= `--mrd-bg` sombre) vaut `#211A15`. Le script de boot
 portait la même faute.
 
-### Phase 2 — 🔴🟠 Navigation : la barre du bas passe à Ionic
+### Phase 2 — 🔴🟠 Navigation : la barre du bas passe à Ionic — ✅ TERMINÉE
 
-Le cœur de la demande. Grosse phase, à ne pas élargir.
+Le cœur de la demande. Bilan visuel : **14 IDENTIQUE · 20 PROCHE · 3 ÉCART ·
+5 RÉGRESSION**, les 5 étant toutes voulues (3 menus « Plus » devenus feuille
+d'actions, 2 Repas dont le contenu remonte de ~28 px).
 
-- [ ] `App.js` : `IonApp` > `IonReactRouter` > `IonTabs` > (`IonRouterOutlet` +
-      `IonTabBar slot="bottom"`).
-- [ ] Routes des 4 onglets : `/home`, `/tasks/:period`, `/agenda`, `/meals`.
-      `:period` ∈ `daily|weekly|monthly|mine` remplace les alias résolus
-      aujourd'hui par `getBottomId`.
-- [ ] 5e bouton « Plus » : `IonTabButton` sans `href`, qui ouvre un
-      `IonActionSheet` (Listes, Notes, Inventaire, Recettes, Historique).
-      Supprime le listener `document mousedown` et l'état `showQuickMenu`.
-- [ ] Badge des tâches en retard → `ion-badge` (retire `.mrd-bnav-badge`).
-- [ ] Étoile premium (`isPremiumTab`) → conservée, en slot de l'`IonTabButton`.
-- [ ] Icônes : garder les 5 SVG maison (`IcoHome`…`IcoPlus`) — ils portent
-      l'identité et gèrent déjà l'état actif. Ne **pas** les remplacer par
-      `ionicons`.
-- [ ] Styler `ion-tab-bar` via ses variables (`--background`, `--color`,
-      `--color-selected`) dans `ionic-bridge.css`. La safe area basse et le
-      flou d'arrière-plan sont désormais l'affaire d'Ionic → retirer
-      `padding-bottom: env(safe-area-inset-bottom)` de `.mrd-bnav`.
-- [ ] Bouton retour Android : vérifier qu'Ionic le gère et retirer tout
-      câblage manuel s'il en existe.
-- [ ] 🔴 Réécrire `tests/e2e/navigation.test.js`. Il duplique `NAV_TABS` et
-      `getBottomId` en Node pur, et cible `.mrd-bnav` / `aria-current="page"`
-      en CDP — les trois disparaissent. Les sélecteurs deviennent
-      `ion-tab-button` / `[aria-selected="true"]`.
-- [ ] Vérifier les 3 autres suites e2e (`app.smoke`, `tasks`,
-      `profile-creation`) : elles ciblent `.mrd-bnav` (16 occurrences au total).
+- [x] `IonApp` > `IonReactRouter` > `AppShell` > `IonTabs` > (`IonRouterOutlet` +
+      barre d'onglets). L'ancien `App` est devenu `AppShell` : il utilise
+      `useLocation` / `useNavigate`, qui exigent d'être sous le routeur.
+- [x] Routes : `/home`, `/tasks/:period`, `/agenda`, `/meals`, plus les 6 écrans
+      secondaires et `/settings`. `*` redirige sur `/home`.
+- [x] `src/routes.js` — **nouveau**, module pur, 12 tests unitaires.
+- [x] 5e bouton « Plus » → `IonActionSheet`. Supprime l'état `showQuickMenu` et
+      l'écouteur `document mousedown`.
+- [x] Badge des retards → `ion-badge`. Étoile premium conservée.
+- [x] Les 5 SVG maison sont gardés, extraits dans `components/nav/NavIcons.js`
+      pour être partagés avec la barre latérale.
+- [x] `padding-bottom: 64px` de `.mrd-screen` supprimé, et les 22 safe areas
+      manuelles de la barre du bas avec.
+- [x] Suites e2e reprises **dans la même phase** (règle du §5).
+
+#### Le choix qui a tout rendu possible
+
+`activeTab` et `setActiveTab` **gardent leur nom et leur vocabulaire**
+(« daily », « weekly »… et non « tasks ») : seules leurs définitions changent —
+l'un devient `tabFromPath(location.pathname)`, l'autre
+`navigate(pathForTab(tab))`. Les 34 lectures et 17 écritures réparties dans
+`App.js` continuent de fonctionner sans être touchées, et toute la traduction
+tient dans `src/routes.js`. Sans ça, la phase aurait été une réécriture d'`App.js`.
+
+`showSettings` disparaît comme état : c'est désormais `isSettingsPath(pathname)`.
+Les `setShowSettings(false)` suivis d'un `setActiveTab(...)` ont été supprimés —
+ils provoquaient deux navigations, donc un aller-retour visible.
+
+#### `plannerContent` : d'une valeur à une fonction
+
+`plannerContent` était calculé pour l'onglet courant. `IonRouterOutlet` garde la
+page sortante montée le temps de la transition : elle aurait affiché le contenu
+de la page entrante pendant l'animation. C'est devenu `renderScreen(tab)`, et
+chaque route rend son propre contenu.
+
+Même piège sur la route paramétrée des tâches, résolu par un repli :
+`TASK_PERIODS.includes(activeTab) ? activeTab : lastTaskTab`. Pendant la
+transition qui quitte les tâches, `activeTab` vaut déjà la destination.
+
+#### Quatre pièges, et comment ils se sont manifestés
+
+1. **`${/* … */null}` dans `IonRouterOutlet`** — la convention de commentaire de
+   HTM injecte un enfant `null`, et le gestionnaire de routes d'Ionic itère ces
+   enfants sans filtrer : « Cannot read properties of null (reading 'type') ».
+   L'app montait, puis mourait à la première navigation. Les commentaires sont
+   maintenant des commentaires JS, hors du template.
+
+2. **La barre latérale bureau avait disparu.** `IonTabs` ne rend pas seulement
+   `<ion-tabs>` : il s'enveloppe dans un `<div class="ion-page">` posé en
+   `position: absolute; inset: 0` sur toute la largeur. La barre était bien
+   rendue, à la bonne taille, aux bonnes coordonnées — simplement recouverte.
+   Invisible dans le CSS, trouvé en inspectant le DOM. D'où
+   `IonTabs className="mrd-tabs-host"` et une règle qui le remet dans le flux.
+   Le sélecteur passe par cette classe et pas par `.ion-page`, qui sert aussi
+   aux pages de l'outlet — elles doivent rester absolues.
+
+3. **`lists` avait gagné un bouton retour.** J'avais défini
+   `SECONDARY_SCREENS = QUICK_SCREENS + inbox`, or l'original excluait `lists`,
+   qui pose son propre titre sur la ligne de son bouton « + Nouvelle ».
+   Résultat : deux titres empilés. **Trouvé par les captures d'écran, par rien
+   d'autre.** La liste est maintenant figée par un test.
+
+4. **La navigation par URL ne pilote pas Ionic.** Le script de captures
+   naviguait par `history.pushState` + `popstate` synthétique. L'URL changeait,
+   la barre d'onglets s'allumait au bon endroit, et `IonRouterOutlet` gardait la
+   page précédente : les captures montraient l'accueil sous le titre
+   « Agenda ». Le script clique désormais comme un utilisateur.
+
+#### Ce qu'Ionic expose vraiment (vérifié, pas déduit)
+
+- L'onglet actif porte `selected="true"` et la classe `tab-selected`. **Pas**
+  `aria-selected`, ni `aria-current="page"` (c'était la barre maison).
+- `IonTabBar` peut être enveloppé dans un composant : il reçoit ses props par le
+  contexte `IonTabsContext`. Seul `IonRouterOutlet` doit être un enfant
+  **direct** d'`IonTabs`, qui lève une erreur explicite sinon.
+- Les boutons d'`ion-action-sheet` vivent dans un shadow root, hors de portée de
+  `document.querySelector`.
+- **Une requête DOM non scopée n'a plus de sens** : la page quittée reste montée
+  avec `.ion-page-hidden`. Un test lisait « Tâches » en étant sur l'agenda. Les
+  helpers e2e visent maintenant `.ion-page:not(.ion-page-hidden)`.
 
 ### Phase 3 — 🟠 Coque d'écran : `IonPage` / `IonContent`
 

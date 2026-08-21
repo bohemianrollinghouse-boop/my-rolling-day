@@ -1,21 +1,21 @@
 /**
- * Tests E2E — Navigation entre les onglets principaux
+ * Tests E2E — Navigation par onglets Ionic
  *
- * Section 1 (Node.js pur, toujours exécutée) :
- *   – Structure NAV_TABS : 5 onglets dans le bon ordre
- *   – getBottomId : résolution des alias (mine/daily/weekly/monthly → tasks,
- *     écrans du menu « Plus » → quick)
- *   – Libellés attendus : Accueil, Tâches, Agenda, Repas, Plus
+ * Ce fichier dupliquait `NAV_TABS` et `getBottomId` en JavaScript pur pour les
+ * tester sans navigateur. Ces deux-là vivent maintenant dans `src/routes.js` et
+ * sont couverts par `tests/unit/routes.test.js`, qui teste **le vrai module**
+ * plutôt qu'une copie — une copie qui, par construction, reste verte même si
+ * l'original casse. La section « logique pure » a donc disparu d'ici.
  *
- * Section 2 (CDP, skippée si pas de navigateur headless) :
- *   – Atteint la page d'accueil sur un build Vite où Firebase est remplacé par
- *     les stubs (voir helpers/e2e-build.js)
- *   – Clique chaque onglet du BottomNav et vérifie que :
- *       (a) l'app ne crashe pas (__APP_BOOT_STATE__ toujours "react-mounted")
- *       (b) le bouton actif porte aria-current="page"
- *       (c) un élément caractéristique de la vue est présent
+ * Ce qui reste ne peut se vérifier qu'en vrai :
+ *   – l'onboarding mène à une barre d'onglets Ionic
+ *   – chaque onglet affiche son écran, sans crash
+ *   – l'URL suit l'onglet (c'est ce que le routeur apporte)
+ *   – le bouton retour du navigateur revient à l'écran précédent
+ *   – le bouton « Plus » ouvre une feuille d'actions, et ses entrées naviguent
  *
- * Port de debug : 9225 (distinct de smoke=9222, standalone=9223, profile=9224)
+ * Port de debug : 9225 (smoke=9222, standalone=9223, profile=9224,
+ * theme=9226, captures=9230)
  */
 
 import test from "node:test";
@@ -26,182 +26,159 @@ import { startStaticServer } from "../helpers/static-server.js";
 import { buildE2eApp } from "../helpers/e2e-build.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Répliques des fonctions pures de BottomNav.js (testées sans React)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const NAV_TABS = [
-  { id: "home",   label: "Accueil" },
-  { id: "tasks",  label: "Tâches"  },
-  { id: "agenda", label: "Agenda"  },
-  { id: "meals",  label: "Repas"   },
-  { id: "quick",  label: "Plus"    },
-];
-
-/* Écrans secondaires : plus d'onglet dédié, ils passent par le bouton « Plus ». */
-const QUICK_MENU_IDS = ["lists", "notes", "inventory", "recipes", "history"];
-
-function getBottomId(tab) {
-  if (["mine", "daily", "weekly", "monthly"].includes(tab)) return "tasks";
-  if (tab === "agenda") return "agenda";
-  if (tab === "meals")  return "meals";
-  if (QUICK_MENU_IDS.includes(tab)) return "quick";
-  if (tab === "home")   return "home";
-  return "home";
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers CDP
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function evaluate(session, expression) {
+  const { result } = await session.send("Runtime.evaluate", {
+    expression, returnByValue: true, awaitPromise: true,
+  });
+  return result?.value;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function pollForSelector(session, selector, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const { result } = await session.send("Runtime.evaluate", {
-      expression: `!!document.querySelector(${JSON.stringify(selector)})`,
-      returnByValue: true,
-    });
-    if (result.value === true) return true;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  return false;
-}
-
-async function queryText(session, selector) {
-  const { result } = await session.send("Runtime.evaluate", {
-    expression: `document.querySelector(${JSON.stringify(selector)})?.textContent?.trim() ?? ""`,
-    returnByValue: true,
-  });
-  return result.value ?? "";
-}
-
-async function queryAttr(session, selector, attr) {
-  const { result } = await session.send("Runtime.evaluate", {
-    expression: `document.querySelector(${JSON.stringify(selector)})?.getAttribute(${JSON.stringify(attr)}) ?? null`,
-    returnByValue: true,
-  });
-  return result.value;
-}
-
-async function queryProp(session, selector, prop) {
-  const { result } = await session.send("Runtime.evaluate", {
-    expression: `document.querySelector(${JSON.stringify(selector)})?.[${JSON.stringify(prop)}] ?? null`,
-    returnByValue: true,
-  });
-  return result.value;
-}
-
-async function click(session, selector) {
-  await session.send("Runtime.evaluate", {
-    expression: `document.querySelector(${JSON.stringify(selector)})?.click()`,
-  });
-}
-
-async function waitForNextEnabled(session, timeoutMs = 3_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const disabled = await queryProp(session, ".onb-footer-next", "disabled");
-    if (!disabled) return true;
-    await new Promise((r) => setTimeout(r, 200));
+    if (await evaluate(session, `!!document.querySelector(${JSON.stringify(selector)})`) === true) return true;
+    await sleep(200);
   }
   return false;
 }
 
 /**
- * Complète tout le flux d'onboarding et attend l'apparition de .mrd-bnav.
- * Reproduit exactement les étapes [4–10] de profile-creation.test.js.
+ * Texte d'un element, cherche dans la page VISIBLE uniquement.
+ *
+ * Indispensable depuis `IonRouterOutlet` : la page qu'on vient de quitter reste
+ * montee dans le DOM, marquee `.ion-page-hidden`. Un `document.querySelector`
+ * global renvoie la premiere occurrence, donc souvent celle de l'ancienne page
+ * — le test lisait « Tâches » alors qu'il etait sur l'agenda. Avec une pile de
+ * pages, une requete non scopee n'a plus de sens.
  */
+async function queryTextInActivePage(session, selector) {
+  return evaluate(session, `(() => {
+    const page = [...document.querySelectorAll(".ion-page")]
+      .filter((p) => !p.classList.contains("ion-page-hidden"))
+      .pop();
+    const root = page || document;
+    return root.querySelector(${JSON.stringify(selector)})?.textContent?.trim() ?? "";
+  })()`);
+}
+
+/** Presence d'un selecteur dans la page visible. */
+async function pollForSelectorInActivePage(session, selector, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const found = await evaluate(session, `(() => {
+      const page = [...document.querySelectorAll(".ion-page")]
+        .filter((p) => !p.classList.contains("ion-page-hidden"))
+        .pop();
+      return !!(page || document).querySelector(${JSON.stringify(selector)});
+    })()`);
+    if (found === true) return true;
+    await sleep(200);
+  }
+  return false;
+}
+
+async function click(session, selector) {
+  return evaluate(session, `(() => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    if (!el) return false;
+    el.click();
+    return true;
+  })()`);
+}
+
+/** Clique l'onglet dont l'aria-label commence par ce libellé. */
+async function clickTab(session, label) {
+  return evaluate(session, `(() => {
+    const btn = [...document.querySelectorAll("ion-tab-button")]
+      .find((b) => (b.getAttribute("aria-label") || "").startsWith(${JSON.stringify(label)}));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  })()`);
+}
+
+/**
+ * Attend la fin de la transition de page.
+ *
+ * `IonRouterOutlet` garde la page sortante montée le temps de l'animation, en
+ * lui posant `.ion-page-hidden`. Sans cette attente, une assertion peut lire le
+ * contenu de la page qu'on vient de quitter et échouer par intermittence.
+ */
+async function waitForPageSettled(session, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const settled = await evaluate(session, `(() => {
+      const pages = [...document.querySelectorAll(".ion-page")];
+      if (!pages.length) return false;
+      if (pages.some((p) => p.classList.contains("ion-page-invisible"))) return false;
+      return pages.filter((p) => !p.classList.contains("ion-page-hidden")).length === 1;
+    })()`);
+    if (settled === true) return true;
+    await sleep(120);
+  }
+  return false;
+}
+
+async function setInputValue(session, selector, value) {
+  return evaluate(session, `(() => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    if (!el) return false;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, ${JSON.stringify(value)});
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  })()`);
+}
+
+async function waitForNextEnabled(session, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await evaluate(session, `document.querySelector(".onb-footer-next")?.disabled ?? null`) === false) return true;
+    await sleep(150);
+  }
+  return false;
+}
+
+/** Complète le parcours CREATE de l'onboarding et attend la barre d'onglets. */
 async function reachHomePage(session) {
   await pollForSelector(session, ".onboarding-shell", 12_000);
 
-  // Étape 1 : prénom
   await click(session, ".onboarding-choice-card:first-child");
   await pollForSelector(session, ".onboarding-input", 5_000);
-  await session.send("Runtime.evaluate", {
-    expression: `
-      const el = document.querySelector(".onboarding-input");
-      if (el) {
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "E2E Nav");
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    `,
-  });
+  await setInputValue(session, ".onboarding-input", "E2E Nav");
   await waitForNextEnabled(session);
   await click(session, ".onb-footer-next");
 
-  // Étape 2 : couleur
   await pollForSelector(session, ".onb-color-swatch", 5_000);
   await click(session, ".onb-color-swatch");
   await waitForNextEnabled(session);
   await click(session, ".onb-footer-next");
 
-  // Étape 3 : nom du foyer (via chip de suggestion)
   await pollForSelector(session, ".onb-suggestion-chip", 5_000);
   await click(session, ".onb-suggestion-chip");
   await waitForNextEnabled(session);
   await click(session, ".onb-footer-next");
 
-  // Étape 4 : Terminer (create-add-members sans membres)
   await pollForSelector(session, ".onb-footer-next", 3_000);
   await click(session, ".onb-footer-next");
 
-  // Attendre .mrd-bnav (page d'accueil)
-  const ok = await pollForSelector(session, ".mrd-bnav", 15_000);
+  const ok = await pollForSelector(session, "ion-tab-bar", 15_000);
+  if (ok) await waitForPageSettled(session);
   return ok;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 1 — Logique pure (toujours exécutée, pas de navigateur requis)
-// ─────────────────────────────────────────────────────────────────────────────
 
-test("NAV_TABS : contient exactement 5 onglets dans le bon ordre", () => {
-  assert.equal(NAV_TABS.length, 5);
-  assert.deepEqual(NAV_TABS.map((t) => t.id), ["home", "tasks", "agenda", "meals", "quick"]);
-});
-
-test("NAV_TABS : tous les libellés sont définis et non vides", () => {
-  for (const tab of NAV_TABS) {
-    assert.ok(typeof tab.label === "string" && tab.label.length > 0,
-      `onglet "${tab.id}" doit avoir un label non vide`);
-  }
-});
-
-test("getBottomId : les alias de tâches (mine/daily/weekly/monthly) pointent vers 'tasks'", () => {
-  assert.equal(getBottomId("mine"),    "tasks");
-  assert.equal(getBottomId("daily"),   "tasks");
-  assert.equal(getBottomId("weekly"),  "tasks");
-  assert.equal(getBottomId("monthly"), "tasks");
-});
-
-test("getBottomId : les onglets directs retournent leur propre id", () => {
-  assert.equal(getBottomId("home"),   "home");
-  assert.equal(getBottomId("agenda"), "agenda");
-  assert.equal(getBottomId("meals"),  "meals");
-});
-
-test("getBottomId : les écrans du menu « Plus » pointent vers 'quick'", () => {
-  assert.equal(getBottomId("lists"),     "quick");
-  assert.equal(getBottomId("notes"),     "quick");
-  assert.equal(getBottomId("inventory"), "quick");
-  assert.equal(getBottomId("recipes"),   "quick");
-  assert.equal(getBottomId("history"),   "quick");
-});
-
-test("getBottomId : un onglet inconnu repasse sur 'home'", () => {
-  assert.equal(getBottomId("unknown"), "home");
-  assert.equal(getBottomId(""),        "home");
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section 2 — Suite CDP (skippée si pas de navigateur headless)
-// ─────────────────────────────────────────────────────────────────────────────
-
-test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, async (t) => {
+test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, async (t) => {
   let serverHandle;
   let browserHandle;
   let browserLaunchError = null;
 
   t.before(async () => {
-    // Build Vite avec Firebase aliasé sur les stubs (voir helpers/e2e-build.js)
     serverHandle = await startStaticServer(await buildE2eApp());
     try {
       browserHandle = await launchBrowser(9225);
@@ -223,132 +200,85 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
     return session;
   }
 
-  // ── [1] Atteindre la page d'accueil ────────────────────────────────────────
-
-  await t.test("[1] onboarding → page d'accueil (.mrd-bnav visible)", async (st) => {
+  await t.test("[1] onboarding → page d'accueil (ion-tab-bar visible)", async (st) => {
     if (!browserHandle) {
       st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
       return;
     }
-
     const session = await openStubbed();
     try {
-      const homeOk = await reachHomePage(session);
-      assert.ok(homeOk, ".mrd-bnav doit être visible après l'onboarding");
-
-      const bootState = await session.send("Runtime.evaluate", {
-        expression: "window.__APP_BOOT_STATE__",
-        returnByValue: true,
-      });
-      assert.equal(bootState.result.value, "react-mounted",
-        "__APP_BOOT_STATE__ doit être 'react-mounted'");
+      assert.ok(await reachHomePage(session), "ion-tab-bar doit être visible après l'onboarding");
+      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
+      // La coque Ionic doit envelopper l'app, sinon rien du reste ne tient.
+      assert.ok(await evaluate(session, `!!document.querySelector("ion-app")`), "ion-app absent");
+      assert.ok(await evaluate(session, `!!document.querySelector("ion-router-outlet")`), "ion-router-outlet absent");
     } finally {
       await session.close();
     }
   });
 
-  // ── [2] Navigation complète en une seule session ────────────────────────────
-  //
-  // Chaque onglet est testé en séquence dans la même session pour éviter de
-  // rejouer l'onboarding 5 fois. Pour chaque onglet on vérifie :
-  //   (a) __APP_BOOT_STATE__ toujours "react-mounted" (pas de crash)
-  //   (b) aria-current="page" sur le bon bouton du BottomNav
-  //   (c) élément caractéristique de la vue présent (header ou contenu)
-
-  await t.test("[2] chaque onglet s'affiche sans crash", async (st) => {
+  /* Chaque onglet est testé en séquence dans la même session : rejouer
+     l'onboarding cinq fois coûterait une minute pour rien. */
+  await t.test("[2] chaque onglet affiche son écran, et l'URL suit", async (st) => {
     if (!browserHandle) {
       st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
       return;
     }
 
+    const TABS = [
+      { navLabel: "Tâches", path: "/tasks/daily", charSelector: ".mrd-screen-hdr-title", charText: "Tâches" },
+      { navLabel: "Agenda", path: "/agenda",      charSelector: ".mrd-screen-hdr-title", charText: "Agenda" },
+      { navLabel: "Repas",  path: "/meals",       charSelector: ".mrd-screen-hdr-title", charText: "Repas" },
+      { navLabel: "Accueil", path: "/home",       charSelector: ".mrd-home",             charText: null },
+    ];
+
     const session = await openStubbed();
     try {
-      const homeOk = await reachHomePage(session);
-      assert.ok(homeOk, "Prérequis : .mrd-bnav doit être visible");
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
 
-      // Éléments caractéristiques par onglet
-      // Pour tasks/agenda/meals/lists, le titre du header dans .mrd-screen-hdr-title
-      // Pour home, le wrapper .mrd-home est présent directement
-      const TABS_TO_CHECK = [
-        {
-          navLabel:    "Tâches",
-          headerTitle: "Tâches",
-          // Le header "Tâches" + les SegmentedTabs sont présents
-          charSelector: ".mrd-screen-hdr-title",
-          charText:     "Tâches",
-        },
-        {
-          navLabel:    "Agenda",
-          headerTitle: "Agenda",
-          charSelector: ".mrd-screen-hdr-title",
-          charText:     "Agenda",
-        },
-        {
-          navLabel:    "Repas",
-          headerTitle: "Repas",
-          charSelector: ".mrd-screen-hdr-title",
-          charText:     "Repas",
-        },
-        {
-          navLabel:    "Accueil",
-          // Home n'a pas de header .mrd-screen-hdr-title, mais .mrd-home est présent
-          charSelector: ".mrd-home",
-          charText:     null,
-        },
-      ];
+      for (const tab of TABS) {
+        assert.ok(await clickTab(session, tab.navLabel), `onglet « ${tab.navLabel} » introuvable`);
+        await waitForPageSettled(session);
+        await sleep(250);
 
-      for (const tab of TABS_TO_CHECK) {
-        // Cliquer le bouton du BottomNav par son aria-label
-        await session.send("Runtime.evaluate", {
-          expression: `
-            [...document.querySelectorAll(".mrd-bnav-btn")]
-              .find(btn => btn.getAttribute("aria-label")?.startsWith(${JSON.stringify(tab.navLabel)}))
-              ?.click();
-          `,
-        });
+        assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted",
+          `Onglet « ${tab.navLabel} » : l'app a crashé`);
 
-        // Attendre le rendu (200 ms suffisent — React est synchrone dans ce contexte)
-        await new Promise((r) => setTimeout(r, 400));
+        // Le gain du routeur : l'écran a une URL, donc un état partageable.
+        assert.equal(await evaluate(session, "location.pathname"), tab.path,
+          `Onglet « ${tab.navLabel} » : l'URL doit être ${tab.path}`);
 
-        // (a) Pas de crash
-        const bootState = await session.send("Runtime.evaluate", {
-          expression: "window.__APP_BOOT_STATE__",
-          returnByValue: true,
-        });
-        assert.equal(
-          bootState.result.value,
-          "react-mounted",
-          `Onglet "${tab.navLabel}" : __APP_BOOT_STATE__ doit rester "react-mounted"`,
-        );
+        /* Comment Ionic marque l'onglet actif : l'attribut `selected="true"`
+           et la classe `tab-selected`. **Pas** `aria-selected` (essayé, absent)
+           ni `aria-current="page"` (c'était l'ancienne barre maison). Vérifié
+           par inspection du DOM rendu, pas déduit de la doc. */
+        const marks = await evaluate(session, `(() => {
+          const btn = [...document.querySelectorAll("ion-tab-button")]
+            .find((b) => (b.getAttribute("aria-label") || "").startsWith(${JSON.stringify(tab.navLabel)}));
+          if (!btn) return null;
+          return JSON.stringify({
+            selected: btn.getAttribute("selected"),
+            hasClass: btn.classList.contains("tab-selected"),
+          });
+        })()`);
+        assert.ok(marks, `onglet « ${tab.navLabel} » introuvable pour la vérification d'état`);
+        const { selected, hasClass } = JSON.parse(marks);
+        assert.equal(selected, "true", `Onglet « ${tab.navLabel} » : selected="true" attendu`);
+        assert.ok(hasClass, `Onglet « ${tab.navLabel} » : classe .tab-selected attendue`);
 
-        // (b) aria-current="page" sur le bon bouton
-        const ariaCurrent = await session.send("Runtime.evaluate", {
-          expression: `
-            [...document.querySelectorAll(".mrd-bnav-btn")]
-              .find(btn => btn.getAttribute("aria-label")?.startsWith(${JSON.stringify(tab.navLabel)}))
-              ?.getAttribute("aria-current") ?? null
-          `,
-          returnByValue: true,
-        });
-        assert.equal(
-          ariaCurrent.result.value,
-          "page",
-          `Onglet "${tab.navLabel}" : aria-current="page" attendu sur le bouton actif`,
-        );
+        /* Et un seul à la fois : deux onglets allumés est un symptôme de
+           `selectedTab` désynchronisé de l'URL. */
+        const selectedCount = await evaluate(session,
+          `document.querySelectorAll("ion-tab-button.tab-selected").length`);
+        assert.equal(selectedCount, 1, `un seul onglet doit être actif (trouvé ${selectedCount})`);
 
-        // (c) Élément caractéristique présent
-        const charOk = await pollForSelector(session, tab.charSelector, 5_000);
-        assert.ok(
-          charOk,
-          `Onglet "${tab.navLabel}" : "${tab.charSelector}" doit être dans le DOM`,
-        );
+        assert.ok(await pollForSelectorInActivePage(session, tab.charSelector, 5_000),
+          `Onglet « ${tab.navLabel} » : ${tab.charSelector} absent de la page visible`);
 
         if (tab.charText !== null) {
-          const actualText = await queryText(session, tab.charSelector);
-          assert.ok(
-            actualText.includes(tab.charText),
-            `Onglet "${tab.navLabel}" : "${tab.charSelector}" doit contenir "${tab.charText}" (trouvé : "${actualText}")`,
-          );
+          const text = await queryTextInActivePage(session, tab.charSelector);
+          assert.ok(text.includes(tab.charText),
+            `Onglet « ${tab.navLabel} » : ${tab.charSelector} doit contenir « ${tab.charText} » (trouvé « ${text} »)`);
         }
       }
     } finally {
@@ -356,94 +286,70 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 180_000 }, asyn
     }
   });
 
-  // ── [3] Le bouton « Plus » ouvre les écrans secondaires ────────────────────
-  // Listes, Notes, Inventaire, Recettes et Historique ne sont plus des onglets
-  // du BottomNav : ils vivent dans le menu du bouton « Plus ».
-
-  await t.test("[3] le menu « Plus » ouvre les écrans secondaires (Listes)", async (st) => {
+  /* Le vrai apport du routeur, et ce qui était impossible avant : le bouton
+     retour du navigateur — donc le bouton retour matériel d'Android, que
+     Capacitor y branche. */
+  await t.test("[3] le bouton retour revient à l'écran précédent", async (st) => {
     if (!browserHandle) {
       st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
       return;
     }
-
     const session = await openStubbed();
     try {
-      assert.ok(await reachHomePage(session), "Prérequis : .mrd-bnav doit être visible");
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
 
-      await click(session, '.mrd-bnav-btn[aria-label="Plus"]');
-      assert.ok(
-        await pollForSelector(session, ".mrd-bnav-quick-menu", 3_000),
-        "Le bouton « Plus » doit ouvrir le menu rapide",
-      );
+      await clickTab(session, "Agenda");
+      await waitForPageSettled(session);
+      assert.equal(await evaluate(session, "location.pathname"), "/agenda");
 
-      await session.send("Runtime.evaluate", {
-        expression: `
-          [...document.querySelectorAll(".mrd-bnav-quick-item")]
-            .find(btn => btn.textContent.includes("Listes"))
-            ?.click();
-        `,
-      });
+      await evaluate(session, "history.back()");
+      await sleep(900);
+      await waitForPageSettled(session);
 
-      assert.ok(
-        await pollForSelector(session, ".lists-page-header", 5_000),
-        "L'entrée « Listes » du menu rapide doit ouvrir l'écran Listes",
-      );
-
-      const bootState = await session.send("Runtime.evaluate", {
-        expression: "window.__APP_BOOT_STATE__",
-        returnByValue: true,
-      });
-      assert.equal(bootState.result.value, "react-mounted",
-        "L'écran Listes ne doit pas faire crasher l'app");
+      assert.equal(await evaluate(session, "location.pathname"), "/home",
+        "le retour navigateur doit ramener sur l'accueil");
+      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
+      assert.ok(await pollForSelectorInActivePage(session, ".mrd-home", 5_000), "l'accueil doit être réaffiché");
     } finally {
       await session.close();
     }
   });
 
-  // ── [4] Pas d'écran fatal sur la page d'accueil après navigation aller-retour
-
-  await t.test("[4] pas d'écran fatal après navigation aller-retour", async (st) => {
+  /* Listes, Notes, Inventaire, Recettes et Historique n'ont pas d'onglet : ils
+     passent par le bouton « Plus », qui ouvre désormais une feuille d'actions
+     Ionic au lieu d'un menu maison replié par un écouteur `document
+     mousedown`. */
+  await t.test("[4] le bouton « Plus » ouvre une feuille d'actions qui navigue", async (st) => {
     if (!browserHandle) {
       st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
       return;
     }
-
     const session = await openStubbed();
     try {
-      await reachHomePage(session);
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
 
-      // Aller sur Listes (via le menu « Plus »), puis revenir sur Accueil
-      await click(session, '.mrd-bnav-btn[aria-label="Plus"]');
-      await pollForSelector(session, ".mrd-bnav-quick-menu", 3_000);
-      await session.send("Runtime.evaluate", {
-        expression: `
-          [...document.querySelectorAll(".mrd-bnav-quick-item")]
-            .find(btn => btn.textContent.includes("Listes"))
-            ?.click();
-        `,
-      });
-      await pollForSelector(session, ".lists-page-header", 5_000);
+      assert.ok(await clickTab(session, "Plus"), "onglet « Plus » introuvable");
+      assert.ok(await pollForSelector(session, "ion-action-sheet", 4_000),
+        "« Plus » doit ouvrir une ion-action-sheet");
 
-      await session.send("Runtime.evaluate", {
-        expression: `document.querySelector('[aria-label="Accueil"]')?.click()`,
-      });
-      await new Promise((r) => setTimeout(r, 300));
+      // Les boutons de la feuille sont dans un shadow root : hors de portée de
+      // document.querySelector.
+      const clicked = await evaluate(session, `(() => {
+        const sheet = document.querySelector("ion-action-sheet");
+        const root = sheet?.shadowRoot || sheet;
+        const btn = [...(root?.querySelectorAll("button") || [])]
+          .find((b) => (b.textContent || "").includes("Listes"));
+        if (!btn) return false;
+        btn.click();
+        return true;
+      })()`);
+      assert.ok(clicked, "l'entrée « Listes » doit être présente dans la feuille");
 
-      const bodyText = await session.send("Runtime.evaluate", {
-        expression: "document.body.innerText",
-        returnByValue: true,
-      });
-      assert.doesNotMatch(bodyText.result.value, /Demarrage bloque/i,
-        "Aucun écran de démarrage bloqué ne doit apparaître");
-      assert.doesNotMatch(bodyText.result.value, /Erreur visible/i,
-        "Aucune erreur visible ne doit apparaître");
-
-      const bootState = await session.send("Runtime.evaluate", {
-        expression: "window.__APP_BOOT_STATE__",
-        returnByValue: true,
-      });
-      assert.equal(bootState.result.value, "react-mounted",
-        "L'app doit rester montée après navigation aller-retour");
+      await waitForPageSettled(session);
+      assert.ok(await pollForSelectorInActivePage(session, ".lists-page-header", 6_000),
+        "« Listes » doit ouvrir l'écran Listes");
+      assert.equal(await evaluate(session, "location.pathname"), "/lists");
+      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
     } finally {
       await session.close();
     }

@@ -1,5 +1,5 @@
 import { DEFAULT_MEMBER_COLOR } from "./constants.js";
-import { BottomNav, SidebarNav } from "./components/nav/BottomNav.js";
+import { BottomNav, QUICK_MENU_ITEMS, SidebarNav } from "./components/nav/BottomNav.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
 import { HomeView } from "./components/home/HomeView.js";
@@ -61,6 +61,26 @@ import { useAgenda } from "./hooks/useAgenda.js";
 import { useTaskNotifications } from "./hooks/useTaskNotifications.js";
 import { useStaleTaskAlerts } from "./hooks/useStaleTaskAlerts.js";
 import { useAppRouting } from "./hooks/useAppRouting.js";
+import {
+  IonActionSheet,
+  IonApp,
+  IonPage,
+  IonRoute,
+  IonRouterOutlet,
+  IonTabs,
+} from "@ionic/react";
+import { IonReactRouter } from "@ionic/react-router";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { isPremiumTab } from "./utils/premium.js";
+import {
+  HOME_PATH,
+  SETTINGS_PATH,
+  TASK_PERIODS,
+  isSecondaryScreen as isSecondaryScreenId,
+  isSettingsPath,
+  pathForTab,
+  tabFromPath,
+} from "./routes.js";
 
 
 
@@ -93,7 +113,24 @@ function taskAppearsInTab(task, tab, planning) {
 
 
 
+/**
+ * Racine de l'application.
+ *
+ * `IonApp` et `IonReactRouter` doivent envelopper tout le reste : `AppShell`
+ * utilise `useLocation` / `useNavigate`, qui exigent d'être sous le routeur.
+ * D'où la séparation en deux composants — `AppShell` est l'ancien `App`.
+ */
 export function App() {
+  return html`
+    <${IonApp}>
+      <${IonReactRouter}>
+        <${AppShell} />
+      <//>
+    <//>
+  `;
+}
+
+function AppShell() {
   const {
     user, authReady, bootLoading,
     startupStage, startupError, setStartupStage, setStartupError,
@@ -132,12 +169,47 @@ export function App() {
     onForegroundMessage: setNotifPopup,
   });
 
-  const [activeTab, setActiveTab] = useState("home");
+  /* ── Écran courant : dérivé de l'URL, plus d'un useState ──────────────
+     Le routeur est désormais la source de vérité. `activeTab` et
+     `setActiveTab` gardent volontairement leur nom et leur vocabulaire
+     historique (« daily », « weekly »… et non « tasks ») : les 34 lectures
+     et 17 écritures réparties dans ce fichier continuent de fonctionner
+     sans être touchées, et la traduction vit dans `src/routes.js`.
+
+     `replace` sert au retour depuis les réglages : on remplace l'entrée
+     d'historique au lieu d'en empiler une, sinon le bouton retour du
+     téléphone ramènerait dans les réglages qu'on vient de quitter. */
+  const location = useLocation();
+  const navigate = useNavigate();
+  const showSettings = isSettingsPath(location.pathname);
+  const activeTab = tabFromPath(location.pathname);
+
+  function setActiveTab(tab, { replace = false } = {}) {
+    navigate(pathForTab(tab), { replace });
+  }
+
+  /* Dernier écran hors réglages, pour savoir où revenir en fermant les
+     réglages. `navigate(-1)` serait plus court mais faux : on entre aussi
+     dans les réglages depuis l'onboarding ou depuis un lien direct, où
+     l'entrée précédente n'existe pas ou n'est pas un écran de planning. */
+  const lastPlannerPathRef = useRef(HOME_PATH);
+  useEffect(() => {
+    if (!isSettingsPath(location.pathname)) lastPlannerPathRef.current = location.pathname;
+  }, [location.pathname]);
+
+  function setShowSettings(open) {
+    if (open) {
+      navigate(SETTINGS_PATH);
+      return;
+    }
+    navigate(lastPlannerPathRef.current || HOME_PATH, { replace: true });
+  }
+
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [dataMessage, setDataMessage] = useState("");
   const [importText, setImportText] = useState("");
   const [showImport, setShowImport] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [taskFabTrigger, setTaskFabTrigger] = useState(0);
   const [lastTaskTab, setLastTaskTab] = useState("daily");
   const [inventoryOrganiserMode, setInventoryOrganiserMode] = useState(
@@ -420,7 +492,9 @@ export function App() {
   }
 
   function handleBottomNavChange(tab) {
-    setShowSettings(false);
+    // Pas besoin de quitter les réglages explicitement : naviguer vers un
+    // onglet change l'URL, donc `showSettings` (qui en est dérivé) retombe
+    // à faux tout seul.
     if (tab === "tasks") {
       setActiveTab(lastTaskTab || "daily");
       return;
@@ -431,7 +505,6 @@ export function App() {
   // ── Navigation depuis la popup de notification ─────────────────────────────
   function handleNotifPopupNavigate(notif) {
     const { eventId, taskId, notifType, tab } = notif || {};
-    setShowSettings(false);
     if (eventId || notifType === "event") {
       setActiveTab("agenda");
     } else if (taskId || notifType === "end-of-day" || notifType === "urgent" || notifType === "due") {
@@ -1009,7 +1082,6 @@ export function App() {
           const result = await handleCreateHouseholdOnboarding(payload);
           setPendingSignupSetup(false);
           setPendingSignupDraftName("");
-          setShowSettings(false);
           setActiveTab("home");
           const inviteCodes = Array.isArray(result?.invitations) ? result.invitations.filter((item) => item.code) : [];
           const notifState = shouldShowNotifPrompt() ? "notify" : (inviteCodes.length ? "invite-codes" : null);
@@ -1021,7 +1093,6 @@ export function App() {
           await handleJoinHouseholdOnboarding(payload);
           setPendingSignupSetup(false);
           setPendingSignupDraftName("");
-          setShowSettings(false);
           setActiveTab("home");
           if (shouldShowNotifPrompt()) {
             pendingPostOnboardingRef.current = { notifState: "notify", inviteCodes: [] };
@@ -1031,7 +1102,6 @@ export function App() {
           await handleCompleteProfileSetup(payload);
           setPendingSignupSetup(false);
           setPendingSignupDraftName("");
-          setShowSettings(false);
           setActiveTab("home");
           if (shouldShowNotifPrompt()) {
             pendingPostOnboardingRef.current = { notifState: "notify", inviteCodes: [] };
@@ -1048,9 +1118,16 @@ export function App() {
     `;
   }
 
-  let plannerContent = null;
-  if (plannerUnlocked && !showSettings) {
-    if (activeTab === "mine" || activeTab === "daily" || activeTab === "weekly" || activeTab === "monthly") {
+  /* ── Contenu d'un écran ────────────────────────────────────────────────
+     C'était une valeur (`plannerContent`) calculée pour l'onglet courant.
+     Avec `IonRouterOutlet`, la page sortante reste montée le temps de la
+     transition : si elle relisait `activeTab`, elle afficherait le contenu de
+     la page entrante pendant l'animation. Chaque route rend donc son propre
+     contenu, en passant son identifiant d'écran — indépendamment de l'URL du
+     moment. */
+  function renderScreen(tab) {
+    if (!plannerUnlocked) return null;
+    if (tab === "mine" || tab === "daily" || tab === "weekly" || tab === "monthly") {
       function isMineTask(task) {
         if (!activePersonId) return false;
         // Tâche explicitement assignée à cette personne
@@ -1063,19 +1140,19 @@ export function App() {
         return false;
       }
       const visibleTasks =
-        activeTab === "mine"
+        tab === "mine"
           ? state.tasks.filter(isMineTask)
-          : visibleTasksByTab[activeTab] || [];
+          : visibleTasksByTab[tab] || [];
       // Pour "Mes tâches" : n'exposer que les tâches de l'utilisateur actif,
       // y compris les tâches "à faire avant", pour éviter qu'elles apparaissent
       // dans la section deadline sans être assignées à cet utilisateur.
       const allTasksForTab =
-        activeTab === "mine"
+        tab === "mine"
           ? state.tasks.filter(isMineTask)
           : state.tasks;
-      plannerContent = html`
+      return html`
         <${TasksView}
-          tab=${activeTab}
+          tab=${tab}
           tasks=${visibleTasks}
           allTasks=${allTasksForTab}
           people=${householdPeople}
@@ -1091,8 +1168,9 @@ export function App() {
           onMoveTask=${handleMoveTask}
         />
       `;
-    } else if (activeTab === "agenda") {
-      plannerContent = html`
+    }
+    if (tab === "agenda") {
+      return html`
         <${AgendaView}
           tasks=${state.tasks}
           people=${agendaPeople}
@@ -1110,9 +1188,10 @@ export function App() {
           activePersonId=${activePersonId}
         />
       `;
-    } else if (activeTab === "meals") {
+    }
+    if (tab === "meals") {
       const shoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
-      plannerContent = !isPremium ? html`
+      return !isPremium ? html`
         <${PremiumLockScreen} feature="meals" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`
         <${MealsView}
@@ -1137,7 +1216,8 @@ export function App() {
           onToggleCook=${handleToggleCookWithInventory}
         />
       `;
-    } else if (activeTab === "lists") {
+    }
+    if (tab === "lists") {
       const allLists = ensureShoppingList(state.lists);
       const visibleLists = allLists.filter((list) => {
         if (list.isShoppingList) return true;
@@ -1145,7 +1225,7 @@ export function App() {
         if (list.visibility === "shared") return list.createdBy === activePersonId || (list.sharedWith || []).includes(activePersonId);
         return true;
       });
-      plannerContent = html`
+      return html`
         <${ListsView}
           lists=${visibleLists}
           activePersonId=${activePersonId}
@@ -1164,8 +1244,9 @@ export function App() {
           onClearShoppingList=${handleClearShoppingList}
         />
       `;
-    } else if (activeTab === "inventory") {
-      plannerContent = !isPremium ? html`
+    }
+    if (tab === "inventory") {
+      return !isPremium ? html`
         <${PremiumLockScreen} feature="inventory" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`
         <${InventoryView}
@@ -1188,9 +1269,10 @@ export function App() {
           onReorderInventoryItems=${handleReorderInventoryItems}
         />
       `;
-    } else if (activeTab === "recipes") {
+    }
+    if (tab === "recipes") {
       const recipesShoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
-      plannerContent = !isPremium ? html`
+      return !isPremium ? html`
         <${PremiumLockScreen} feature="recipes" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`<${RecipesView}
         recipes=${state.recipes}
@@ -1219,13 +1301,14 @@ export function App() {
         linkInventory=${Boolean(state.linkMealsToInventory)}
         onBack=${() => setActiveTab("home")}
       />`;
-    } else if (activeTab === "notes") {
+    }
+    if (tab === "notes") {
       const visibleNotes = state.notes.filter((note) => {
         if (note.visibility === "private") return !note.createdBy || note.createdBy === activePersonId;
         if (note.visibility === "shared") return note.createdBy === activePersonId || (note.sharedWith || []).includes(activePersonId);
         return true;
       });
-      plannerContent = html`<${NotesView}
+      return html`<${NotesView}
         notes=${visibleNotes}
         activePersonId=${activePersonId}
         people=${householdPeople}
@@ -1233,10 +1316,12 @@ export function App() {
         onDeleteNote=${(id) => { handleDeleteNote(id); showToast("Note supprimée"); }}
         onUpdateNote=${(id, updates) => { handleUpdateNote(id, updates); showToast("✓ Note mise à jour"); }}
       />`;
-    } else if (activeTab === "history") {
-      plannerContent = html`<${HistoryView} history=${state.history} users=${householdPeople} onClearHistory=${handleClearHistory} />`;
-    } else if (activeTab === "inbox") {
-      plannerContent = html`
+    }
+    if (tab === "history") {
+      return html`<${HistoryView} history=${state.history} users=${householdPeople} onClearHistory=${handleClearHistory} />`;
+    }
+    if (tab === "inbox") {
+      return html`
         <${InboxView}
           inbox=${state.inbox || []}
           activePersonId=${activePersonId}
@@ -1250,32 +1335,24 @@ export function App() {
         />
       `;
     }
+    return null;
   }
 
-  /* ── Back-header for secondary screens ────────────────── */
-  const secondaryScreens = ["notes", "inventory", "recipes", "history", "inbox"];
-  const isSecondaryScreen = secondaryScreens.includes(activeTab);
+  /* ── Une page par écran ────────────────────────────────────────────────
+     `IonRouterOutlet` exige que chaque route rende un `IonPage` : c'est ce
+     qu'il empile pour animer les transitions et gérer le geste de retour.
 
-  return html`
-    <div className="mrd-outer">
-      <div className="mrd-shell">
-
-        ${/* Nav bureau — barre latérale sur écrans larges, remplace la barre du bas */null}
-        ${plannerUnlocked && !showSettings ? html`
-          <${SidebarNav}
-            activeTab=${activeTab}
-            onChange=${handleBottomNavChange}
-            overdueTaskCount=${stats.overdueTaskCount}
-            isPremium=${isPremium}
-          />
-        ` : null}
-
-        ${/* Main screen area */null}
+     L'intérieur (`.mrd-screen`, `.cnt`, les en-têtes) reste le balisage
+     existant : le passage à `IonHeader` / `IonContent` est l'objet de la
+     phase 3, et mélanger les deux ici rendrait la régression visuelle
+     impossible à attribuer. */
+  function screenPage(tab) {
+    return html`
+      <${IonPage} className="mrd-ion-page">
         <div className="mrd-screen">
-
-          ${/* Back header for secondary screens */null}
-          ${isSecondaryScreen && !showSettings && activeTab !== "recipes" ? html`
-            <div className=${`mrd-back-hdr${activeTab === "inventory" ? " mrd-back-hdr-with-side" : ""}`}>
+${/* Back header for secondary screens */null}
+          ${isSecondaryScreenId(tab) && tab !== "recipes" ? html`
+            <div className=${`mrd-back-hdr${tab === "inventory" ? " mrd-back-hdr-with-side" : ""}`}>
               <div className="mrd-back-hdr-main">
                 <button className="mrd-back-btn" onClick=${() => setActiveTab("home")}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -1283,10 +1360,10 @@ export function App() {
                   </svg>
                 </button>
                 <span className="mrd-screen-title">
-                  ${{ notes: "Notes", inventory: "Inventaire", recipes: "Recettes", history: "Historique", inbox: "Pense-bête 📥" }[activeTab] || ""}
+                  ${{ notes: "Notes", inventory: "Inventaire", recipes: "Recettes", history: "Historique", inbox: "Pense-bête 📥" }[tab] || ""}
                 </span>
               </div>
-              ${activeTab === "inventory" ? html`
+              ${tab === "inventory" ? html`
                 <div className="mrd-back-hdr-side">
                   <span className=${`mrd-hdr-switch-label${inventoryOrganiserMode ? " on" : ""}`}>Organiser</span>
                   <button
@@ -1302,7 +1379,123 @@ export function App() {
             </div>
           ` : null}
 
-          ${/* Settings close header */null}
+${/* Errors */null}
+          ${familyError || bootstrapError ? html`
+            <div style=${{ padding: "0 14px" }}>
+              ${familyError ? html`<div className="error-box">${familyError}</div>` : null}
+              ${bootstrapError ? html`<div className="error-box">${bootstrapError}</div>` : null}
+            </div>
+          ` : null}
+
+${/* Active person choice prompt */null}
+          ${needsActivePersonChoice ? html`
+            <section className="ncard active-person-card" style=${{ margin: "12px" }}>
+              <div className="miniTitle">Cet appareil</div>
+              <div className="st">Qui utilise l’application sur cet appareil ?</div>
+              <div className="mini">Choisis une personne du foyer pour activer Mes tâches et les usages personnels sur ce téléphone.</div>
+              <div className="tych active-person-choices">
+                ${appPeopleRaw.map(
+                  (person) => html`
+                    <button key=${person.id} className="pc" onClick=${() => handleSetActivePerson(person.id)}>
+                      ${person.displayName}
+                    </button>
+                  `,
+                )}
+              </div>
+            </section>
+          ` : null}
+
+          ${tab === "home"
+            ? html`
+                <${HomeView}
+                  tasks=${state.tasks}
+                  meals=${state.meals}
+                  recipes=${state.recipes}
+                  notes=${state.notes}
+                  lists=${state.lists}
+                  inventory=${state.inventory}
+                  agenda=${state.agenda}
+                  recurringEvents=${state.recurringEvents}
+                  inbox=${state.inbox || []}
+                  people=${householdPeople}
+                  familyName=${currentFamily?.name || ""}
+                  currentUserName=${linkedPerson?.displayName || userProfile?.displayName || user?.displayName || ""}
+                  currentDate=${getCurrentAppDate()}
+                  activePersonId=${activePersonId}
+                  pendingShoppingCount=${(() => {
+                    const sl = state.lists.find((l) => l.isShoppingList);
+                    return sl ? (sl.items || []).filter((i) => !i.checked).length : 0;
+                  })()}
+                  families=${safeFamilies}
+                  currentFamily=${currentFamily}
+                  onSwitchFamily=${(id) => runFamilyAction(() => handleSwitchFamily(id))}
+                  onCreateFamily=${(name) => runFamilyAction(() => handleCreateFamily(name))}
+                  onJoinFamily=${(code) => runFamilyAction(() => handleJoinFamily(code))}
+                  onToggleTask=${handleToggleTask}
+                  onNavigate=${(tab) => setActiveTab(tab)}
+                  onOpenSettings=${() => setShowSettings(true)}
+                  onOpenAddTask=${plannerUnlocked ? () => {
+                    setActiveTab("daily");
+                    setTimeout(() => setTaskFabTrigger((n) => n + 1), 60);
+                  } : null}
+                />`
+            : html`
+
+                ${/* Screen header for main tabs.
+                     « lists » pose son propre titre (le bouton « + Nouvelle »
+                     partage sa ligne), et « meals » aussi — mais seulement une
+                     fois débloqué : sous le paywall c'est le shell qui titre,
+                     sinon l'écran n'a plus de nom. Même classe des deux côtés,
+                     donc même rendu. */null}
+                ${!isSecondaryScreenId(tab) && tab !== "lists" && !(tab === "meals" && isPremium) ? html`
+                  <div className="mrd-screen-hdr">
+                    <div className="mrd-screen-hdr-row">
+                      <span className="mrd-screen-hdr-title">
+                        ${{
+                          daily: "Tâches", weekly: "Tâches", monthly: "Tâches", mine: "Tâches",
+                          agenda: "Agenda", meals: "Repas",
+                        }[tab] || ""}
+                      </span>
+                    </div>
+                    ${["daily", "weekly", "monthly", "mine"].includes(tab) ? html`
+                      <${SegmentedTabs}
+                        ariaLabel="Navigation des tâches"
+                        options=${[
+                          { id: "daily",   emoji: "☀️",  label: "Aujourd’hui" },
+                          { id: "weekly",  emoji: "📆",  label: "Semaine" },
+                          { id: "monthly", emoji: "🗓️", label: "Mois" },
+                          { id: "mine",    emoji: "👤",  label: "Mes tâches" },
+                        ]}
+                        activeId=${tab}
+                        onChange=${setActiveTab}
+                      />
+                    ` : null}
+                  </div>
+                ` : null}
+                <main className="cnt">
+                  ${renderScreen(tab)}
+                </main>
+              `}
+        </div>
+      <//>
+    `;
+  }
+
+  /* ── Réglages ──────────────────────────────────────────────────────────
+     Volontairement **hors** de la barre d'onglets : les réglages couvrent
+     l'écran entier, sans onglets en bas. C'est aussi ce que faisait
+     l'ancien `showSettings`, à ceci près que la condition vient maintenant
+     de l'URL.
+
+     Les sous-pages (`settingsSubPage`, `settingsSupportPage`) restent des
+     `useState` — leur passage en routes imbriquées est l'objet de la
+     phase 5. */
+  if (showSettings || !plannerUnlocked) {
+    return html`
+      <div className="mrd-outer">
+        <div className="mrd-shell">
+          <div className="mrd-screen">
+${/* Settings close header */null}
           ${showSettings && plannerUnlocked ? html`
             <div className="mrd-back-hdr">
               <button className="mrd-back-btn" onClick=${() => {
@@ -1324,7 +1517,7 @@ export function App() {
             </div>
           ` : null}
 
-          ${/* Errors */null}
+${/* Errors */null}
           ${familyError || bootstrapError ? html`
             <div style=${{ padding: "0 14px" }}>
               ${familyError ? html`<div className="error-box">${familyError}</div>` : null}
@@ -1332,28 +1525,7 @@ export function App() {
             </div>
           ` : null}
 
-          ${/* Active person choice prompt */null}
-          ${needsActivePersonChoice && !showSettings ? html`
-            <section className="ncard active-person-card" style=${{ margin: "12px" }}>
-              <div className="miniTitle">Cet appareil</div>
-              <div className="st">Qui utilise l’application sur cet appareil ?</div>
-              <div className="mini">Choisis une personne du foyer pour activer Mes tâches et les usages personnels sur ce téléphone.</div>
-              <div className="tych active-person-choices">
-                ${appPeopleRaw.map(
-                  (person) => html`
-                    <button key=${person.id} className="pc" onClick=${() => handleSetActivePerson(person.id)}>
-                      ${person.displayName}
-                    </button>
-                  `,
-                )}
-              </div>
-            </section>
-          ` : null}
-
-          ${/* Settings */null}
-          ${showSettings || !plannerUnlocked
-            ? html`
-                <div className="cnt cnt--settings">
+            <div className="cnt cnt--settings">
                   <${SettingsView}
                     isOnboarding=${!plannerUnlocked}
                     currentFamily=${currentFamily}
@@ -1434,83 +1606,121 @@ export function App() {
                     }}
                   />
                 </div>
-              `
-            : activeTab === "home"
-            ? html`
-                <${HomeView}
-                  tasks=${state.tasks}
-                  meals=${state.meals}
-                  recipes=${state.recipes}
-                  notes=${state.notes}
-                  lists=${state.lists}
-                  inventory=${state.inventory}
-                  agenda=${state.agenda}
-                  recurringEvents=${state.recurringEvents}
-                  inbox=${state.inbox || []}
-                  people=${householdPeople}
-                  familyName=${currentFamily?.name || ""}
-                  currentUserName=${linkedPerson?.displayName || userProfile?.displayName || user?.displayName || ""}
-                  currentDate=${getCurrentAppDate()}
-                  activePersonId=${activePersonId}
-                  pendingShoppingCount=${(() => {
-                    const sl = state.lists.find((l) => l.isShoppingList);
-                    return sl ? (sl.items || []).filter((i) => !i.checked).length : 0;
-                  })()}
-                  families=${safeFamilies}
-                  currentFamily=${currentFamily}
-                  onSwitchFamily=${(id) => runFamilyAction(() => handleSwitchFamily(id))}
-                  onCreateFamily=${(name) => runFamilyAction(() => handleCreateFamily(name))}
-                  onJoinFamily=${(code) => runFamilyAction(() => handleJoinFamily(code))}
-                  onToggleTask=${handleToggleTask}
-                  onNavigate=${(tab) => { setShowSettings(false); setActiveTab(tab); }}
-                  onOpenSettings=${() => setShowSettings(true)}
-                  onOpenAddTask=${plannerUnlocked ? () => {
-                    setActiveTab("daily");
-                    setTimeout(() => setTaskFabTrigger((n) => n + 1), 60);
-                  } : null}
-                />
-              `
-            : html`
-                ${/* Screen header for main tabs.
-                     « lists » pose son propre titre (le bouton « + Nouvelle »
-                     partage sa ligne), et « meals » aussi — mais seulement une
-                     fois débloqué : sous le paywall c'est le shell qui titre,
-                     sinon l'écran n'a plus de nom. Même classe des deux côtés,
-                     donc même rendu. */null}
-                ${!isSecondaryScreen && activeTab !== "lists" && !(activeTab === "meals" && isPremium) ? html`
-                  <div className="mrd-screen-hdr">
-                    <div className="mrd-screen-hdr-row">
-                      <span className="mrd-screen-hdr-title">
-                        ${{
-                          daily: "Tâches", weekly: "Tâches", monthly: "Tâches", mine: "Tâches",
-                          agenda: "Agenda", meals: "Repas",
-                        }[activeTab] || ""}
-                      </span>
-                    </div>
-                    ${["daily", "weekly", "monthly", "mine"].includes(activeTab) ? html`
-                      <${SegmentedTabs}
-                        ariaLabel="Navigation des tâches"
-                        options=${[
-                          { id: "daily",   emoji: "☀️",  label: "Aujourd’hui" },
-                          { id: "weekly",  emoji: "📆",  label: "Semaine" },
-                          { id: "monthly", emoji: "🗓️", label: "Mois" },
-                          { id: "mine",    emoji: "👤",  label: "Mes tâches" },
-                        ]}
-                        activeId=${activeTab}
-                        onChange=${setActiveTab}
-                      />
-                    ` : null}
-                  </div>
-                ` : null}
-                <main className="cnt">
-                  ${plannerContent}
-                </main>
-              `}
+          </div>
+  ${/* Modals — absolute-positioned within the shell */null}
+          ${selectedProfile ? html`
+            <${ProfileModal}
+              profile=${selectedProfile}
+              canEdit=${canEditSelectedProfile}
+              draft=${profileDraft}
+              onDraftChange=${setProfileDraft}
+              onClose=${() => setProfilePersonId("")}
+              onSave=${() => runFamilyAction(() => handleSaveProfileCard())}
+            />
+          ` : null}
+        ${notifPopup ? html`
+          <${NotificationModal}
+            notification=${notifPopup}
+            onClose=${() => setNotifPopup(null)}
+            onNavigate=${handleNotifPopupNavigate}
+          />
+        ` : null}
+
+        ${!notifPopup && activeStaleTask ? html`
+          <${StaleTaskModal}
+            task=${activeStaleTask}
+            alert=${activeStaleTaskAlert}
+            onClose=${handleDismissStaleTaskAlert}
+            onMoveToDaily=${() => handleMoveStaleTaskToPeriod("daily")}
+            onMoveToWeekly=${() => handleMoveStaleTaskToPeriod("weekly")}
+          />
+        ` : null}
+
+        ${toast?.text
+          ? html`
+              <div className="app-toast-wrap">
+                <div className="app-toast">
+                  <span>${toast.text}</span>
+                  ${toast.action?.label
+                    ? html`<button className="app-toast-action" onClick=${toast.action.onClick}>${toast.action.label}</button>`
+                    : null}
+                </div>
+              </div>
+            `
+          : null}
+
+        ${postOnboardingState === "notify" ? html`
+          <${NotifPromptModal}
+            dismissCount=${getNotifPromptDismissCount()}
+            onActivate=${async () => {
+              markNotifPromptGranted();
+              // 1. Dialog OS seul (rapide) — la modale se ferme dès la réponse.
+              try { await requestNotificationPermission(); } catch (_) {}
+              setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
+              // 2. Enregistrement du token push (peut prendre plusieurs secondes
+              //    en natif : APNs) — en arrière-plan, sans bloquer la modale.
+              requestPushPermission().catch(() => {});
+            }}
+            onLater=${() => {
+              markNotifPromptDismissed();
+              setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
+            }}
+          />
+        ` : null}
+
+        ${postOnboardingState === "invite-codes" && postOnboardingInviteCodes.length ? html`
+          <${InviteCodesModal}
+            inviteCodes=${postOnboardingInviteCodes}
+            onClose=${() => { setPostOnboardingState(null); setPostOnboardingInviteCodes([]); }}
+          />
+        ` : null}
+
+        ${plannerUnlocked && showHouseholdWelcomeModal ? html`
+          <${HouseholdWelcomeModal}
+            onClose=${() => setShowHouseholdWelcomeModal(false)}
+            onAddMembers=${() => {
+              setShowHouseholdWelcomeModal(false);
+              setShowSettings(true);
+              setSettingsAutoOpenAddPersonSignal((value) => value + 1);
+            }}
+          />
+        ` : null}
         </div>
 
-        ${/* Bottom nav — only for planner (not settings) */null}
+        <${FeedbackWidget} user=${user} currentPage=${activeTab || ""} />
+      </div>
+    `;
+  }
+
+  /* ── Routes ────────────────────────────────────────────────────────────
+     Les commentaires restent ici, hors du template : dans un template HTM on
+     les écrirait `${/* … *\/null}`, ce qui injecte un enfant `null` dans
+     `IonRouterOutlet`. Le gestionnaire de routes d'Ionic itère ces enfants
+     sans filtrer les valeurs nulles et lève « Cannot read properties of null
+     (reading 'type') » — l'app monte, puis meurt à la première navigation.
+
+     Une seule route pour les 4 périodes de tâches : passer de « Semaine » à
+     « Mois » change un segment, pas de page. Quatre routes distinctes
+     déclencheraient une animation de transition entre deux onglets segmentés,
+     ce qui n'est pas le geste.
+
+     La période vient de l'URL, avec un repli sur `lastTaskTab` : pendant la
+     transition qui QUITTE les tâches, `activeTab` vaut déjà l'écran de
+     destination, et la page sortante afficherait le contenu de la page
+     entrante le temps de l'animation. */
+  const taskPeriodForPage = TASK_PERIODS.includes(activeTab) ? activeTab : (lastTaskTab || "daily");
+
+  /* Repli : « / » au premier lancement, et tout chemin inconnu (deep link
+     périmé). Sans lui l'outlet ne rend rien — écran blanc, sans erreur. */
+  const homeRedirect = html`<${Navigate} to=${HOME_PATH} replace />`;
+
+  return html`
+    <div className="mrd-outer">
+      <div className="mrd-shell">
+
+${/* Nav bureau — barre latérale sur écrans larges, remplace la barre du bas */null}
         ${plannerUnlocked && !showSettings ? html`
-          <${BottomNav}
+          <${SidebarNav}
             activeTab=${activeTab}
             onChange=${handleBottomNavChange}
             overdueTaskCount=${stats.overdueTaskCount}
@@ -1518,7 +1728,50 @@ export function App() {
           />
         ` : null}
 
-        ${/* FAB — tâches (ouvre la modale de création) */null}
+        ${/* Onglets Ionic. `IonRouterOutlet` doit rester un enfant DIRECT
+             d'`IonTabs` (sinon Ionic lève « IonTabs must contain an
+             IonRouterOutlet »). La barre d'onglets, elle, passe par le
+             contexte : l'envelopper dans `BottomNav` ne pose pas de
+             problème. */null}
+        <${IonTabs} className="mrd-tabs-host">
+          <${IonRouterOutlet}>
+            <${IonRoute} path="/home" element=${screenPage("home")} />
+            <${IonRoute} path="/agenda" element=${screenPage("agenda")} />
+            <${IonRoute} path="/meals" element=${screenPage("meals")} />
+            <${IonRoute} path="/lists" element=${screenPage("lists")} />
+            <${IonRoute} path="/notes" element=${screenPage("notes")} />
+            <${IonRoute} path="/inventory" element=${screenPage("inventory")} />
+            <${IonRoute} path="/recipes" element=${screenPage("recipes")} />
+            <${IonRoute} path="/history" element=${screenPage("history")} />
+            <${IonRoute} path="/inbox" element=${screenPage("inbox")} />
+            <${IonRoute} path="/tasks/:period" element=${screenPage(taskPeriodForPage)} />
+            <${IonRoute} path="*" element=${homeRedirect} />
+          <//>
+
+          <${BottomNav}
+            activeTab=${activeTab}
+            onChange=${handleBottomNavChange}
+            onOpenQuickMenu=${() => setQuickMenuOpen(true)}
+            overdueTaskCount=${stats.overdueTaskCount}
+            isPremium=${isPremium}
+          />
+        <//>
+
+        <${IonActionSheet}
+          isOpen=${quickMenuOpen}
+          header="Plus"
+          className="mrd-quick-sheet"
+          onDidDismiss=${() => setQuickMenuOpen(false)}
+          buttons=${[
+            ...QUICK_MENU_ITEMS.map((item) => ({
+              text: isPremiumTab(item.id) && !isPremium ? `${item.emoji}  ${item.label} ⭐` : `${item.emoji}  ${item.label}`,
+              handler: () => setActiveTab(item.id),
+            })),
+            { text: "Annuler", role: "cancel" },
+          ]}
+        />
+
+${/* FAB — tâches (ouvre la modale de création) */null}
         ${plannerUnlocked && !showSettings && ["daily","weekly","monthly","mine"].includes(activeTab) ? html`
           <button
             className="mrd-fab"
@@ -1538,7 +1791,7 @@ export function App() {
           </button>
         ` : null}
 
-        ${/* Modals — absolute-positioned within the shell */null}
+${/* Modals — absolute-positioned within the shell */null}
         ${selectedProfile ? html`
           <${ProfileModal}
             profile=${selectedProfile}
