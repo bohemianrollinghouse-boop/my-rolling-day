@@ -52,10 +52,14 @@
     "@capacitor/share": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
+    "@ionic/react": "^9.0.0",
+    "@ionic/react-router": "^9.0.0",
     "firebase": "^10.12.5",
     "htm": "^3.1.1",
+    "ionicons": "^8.1.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.0.0",

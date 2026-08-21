@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#FAF4ED" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1F1A17" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#211A15" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Rolling Day" />
@@ -13,8 +13,11 @@
     <link rel="alternate icon" type="image/png" sizes="32x32" href="./src/assets/brand/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="./src/assets/brand/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <!-- Applique la bonne theme-color dès le boot selon le thème enregistré -->
-    <script>(function(){try{var d=localStorage.getItem('mrd-theme')==='dark';var c=d?'#1F1A17':'#FAF4ED';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c)});var sb=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');if(sb)sb.setAttribute('content',d?'black':'default')}catch(e){}}())</script>
+    <!-- Applique le theme des le boot, avant tout paint. `data-theme` et
+         `ion-palette-dark` doivent etre poses ensemble : les deux sont reecrits
+         par src/utils/theme.js une fois React monte, mais sans ce script une
+         app en sombre commencerait par un flash clair. -->
+    <script>(function(){try{var d=localStorage.getItem('mrd-theme')==='dark';var r=document.documentElement;r.setAttribute('data-theme',d?'dark':'light');r.classList.toggle('ion-palette-dark',d);var c=d?'#211A15':'#FAF4ED';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c)});var sb=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');if(sb)sb.setAttribute('content',d?'black':'default')}catch(e){}}())</script>
     <title>My Rolling Day</title>
     <!-- Polices embarquées via @font-face dans styles.css (plus de Google Fonts) -->
   <link rel="stylesheet" href="./src/styles.css" />

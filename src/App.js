@@ -1,4 +1,4 @@
-import { DEFAULT_MEMBER_COLOR, THEME_COLOR_DARK, THEME_COLOR_LIGHT } from "./constants.js";
+import { DEFAULT_MEMBER_COLOR } from "./constants.js";
 import { BottomNav, SidebarNav } from "./components/nav/BottomNav.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
@@ -50,7 +50,7 @@ import { checkReset, createMealShell } from "./utils/state.js";
 import { parseImportedState, shouldShowNotifPrompt, markNotifPromptGranted, markNotifPromptDismissed, getNotifPromptDismissCount } from "./utils/storage.js";
 import { Capacitor } from "@capacitor/core";
 import { initNotifications, requestNotificationPermission } from "./utils/notify.js";
-import { applyStatusBarTheme } from "./utils/statusBar.js";
+import { applyTheme, readStoredTheme } from "./utils/theme.js";
 import { usePlannerSync } from "./hooks/usePlannerSync.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { usePushMessaging } from "./hooks/usePushMessaging.js";
@@ -287,18 +287,7 @@ export function App() {
   }, [selectedProfile?.id, selectedProfile?.label, selectedProfile?.color, selectedProfile?.mood, selectedProfile?.message]);
 
   useEffect(() => {
-    try {
-      const savedTheme = localStorage.getItem("mrd-theme") || "light";
-      const isDark = savedTheme === "dark";
-      document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-      const themeColor = isDark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT;
-      document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", themeColor));
-      const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-      if (sb) sb.setAttribute("content", isDark ? "black" : "default");
-      applyStatusBarTheme(isDark);
-    } catch (error) {
-      console.warn("[app] impossible d appliquer le theme en cache", error);
-    }
+    applyTheme(readStoredTheme());
     // Natif : amorce le cache de permission + le listener de tap sur notification
     initNotifications().catch(() => {});
   }, []);

@@ -1,5 +1,13 @@
+import { setupIonicReact } from "@ionic/react";
+
 import { App } from "./App.js";
 import { createRoot, html } from "./lib.js";
+
+// Mode `ios` force sur les deux plateformes. Par defaut Ionic rend `md` sur
+// Android : le design maison (chaud, arrondi, feutre) est beaucoup plus proche
+// du rendu ios, et un seul mode veut dire un seul rendu a verifier au lieu de
+// deux. A ne pas repasser en adaptatif sans revoir toutes les captures.
+setupIonicReact({ mode: "ios" });
 
 if (window.__pushBootLog) {
   window.__APP_BOOT_STATE__ = "main-imported";

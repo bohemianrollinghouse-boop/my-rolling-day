@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phase 0 terminée.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 et 1 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -206,31 +206,74 @@ de la barre latérale bureau (`SidebarNav`, `./src/assets/brand/mark.svg`) est
 une image cassée dans l'app buildée — chemin relatif non résolu par Vite.
 Visible sur `tests/screenshots/baseline/desktop-light__*.png`.
 
-### Phase 1 — 🔴 Socle Ionic (installation, thème, aucun changement visible)
+### Phase 1 — 🔴 Socle Ionic — ✅ TERMINÉE
 
-Sortie attendue : l'app est **identique à l'œil**, mais Ionic est chargé et
-son thème est branché sur les tokens maison.
+Sortie obtenue : **42/42 captures IDENTIQUE au pixel.** Ionic est chargé, son
+thème lit les tokens de la marque, et rien n'a bougé à l'écran.
 
-- [ ] `npm i @ionic/react@9 @ionic/react-router@9 react-router-dom@6.30.6 ionicons@8`
-      (épingler `react-router-dom` en 6.x — v7 est incompatible).
-- [ ] `src/main.js` : `setupIonicReact({ mode: "ios" })` avant le `createRoot`.
-- [ ] Importer `@ionic/react/css/core.css` puis
-      `@ionic/react/css/palette/dark.class.css`, **avant** `styles.css` dans
-      l'ordre de cascade. Ne pas importer les 4 CSS optionnels (cf. D4).
-- [ ] Créer `src/theme/ionic-bridge.css` : `--ion-background-color`,
-      `--ion-text-color`, `--ion-color-primary` (+ `-shade` / `-tint` /
-      `-contrast` / `-rgb`), `--ion-toolbar-background`, `--ion-item-background`,
-      `--ion-border-color`, `--ion-font-family` — tous en `var(--mrd-*)`.
-      Aucune valeur littérale.
-- [ ] Centraliser la bascule de thème : un seul endroit pose
-      `data-theme="dark"` **et** `classList.toggle("ion-palette-dark")`.
-      Aujourd'hui c'est écrit deux fois (`App.js:291-293` et
-      `SettingsView.js:176-180`) — ne pas dupliquer une troisième chose.
-- [ ] Étendre `tests/unit/design-tokens.test.js` : aucune valeur littérale dans
-      `ionic-bridge.css`, tout `--ion-*` défini pointe sur un `--mrd-*` défini.
-- [ ] Vérifier la taille du bundle avant / après (le bundle est déjà à 1,46 Mo
-      en un chunk, cf. `TODO_NATIF` §4). Si Ionic le fait franchement gonfler,
-      c'est le moment de noter le code-splitting comme suite, pas de le faire.
+- [x] `npm i @ionic/react@9 @ionic/react-router@9 react-router-dom@6.30.6 ionicons@8`
+- [x] `setupIonicReact({ mode: "ios" })` dans `src/main.js`.
+- [x] Import de `@ionic/react/css/core.css` puis
+      `@ionic/react/css/palettes/dark.class.css` puis `theme/ionic-bridge.css`,
+      en tête de `styles.css` (et non depuis `main.js` : `styles.css` est chargé
+      par un `<link>` dans `index.html`, l'ordre entre ce lien et un CSS importé
+      depuis le JS n'est pas garanti). Le dossier est `palettes/` **au pluriel**
+      en Ionic 9. Les 4 CSS optionnels ne sont pas importés : le pari a tenu,
+      d'où les 42 captures identiques.
+- [x] `src/theme/ionic-bridge.css` — 60 variables Ionic, **zéro valeur
+      littérale**, uniquement des `var(--mrd-*)`.
+- [x] Bascule de thème centralisée dans **`src/utils/theme.js`** (`applyTheme`,
+      `readStoredTheme`). Elle était écrite à trois endroits (`App.js`,
+      `SettingsView.js`, script inline d'`index.html`) ; il fallait désormais y
+      ajouter `.ion-palette-dark`, soit une quatrième copie. `applyStatusBarTheme`
+      n'est plus appelée que de là.
+- [x] Tests de garde étendus (`tests/unit/design-tokens.test.js`, 6 → 11 tests)
+      et **nouvelle suite `tests/e2e/ionic-theme.test.js`**.
+
+#### Le piège de spécificité — et pourquoi la suite e2e valait le coup
+
+Les tests unitaires étaient tous verts, le fichier était correct, et pourtant
+**le thème sombre affichait le noir d'Ionic (`#000000`) au lieu du brun de la
+marque.** `palettes/dark.class.css` ne se contente pas de `.ion-palette-dark` :
+il pose aussi un bloc `.ion-palette-dark.ios` (et `.md`) pour les fonds, le
+texte et les surfaces. Deux classes = spécificité (0,2,0), contre (0,1,0) pour
+`:root` — le bloc d'Ionic battait la passerelle. Et seulement en sombre, et
+seulement sur les fonds : `--ion-color-primary` était correct, ce qui rendait le
+défaut d'autant plus facile à rater.
+
+Trouvé parce que `tests/e2e/ionic-theme.test.js` lit les variables **résolues
+par le navigateur** au lieu de relire le fichier. Corrigé par un bloc de
+réaffirmation à spécificité égale, et verrouillé par un test unitaire qui lit la
+palette d'Ionic dans `node_modules` et exige que toute variable surchargée en
+(0,2,0) soit réaffirmée — donc qui tiendra aussi au prochain `npm update` d'Ionic.
+
+Deux autres pièges au passage :
+- `getComputedStyle` renvoie **`oklch(...)`**, pas du `rgb()`, quand la source
+  est en oklch — Chrome conserve l'espace colorimétrique. Les couleurs sont donc
+  converties dans la page via un canvas 2D, ce qui vérifie du même coup que la
+  valeur est une couleur valide (une variable non résolue donne du noir).
+- Ionic exprime ses états en `rgba(var(--ion-color-X-rgb), .08)`, et `rgb()` ne
+  sait pas manger d'oklch. D'où 7 nouveaux tokens `--mrd-*Rgb` (× 2 thèmes),
+  **avec un test qui refait la conversion oklch → sRGB et compare** : changer un
+  oklch sans son triplet casse un test, au lieu de délaver un bouton en silence.
+
+#### Coût réel du socle
+
+| | Avant | Après | Écart |
+|---|---|---|---|
+| JS | 1 505 kB (gzip 380) | 2 324 kB (gzip 555) | **+818 kB** (gzip +175) |
+| CSS | 312 kB (gzip 46) | 332 kB (gzip 50) | +20 kB |
+
+Le CSS d'Ionic est négligeable (`core.css` = 11 K) : les 332 kB sont notre
+`styles.css`. Le coût est entièrement dans le JS, et il est là dès maintenant
+alors qu'aucun composant Ionic n'est encore utilisé — `@ionic/core` enregistre
+tous ses éléments. Le code-splitting par route (Phase 9) devient nettement plus
+intéressant qu'avant.
+
+**Bug préexistant corrigé au passage** (une ligne, même sujet) : la balise
+`<meta name="theme-color">` sombre annonçait `#1F1A17` alors que
+`THEME_COLOR_DARK` (= `--mrd-bg` sombre) vaut `#211A15`. Le script de boot
+portait la même faute.
 
 ### Phase 2 — 🔴🟠 Navigation : la barre du bas passe à Ionic
 

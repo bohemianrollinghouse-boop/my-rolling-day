@@ -1,0 +1,159 @@
+/* ─── PASSERELLE IONIC ────────────────────────────────────────
+   Branche les variables d Ionic sur les tokens `--mrd-*`.
+
+   REGLE : aucune valeur litterale ici. Pas un `#`, pas un `oklch()`,
+   pas un `rgb()`. Uniquement des `var(--mrd-*)`. Les tokens `--mrd-*`
+   restent la seule source de verite couleur du projet, et comme ils
+   basculent deja sous `html[data-theme="dark"]`, tout ce fichier
+   bascule avec eux — il n a pas de pendant sombre.
+   Garde : `tests/unit/design-tokens.test.js`.
+
+   Ce fichier est charge APRES `palettes/dark.class.css` (voir le haut
+   de `styles.css`). `:root` et `.ion-palette-dark` ont la meme
+   specificite : c est l ordre de source qui tranche, donc ces valeurs
+   gagnent dans les deux themes. Le palette sombre d Ionic n est gardee
+   que pour ses 42 `--ion-*-step-*`, qu on ne veut pas recopier.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Fond, texte, police ──────────────────────────────────── */
+
+  --ion-background-color:     var(--mrd-bg);
+  --ion-background-color-rgb: var(--mrd-bgRgb);
+
+  --ion-text-color:           var(--mrd-fg);
+  --ion-text-color-rgb:       var(--mrd-fgRgb);
+
+  --ion-font-family:          var(--mrd-sans);
+
+  --ion-border-color:         var(--mrd-border);
+
+  /* ── Surfaces ─────────────────────────────────────────────── */
+
+  --ion-item-background:      var(--mrd-surf);
+  --ion-card-background:      var(--mrd-surf);
+  --ion-toolbar-background:   var(--mrd-bg);
+  --ion-toolbar-color:        var(--mrd-fg);
+  --ion-tab-bar-background:   var(--mrd-surfGlass);
+  --ion-tab-bar-color:        var(--mrd-fg3);
+  --ion-tab-bar-color-selected: var(--mrd-a);
+  --ion-tab-bar-background-focused: var(--mrd-surf2);
+  --ion-overlay-background-color: var(--mrd-surf);
+  --ion-placeholder-color:    var(--mrd-fg3);
+
+  /* ── primary — terracotta, l accent dominant ──────────────── */
+  /* `aBtn` et non `a` : c est la variante sure sous du texte clair,
+     et un bouton Ionic « primary » porte du texte contrastant. */
+
+  --ion-color-primary:              var(--mrd-aBtn);
+  --ion-color-primary-rgb:          var(--mrd-aBtnRgb);
+  --ion-color-primary-contrast:     var(--mrd-white);
+  --ion-color-primary-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-primary-shade:        var(--mrd-aDeep);
+  --ion-color-primary-tint:         var(--mrd-a);
+
+  /* ── secondary — sauge ────────────────────────────────────── */
+
+  --ion-color-secondary:              var(--mrd-sageBtn);
+  --ion-color-secondary-rgb:          var(--mrd-sageBtnRgb);
+  --ion-color-secondary-contrast:     var(--mrd-white);
+  --ion-color-secondary-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-secondary-shade:        var(--mrd-sageDeep);
+  --ion-color-secondary-tint:         var(--mrd-sage);
+
+  /* ── tertiary — ambre ─────────────────────────────────────── */
+
+  --ion-color-tertiary:              var(--mrd-amber);
+  --ion-color-tertiary-rgb:          var(--mrd-amberRgb);
+  --ion-color-tertiary-contrast:     var(--mrd-white);
+  --ion-color-tertiary-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-tertiary-shade:        var(--mrd-amberDeep);
+  --ion-color-tertiary-tint:         var(--mrd-amberMd);
+
+  /* ── success — sauge (meme famille que secondary) ─────────── */
+
+  --ion-color-success:              var(--mrd-sageBtn);
+  --ion-color-success-rgb:          var(--mrd-sageBtnRgb);
+  --ion-color-success-contrast:     var(--mrd-white);
+  --ion-color-success-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-success-shade:        var(--mrd-sageDeep);
+  --ion-color-success-tint:         var(--mrd-sage);
+
+  /* ── warning — ambre ──────────────────────────────────────── */
+
+  --ion-color-warning:              var(--mrd-amber);
+  --ion-color-warning-rgb:          var(--mrd-amberRgb);
+  --ion-color-warning-contrast:     var(--mrd-white);
+  --ion-color-warning-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-warning-shade:        var(--mrd-amberDeep);
+  --ion-color-warning-tint:         var(--mrd-amberMd);
+
+  /* ── danger — rouge, erreur et urgence uniquement ─────────── */
+
+  --ion-color-danger:              var(--mrd-danger);
+  --ion-color-danger-rgb:          var(--mrd-dangerRgb);
+  --ion-color-danger-contrast:     var(--mrd-white);
+  --ion-color-danger-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-danger-shade:        var(--mrd-dangerDeep);
+  --ion-color-danger-tint:         var(--mrd-dangerLt);
+
+  /* ── medium / light / dark — gris de l app ────────────────── */
+
+  --ion-color-medium:              var(--mrd-fg3);
+  --ion-color-medium-contrast:     var(--mrd-white);
+  --ion-color-medium-contrast-rgb: var(--mrd-whiteRgb);
+  --ion-color-medium-shade:        var(--mrd-fg2);
+  --ion-color-medium-tint:         var(--mrd-fg3);
+
+  --ion-color-light:              var(--mrd-surf2);
+  --ion-color-light-contrast:     var(--mrd-fg);
+  --ion-color-light-contrast-rgb: var(--mrd-fgRgb);
+  --ion-color-light-shade:        var(--mrd-surf3);
+  --ion-color-light-tint:         var(--mrd-surf);
+
+  --ion-color-dark:              var(--mrd-fg);
+  --ion-color-dark-rgb:          var(--mrd-fgRgb);
+  --ion-color-dark-contrast:     var(--mrd-bg);
+  --ion-color-dark-contrast-rgb: var(--mrd-bgRgb);
+  --ion-color-dark-shade:        var(--mrd-fg);
+  --ion-color-dark-tint:         var(--mrd-fg2);
+
+  /* ── Rayons ───────────────────────────────────────────────── */
+
+  --ion-border-radius: var(--mrd-r);
+}
+
+/* ─── REAFFIRMATION A SPECIFICITE EGALE ──────────────────────
+   `palettes/dark.class.css` ne se contente pas de `.ion-palette-dark` :
+   il pose aussi un bloc `.ion-palette-dark.ios` (et `.md`) qui redefinit
+   les fonds et le texte. Deux classes = specificite (0,2,0), contre
+   (0,1,0) pour `:root` — donc ce bloc **battait** la passerelle, et le
+   thème sombre affichait le noir d Ionic (`#000000`) au lieu du brun de
+   la marque, uniquement en sombre et uniquement pour les fonds.
+
+   Attrape par `tests/e2e/ionic-theme.test.js` (qui lit les variables
+   resolues par le navigateur, pas le fichier) — les tests unitaires
+   etaient tous verts.
+
+   Les deux modes sont listes bien qu on force `ios` dans
+   `setupIonicReact` : si ce choix change un jour, rien ici ne casse.
+   Le test unitaire « la passerelle couvre les surcharges de mode
+   d Ionic » verifie que cette liste reste complete apres une montee de
+   version d Ionic.
+   ───────────────────────────────────────────────────────────── */
+
+.ion-palette-dark.ios,
+.ion-palette-dark.md {
+  --ion-background-color:     var(--mrd-bg);
+  --ion-background-color-rgb: var(--mrd-bgRgb);
+
+  --ion-text-color:           var(--mrd-fg);
+  --ion-text-color-rgb:       var(--mrd-fgRgb);
+
+  --ion-item-background:      var(--mrd-surf);
+  --ion-card-background:      var(--mrd-surf);
+  --ion-toolbar-background:   var(--mrd-bg);
+
+  --ion-tab-bar-background:         var(--mrd-surfGlass);
+  --ion-tab-bar-background-focused: var(--mrd-surf2);
+}

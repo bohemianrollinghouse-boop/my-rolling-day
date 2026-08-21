@@ -1,3 +1,22 @@
+/* ─── IONIC ───────────────────────────────────────────────────
+   Ordre volontaire, et il compte.
+
+   `core.css` est le seul CSS Ionic obligatoire. On n importe PAS
+   `normalize.css`, `structure.css`, `typography.css` ni `display.css` :
+   ce fichier a son propre reset (voir « SHELL » plus bas) et sa propre
+   typographie, les charger ecraserait la mise en page partout.
+
+   `palettes/dark.class.css` n est gardee que pour ses 42
+   `--ion-*-color-step-*`, qu on ne veut pas recopier a la main. Les
+   variables qui portent la marque sont reprises juste apres par
+   `theme/ionic-bridge.css`, qui gagne a specificite egale parce qu il
+   vient plus tard. La classe `.ion-palette-dark` est posee par
+   `src/utils/theme.js`, en meme temps que `data-theme`.
+   ───────────────────────────────────────────────────────────── */
+@import "@ionic/react/css/core.css";
+@import "@ionic/react/css/palettes/dark.class.css";
+@import "./theme/ionic-bridge.css";
+
 /* ─── POLICES EMBARQUÉES ──────────────────────────────────────
    Auto-hébergées (plus de fonts.googleapis.com) : rendu identique
    hors ligne et au premier lancement natif, premier paint plus rapide. */
@@ -233,6 +252,32 @@
   --recipe-cat-base-bg:   var(--mrd-aLt);
 
   --recipe-cat-base-line: var(--mrd-aMd);
+
+  /* ── Triplets sRGB des couleurs de marque ───────────────────
+     Ionic exprime ses etats (survol, ripple, degrades) en
+     `rgba(var(--ion-color-X-rgb), .08)` : il lui faut des triplets,
+     et `rgb()` ne sait pas manger de l oklch. Ce sont donc les
+     memes couleurs que ci-dessus, dans l autre representation —
+     jamais une couleur de plus.
+     `tests/unit/design-tokens.test.js` refait la conversion
+     oklch -> sRGB et echoue si les deux representations divergent :
+     changer un oklch sans son triplet casse un test, pas le rendu
+     en silence.
+     ───────────────────────────────────────────────────────── */
+
+  --mrd-bgRgb:      250 244 237;
+
+  --mrd-fgRgb:      58 30 15;
+
+  --mrd-aBtnRgb:    177 79 69;
+
+  --mrd-whiteRgb:   255 255 255;
+
+  --mrd-dangerRgb:  147 0 41;
+
+  --mrd-sageBtnRgb: 21 111 65;
+
+  --mrd-amberRgb:   147 68 0;
 
 }
 /* ─── SHELL ───────────────────────────────────────────────── */
@@ -661,6 +706,23 @@ html[data-theme="dark"] {
   --mrd-disabledFg:  oklch(50% 0.016 62);
 
   --mrd-white:       oklch(98% 0.010 72);
+
+  /* ── Triplets sRGB (cf. bloc clair) ─────────────────────── */
+
+  --mrd-bgRgb:       33 26 21;
+
+  --mrd-fgRgb:       245 235 222;
+
+  --mrd-aBtnRgb:     186 80 66;
+
+  --mrd-whiteRgb:    253 247 241;
+
+  --mrd-dangerRgb:   241 99 120;
+
+  --mrd-sageBtnRgb:  20 116 68;
+
+  --mrd-amberRgb:    230 167 103;
+
 
   /* élévation — base noir chaud */
 
