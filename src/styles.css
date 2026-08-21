@@ -757,6 +757,29 @@ ion-toolbar.mrd-ion-toolbar {
   font-size: 28px;
   line-height: 1.15;
 }
+/* Bouton retour : `ion-back-button` habille comme l ancien `.mrd-back-btn`,
+   un disque de 34px avec un chevron. Ionic n expose pas son icone en CSS, on
+   passe donc par ses variables. */
+.mrd-ion-back {
+  --background: var(--mrd-surf);
+  --background-hover: var(--mrd-surf2);
+  --color: var(--mrd-fg2);
+  --color-hover: var(--mrd-fg);
+  --border-radius: 50%;
+  --min-width: 34px;
+  --min-height: 34px;
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --icon-font-size: 18px;
+  --icon-margin-start: 0;
+  --icon-margin-end: 0;
+  border: 1px solid var(--mrd-border);
+  border-radius: 50%;
+  overflow: hidden;
+}
+
 /* Ecrans secondaires : 24px, comme `.mrd-screen-title`, et le titre suit le
    bouton retour. */
 .mrd-ion-header ion-buttons[slot="start"] + .mrd-ion-title {

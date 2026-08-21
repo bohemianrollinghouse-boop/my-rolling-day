@@ -1,4 +1,5 @@
 import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
+import { IonFab, IonFabButton } from "@ionic/react";
 import { daysUntilExpiry, getCurrentAppDate } from "../../utils/date.js";
 import { findSimilarItem, formatQuantityUnit, normalizeProductName, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
@@ -1593,11 +1594,16 @@ export function InventoryView({
       ${renderStorageEmojiPicker()}
       ${renderBulkBar()}
 
-      <button className="mrd-fab" onClick=${openCreateModal} title="Ajouter un article">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
-      </button>
+      ${/* `IonFab slot="fixed"` comme le FAB des tâches : le `slot` remonte
+           jusqu'à l'`ion-content` de la page, qui place le bouton hors du flux
+           de défilement et au-dessus de la safe area. */null}
+      <${IonFab} slot="fixed" vertical="bottom" horizontal="end">
+        <${IonFabButton} className="mrd-fab" onClick=${openCreateModal} title="Ajouter un article">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        <//>
+      <//>
     </section>
   `;
 }

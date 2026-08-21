@@ -64,6 +64,7 @@ import { useAppRouting } from "./hooks/useAppRouting.js";
 import {
   IonActionSheet,
   IonApp,
+  IonBackButton,
   IonButtons,
   IonContent,
   IonFab,
@@ -1385,14 +1386,18 @@ function AppShell() {
         <${IonHeader} className="mrd-ion-header">
           <${IonToolbar} className="mrd-ion-toolbar">
             <${IonButtons} slot="start">
-              ${/* Le vrai `IonBackButton` — et le geste de retour iOS — arrive
-                   en phase 4, avec la pile de navigation. La phase 3 ne change
-                   que la structure de l'en-tête. */null}
-              <button className="mrd-back-btn" aria-label="Retour" onClick=${() => setActiveTab("home")}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
+              ${/* `IonBackButton` plutôt qu'un bouton maison : il remonte la
+                   pile de navigation d'Ionic au lieu de sauter en dur sur
+                   l'accueil, ce qui rend le retour cohérent avec le geste de
+                   balayage iOS et avec le bouton retour d'Android — les trois
+                   font désormais la même chose.
+
+                   `defaultHref` est le repli quand la pile est vide : arrivée
+                   directe par URL, ou reprise de l'app sur un deep link.
+                   `text=""` retire le libellé « Retour » qu'Ionic affiche en
+                   mode ios à côté du chevron ; le design maison n'a que le
+                   chevron, dans un disque. */null}
+              <${IonBackButton} defaultHref=${HOME_PATH} text="" className="mrd-ion-back" aria-label="Retour" />
             <//>
             <${IonTitle} className="mrd-ion-title">${SECONDARY_TITLES[tab] || ""}<//>
             ${tab === "inventory" ? html`

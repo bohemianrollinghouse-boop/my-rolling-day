@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 à 3 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 à 4 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -435,22 +435,59 @@ Le signe opposé des tâches vient de leur seconde toolbar (la barre segmentée)
 qui apporte déjà la respiration. D'où deux règles distinctes selon la forme de
 l'en-tête, et non une valeur unique.
 
-### Phase 4 — 🟠 Écrans secondaires : pile de navigation + geste de retour
+### Phase 4 — 🟠 Écrans secondaires : pile de navigation + geste de retour — ✅ TERMINÉE
 
-Les 5 écrans du menu « Plus » (`notes`, `inventory`, `recipes`, `history`,
-`inbox`) sont aujourd'hui des états de `activeTab` avec un en-tête retour
-recodé (`App.js:1286-1312`).
+**42/42 captures IDENTIQUE** par rapport à la phase 3 : `IonBackButton` rend au
+pixel comme le bouton maison qu'il remplace.
 
-- [ ] Routes empilées : `/notes`, `/inventory`, `/recipes`, `/history`,
-      `/inbox`, avec `IonPage` + `IonBackButton defaultHref="/home"`.
-- [ ] Supprimer `.mrd-back-hdr`, `.mrd-back-btn` et les SVG chevron inline.
-- [ ] Cas particulier inventaire : l'en-tête porte un interrupteur
-      « Organiser » (`.mrd-hdr-switch`) → `IonToggle` en `slot="end"` de
+- [x] Les 6 écrans secondaires sont empilés par-dessus l'accueil (déjà le cas
+      depuis la phase 2 : `navigate()` empile) et portent un `IonBackButton`
+      avec `defaultHref="/home"` comme repli — arrivée directe par URL, ou
+      reprise sur un deep link.
+- [x] Le bouton retour maison et son SVG chevron sont supprimés. Il sautait en
+      dur sur l'accueil ; celui d'Ionic remonte la pile, donc les trois chemins
+      de retour (bouton, geste, retour matériel Android) font enfin la même
+      chose.
+- [x] Cas inventaire : l'interrupteur « Organiser » passe en `slot="end"` de
       l'`IonToolbar`.
-- [ ] Cas particulier recettes : l'écran pose déjà son propre en-tête
-      (`activeTab !== "recipes"` dans la condition actuelle) — à harmoniser.
-- [ ] Vérifier le geste swipe-back iOS et le bouton retour Android sur chacun
-      des 5 écrans. C'est le gain de la phase, il doit être constaté.
+- [x] Cas recettes : l'écran pose son propre en-tête avec ses actions, il
+      n'reçoit pas d'`IonHeader` de coque (sinon deux barres de titre).
+- [x] **Geste de balayage vérifié pour de vrai**, par événements tactiles CDP :
+      `/notes` → glissement depuis le bord gauche → `/home`, accueil affiché.
+      C'était le gain annoncé de la phase, il est constaté et couvert par un
+      test permanent (`navigation.test.js` [5] et [6]).
+
+#### Deux conditions non évidentes pour que le geste réponde
+
+Le geste a d'abord semblé cassé alors qu'il était armé. Deux causes, chacune
+invisible dans le code :
+
+1. **L'émulation tactile doit précéder le chargement.** Ionic arme le geste à
+   l'initialisation de l'outlet ; activer `setTouchEmulationEnabled` après coup
+   laisse le geste inerte. Le test échouait en restant sur `/notes` alors que
+   le même scénario passait quand l'émulation venait avant.
+
+2. **La modale « Activer les notifications ? » avalait le geste.** Elle s'ouvre
+   juste après l'onboarding et couvre tout l'écran :
+   `elementFromPoint(3, 400)` renvoyait `div.notif-prompt-overlay`. Le test
+   marque désormais la demande comme traitée, ce qui reproduit l'état d'un
+   utilisateur qui revient — le seul contexte où le geste a un sens.
+
+#### Régression attrapée à l'œil, pas par la mesure
+
+`InventoryView` a son **propre** FAB, en `<button class="mrd-fab">`. La phase 3
+avait converti ce CSS en variables `ion-fab-button`, qui ne s'appliquent pas à
+un bouton ordinaire : le FAB de l'inventaire était devenu un carré gris sans
+style, en bas à gauche. Le comparateur l'avait bien signalé — mais à 3,5 %
+seulement, un FAB étant petit, et je l'avais classé comme bruit. C'est en
+regardant la capture que le carré gris saute aux yeux.
+
+Corrigé en convertissant ce FAB en `IonFab` aussi, plutôt qu'en restaurant
+l'ancien CSS : `slot="fixed"` remonte jusqu'à l'`ion-content` de la page, même
+depuis l'intérieur d'une vue.
+
+**Leçon pour les phases suivantes** : un petit pourcentage n'est pas un feu
+vert. Le comparateur dit *où* regarder, pas *si* c'est grave.
 
 ### Phase 5 — 🟠 Réglages, onboarding, paywall
 

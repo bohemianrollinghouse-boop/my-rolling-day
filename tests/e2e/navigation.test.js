@@ -124,6 +124,40 @@ async function waitForPageSettled(session, timeoutMs = 8000) {
   return false;
 }
 
+/** Ouvre un écran du menu « Plus » (les boutons sont dans un shadow root). */
+async function openQuickScreen(session, label) {
+  await clickTab(session, "Plus");
+  await sleep(600);
+  const clicked = await evaluate(session, `(() => {
+    const sheet = document.querySelector("ion-action-sheet");
+    const root = sheet?.shadowRoot || sheet;
+    const btn = [...(root?.querySelectorAll("button") || [])]
+      .find((b) => (b.textContent || "").includes(${JSON.stringify(label)}));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  })()`);
+  await waitForPageSettled(session);
+  await sleep(300);
+  return clicked === true;
+}
+
+/** Balayage depuis le bord gauche — le geste de retour iOS. */
+async function swipeBackFromLeftEdge(session, { y = 400, to = 340 } = {}) {
+  const touch = (type, x) => session.send("Input.dispatchTouchEvent", {
+    type,
+    touchPoints: type === "touchEnd" ? [] : [{ x, y }],
+  });
+  await touch("touchStart", 3);
+  for (let x = 20; x <= to; x += 20) {
+    await touch("touchMove", x);
+    await sleep(16);
+  }
+  await touch("touchEnd", to);
+  await sleep(900);
+  await waitForPageSettled(session);
+}
+
 async function setInputValue(session, selector, value) {
   return evaluate(session, `(() => {
     const el = document.querySelector(${JSON.stringify(selector)});
@@ -193,8 +227,33 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
     if (serverHandle) await serverHandle.close();
   });
 
-  async function openStubbed() {
+  /**
+   * Ouvre une session sur le build stubbé.
+   *
+   * `touch: true` active l'émulation tactile **avant** la navigation, et c'est
+   * indispensable : Ionic arme le geste de retour à l'initialisation de
+   * l'outlet. L'activer après coup laisse le geste inerte — le test échouait
+   * en restant sur `/notes` alors que le même scénario fonctionnait quand
+   * l'émulation précédait le chargement.
+   */
+  async function openStubbed({ touch = false } = {}) {
     const session = await openPageSession(browserHandle);
+    if (touch) {
+      await session.send("Emulation.setDeviceMetricsOverride", {
+        width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
+      });
+      await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+      /* La modale « Activer les notifications ? » s'ouvre juste après
+         l'onboarding et couvre tout l'écran : elle avalait le geste de
+         balayage, et le test échouait en restant sur `/notes` alors que le
+         geste était bien armé. Marquer la demande comme déjà traitée
+         (`src/utils/storage.js`) reproduit l'état d'un utilisateur qui revient,
+         ce qui est le contexte où le geste a un sens. */
+      await session.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `try { localStorage.setItem("mrd_notif_prompt",
+          JSON.stringify({ dismissCount: 3, lastDismissed: null, granted: true })); } catch (e) {}`,
+      });
+    }
     await session.send("Page.navigate", { url: `${serverHandle.url}/` });
     await session.waitForEvent("Page.loadEventFired", 15_000);
     return session;
@@ -349,6 +408,69 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
       assert.ok(await pollForSelectorInActivePage(session, ".lists-page-header", 6_000),
         "« Listes » doit ouvrir l'écran Listes");
       assert.equal(await evaluate(session, "location.pathname"), "/lists");
+      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
+    } finally {
+      await session.close();
+    }
+  });
+
+  /* Le vrai gain de la phase 4 : les écrans du menu « Plus » s'empilent
+     par-dessus l'accueil au lieu d'être un simple changement d'état, ce qui
+     leur donne un bouton retour Ionic **et** le geste de balayage. Les trois
+     chemins de retour (bouton, geste, retour matériel) remontent maintenant la
+     même pile. */
+  await t.test("[5] le bouton retour Ionic remonte la pile", async (st) => {
+    if (!browserHandle) {
+      st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
+      return;
+    }
+    const session = await openStubbed({ touch: true });
+    try {
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
+      assert.ok(await openQuickScreen(session, "Notes"), "« Notes » doit s'ouvrir");
+      assert.equal(await evaluate(session, "location.pathname"), "/notes");
+
+      // Un bouton retour maison n'aurait rien dit de la pile ; celui d'Ionic
+      // n'apparaît que si la page a bien été empilée.
+      assert.ok(await evaluate(session, `!!document.querySelector("ion-back-button")`),
+        "l'écran secondaire doit porter un ion-back-button");
+      assert.ok(await evaluate(session,
+        `[...document.querySelectorAll(".ion-page")].some((p) => p.classList.contains("can-go-back"))`),
+        "la page doit être marquée can-go-back");
+
+      await evaluate(session, `document.querySelector("ion-back-button")?.shadowRoot?.querySelector("button")?.click()
+        ?? document.querySelector("ion-back-button")?.click()`);
+      await sleep(900);
+      await waitForPageSettled(session);
+
+      assert.equal(await evaluate(session, "location.pathname"), "/home");
+      assert.ok(await pollForSelectorInActivePage(session, ".mrd-home", 5_000),
+        "l'accueil doit être réaffiché");
+    } finally {
+      await session.close();
+    }
+  });
+
+  /* Impossible avant la migration : il n'y avait pas de pile à remonter.
+     Testé par vrais événements tactiles — c'est le seul moyen de savoir si le
+     geste est réellement armé, et non simplement si le code semble correct. */
+  await t.test("[6] le balayage depuis le bord gauche revient en arrière", async (st) => {
+    if (!browserHandle) {
+      st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
+      return;
+    }
+    const session = await openStubbed({ touch: true });
+    try {
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
+      assert.ok(await openQuickScreen(session, "Notes"), "« Notes » doit s'ouvrir");
+      assert.equal(await evaluate(session, "location.pathname"), "/notes");
+
+      await swipeBackFromLeftEdge(session);
+
+      assert.equal(await evaluate(session, "location.pathname"), "/home",
+        "le balayage depuis le bord gauche doit remonter la pile");
+      assert.ok(await pollForSelectorInActivePage(session, ".mrd-home", 5_000),
+        "l'accueil doit être réaffiché après le geste");
       assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
     } finally {
       await session.close();
