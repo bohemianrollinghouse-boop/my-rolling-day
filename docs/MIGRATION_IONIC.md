@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 à 2 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 à 3 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -362,30 +362,78 @@ transition qui quitte les tâches, `activeTab` vaut déjà la destination.
   avec `.ion-page-hidden`. Un test lisait « Tâches » en étant sur l'agenda. Les
   helpers e2e visent maintenant `.ion-page:not(.ion-page-hidden)`.
 
-### Phase 3 — 🟠 Coque d'écran : `IonPage` / `IonContent`
+### Phase 3 — 🟠 Coque d'écran : `IonPage` / `IonContent` — ✅ TERMINÉE
 
-Sortie : chaque onglet est une vraie page Ionic, le défilement et les safe
-areas ne sont plus gérés à la main.
+Bilan : **3 IDENTIQUE · 16 PROCHE · 17 ÉCART · 6 RÉGRESSION**, et les 6 sont
+toutes connues (3 menus « Plus », 2 Repas héritées de la phase 2, 1 Tâches où
+le FAB ne chevauche plus la dernière carte — une amélioration).
 
-- [ ] Une page par onglet : `IonPage` > `IonHeader`/`IonToolbar`/`IonTitle` >
-      `IonContent`. Le titre vient du dictionnaire de `App.js:1310`.
-- [ ] `.cnt` (`padding: 10px var(--mrd-sp) 88px`) → `IonContent` +
-      `--padding-*`. Le `88px` du bas compensait la barre de nav : Ionic le
-      fait, on le retire.
-- [ ] `.mrd-shell` / `.mrd-screen` / `.mrd-outer` → supprimés ou réduits à un
-      conteneur neutre. ⚠️ **Attention** : ~200 règles CSS sont préfixées
-      `.mrd-shell .xxx` pour gagner en spécificité. Supprimer la classe casse
-      tout. Deux options : garder `.mrd-shell` comme classe sur `IonContent`
-      (peu coûteux, recommandé), ou faire un remplacement de masse (risqué).
-      **Recommandé : garder la classe**, la coquille structurelle part, le
-      crochet de style reste.
-- [ ] FAB tâches → `IonFab vertical="bottom" horizontal="end" slot="fixed"`.
-      Retire `bottom: calc(96px + env(safe-area-inset-bottom))`.
-- [ ] Chaque vue perd son `overflow-y: auto` propre (`.mrd-home` et compagnie)
-      au profit de celui d'`IonContent` — un seul conteneur de défilement par
-      page, sinon les gestes Ionic et le clavier se comportent mal.
-- [ ] Vérifier que le formulaire d'ajout de tâche n'est plus masqué par le
-      clavier (cf. `TODO_NATIF` 🔴 1, jamais validé sur device).
+- [x] Une page = `IonPage` > `IonHeader` > `IonContent`. Les en-têtes sont
+      sortis du flux de défilement, et Ionic calcule `--offset-top` du contenu.
+- [x] `<main class="cnt">` → `ion-content.cnt`, marges via `--padding-*`.
+- [x] `padding-bottom: calc(96px + safe-area)` supprimé : il compensait une
+      barre du bas absolue, `ion-tabs` la met dans le flux.
+- [x] `.mrd-screen` retiré des écrans d'onglet (il ne sert plus qu'au volet
+      Réglages, jusqu'à la phase 5).
+- [x] `.mrd-home` ne défile plus lui-même — deux conteneurs de défilement
+      imbriqués cassent l'élan iOS et les gestes Ionic.
+- [x] FAB → `IonFab slot="fixed"`, qui vit maintenant **dans la page** et non
+      plus dans la coque : la condition `["daily",…].includes(activeTab)`
+      disparaît.
+- [x] **`.mrd-shell` gardé comme classe** sur la coque, exactement comme le
+      prévoyait le §5 : ~200 règles en dépendent pour leur spécificité.
+
+#### Ce qui a résisté, et pourquoi
+
+**`--min-height: auto` écrase une toolbar Ionic.** Posé pour laisser le titre
+dicter la hauteur, il a fait l'inverse : la toolbar est tombée à 12 px (la
+hauteur de son seul padding) et le titre débordait au-dessus du bord de
+l'écran. Parce qu'en mode `ios`, Ionic pose `ion-title` en
+`position: absolute; inset: 0` pour le centrer entre les boutons — un titre
+absolu dans une toolbar plus courte que lui sort du cadre. La réponse n'est pas
+de rallonger la toolbar mais de repasser le titre en `position: relative` : il
+redevient un élément du flux, la toolbar prend sa hauteur, et il se place
+naturellement après le bouton retour. Diagnostic par mesure du DOM (`top: -9`,
+`height: 31` dans une toolbar de 12), pas à l'œil.
+
+**Le filet de séparation d'Ionic.** `.header-ios:not(.header-collapse-main)::after`
+vaut (0,2,0) : un `.mrd-ion-header::after` (0,1,0) perdait contre lui. Même
+famille de piège que la palette sombre en phase 1.
+
+**Le volet Réglages a perdu son défilement** — et je ne l'avais pas touché. La
+règle `.cnt` a migré sur `ion-content.cnt`, or les Réglages sont encore un
+`<div class="cnt">`. Il leur fallait leur propre règle, avec le `padding:
+10px var(--mrd-sp) 88px` d'origine : sans lui les cartes perdaient 14 px de
+retrait. Rappel utile que déplacer une règle CSS n'est pas la renommer.
+
+**L'accueil s'est resserré de 14 px de chaque côté.** Il n'était pas dans
+`.cnt` avant la phase 3 mais enfant direct de `.mrd-screen`, sans padding de
+coque, et pose ses propres marges. Les cumuler rétrécit toutes les cartes.
+
+**`ion-content` ne se laisse pas remodeler de l'extérieur.** Quatre règles
+`:has()` transformaient `.cnt` en conteneur flex ou coupaient son défilement
+(fiche recette, édition recette, grille de la semaine, sélecteur). Le
+défilement d'`ion-content` a lieu dans son shadow DOM : `overflow: hidden` ou
+`display: flex` sur l'hôte n'y changent rien. Ionic expose `::part(scroll)` —
+c'est là que ces règles s'appliquent maintenant.
+
+#### Les décalages, mesurés et non devinés
+
+Après conversion, tous les écrans étaient décalés verticalement — assez pour
+allumer 15 à 30 % des blocs sans qu'aucun élément ne soit vraiment déplacé.
+Plutôt que d'ajuster à l'œil, `tests/screenshots/shift.mjs` (nouveau) cherche
+par corrélation le décalage qui minimise l'écart entre deux captures :
+
+| Écran | Avant réglage | Après |
+|---|---|---|
+| notes, inventaire, historique | −12 px | 0 |
+| agenda | −9 px | +1 px |
+| tâches (les 4 périodes) | +3,5 px | −0,5 px |
+| listes | 0 | 0 |
+
+Le signe opposé des tâches vient de leur seconde toolbar (la barre segmentée),
+qui apporte déjà la respiration. D'où deux règles distinctes selon la forme de
+l'en-tête, et non une valeur unique.
 
 ### Phase 4 — 🟠 Écrans secondaires : pile de navigation + geste de retour
 

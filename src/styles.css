@@ -289,9 +289,9 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
 .mrd-shell { width: 100%; height: 100%; padding-top: env(safe-area-inset-top, 0px); background: var(--mrd-bg); border-radius: 0; overflow: hidden; position: relative; display: flex; flex-direction: column; }
 .mrd-statusbar { height: 44px; background: var(--mrd-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--mrd-fg); }
 .mrd-statusbar-icons { display: flex; gap: 5px; align-items: center; }
-/* Plus de `padding-bottom` : la barre du bas etait en `position: absolute`
-   et il fallait lui reserver la place. `ion-tabs` la met dans le flux et
-   gere la safe area, la reserve creerait un vide. */
+/* `.mrd-screen` ne sert plus que dans le volet Réglages : les écrans
+   d onglet sont des `ion-page` depuis la phase 3. Il passera avec les
+   réglages en phase 5. */
 .mrd-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 /* ─── BARRE D'ONGLETS IONIC ────────────────────────────────
    Remplace `.mrd-bnav`, qui recodait a la main le positionnement absolu,
@@ -389,7 +389,7 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
 @media (min-width: 900px) {
   .mrd-shell { flex-direction: row; }
   .mrd-ion-tabbar { display: none; }
-  .mrd-fab { bottom: 28px; }
+
   .mrd-sidebar {
     display: flex;
     flex-direction: column;
@@ -433,7 +433,9 @@ html[data-theme="dark"] .mrd-sidebar { background: var(--mrd-bg); border-color: 
 html[data-theme="dark"] .mrd-sidebar-btn:hover { background: var(--mrd-surf); }
 html[data-theme="dark"] .mrd-sidebar-btn-label { color: var(--mrd-fg2); }
 /* ─── HOME SCREEN ─────────────────────────────────────────── */
-.mrd-home { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* Le defilement vient d `ion-content` depuis la phase 3 : deux conteneurs
+   de defilement imbriques cassent l elan iOS et les gestes Ionic. */
+.mrd-home { display: block; }
 .mrd-home-hdr { padding: 12px var(--mrd-sp) 0; }
 .mrd-home-greeting { font-family: var(--mrd-serif); font-weight: 600; font-size: 26px; color: var(--mrd-fg); letter-spacing: -0.02em; line-height: 1.1; }
 .mrd-home-subdate { font-size: 12px; font-weight: 500; color: var(--mrd-fg3); text-transform: capitalize; letter-spacing: .04em; margin-bottom: 2px; }
@@ -679,6 +681,124 @@ html[data-theme="dark"] .mrd-sidebar-btn-label { color: var(--mrd-fg2); }
   .mrd-subtab-emoji { font-size: 13px; }
   .mrd-subtab-lbl { font-size: 10px; }
 }
+/* ─── EN-TETES IONIC ──────────────────────────────────────
+   `.mrd-screen-hdr` et `.mrd-back-hdr` etaient des <div> dans le flux, avec
+   leur propre `padding` et `flex-shrink: 0`. Ce sont maintenant des
+   `ion-header` > `ion-toolbar` : Ionic les sort du flux de defilement, calcule
+   `--offset-top` d `ion-content` en consequence et gere la safe area du haut.
+
+   Comme partout avec Ionic, on passe par ses variables (`--background`,
+   `--min-height`, `--padding-*`) et non par des regles sur l element : ses
+   styles internes vivent dans un shadow DOM qu un selecteur ordinaire ne
+   traverse pas.
+
+   Ionic pose une bordure basse sur ses toolbars en mode ios ; le design maison
+   n en a pas, d ou `--border-width: 0`. */
+/* Ionic pose un filet de separation sous l en-tete via
+   `.header-ios:not(.header-collapse-main)::after`. Ce selecteur vaut (0,2,0) :
+   un `.mrd-ion-header::after` (0,1,0) perdait contre lui, et le filet restait
+   visible alors que le design maison n en a pas. D ou le selecteur qualifie. */
+ion-header.mrd-ion-header {
+  box-shadow: none;
+}
+ion-header.mrd-ion-header::after {
+  display: none;
+}
+/* Meme raison pour la bordure de toolbar, que `--border-width: 0` ne couvre
+   pas dans tous les modes. */
+ion-toolbar.mrd-ion-toolbar {
+  --border-color: transparent;
+}
+.mrd-ion-toolbar {
+  --background: var(--mrd-bg);
+  --color: var(--mrd-fg);
+  --border-width: 0;
+  --padding-start: var(--mrd-sp);
+  --padding-end: var(--mrd-sp);
+  --padding-top: 8px;
+  --padding-bottom: 0;
+  /* Surtout PAS `--min-height: auto` : essaye, et la toolbar s ecrase a la
+     hauteur de son seul padding (12px mesures), le titre debordant au-dessus
+     du bord de l ecran. Ionic dimensionne ses toolbars par `--min-height` en
+     partant du principe que le titre est absolu (voir plus bas). */
+  --min-height: 0;
+}
+
+/* Le titre.
+   Deux ecarts assumes par rapport a Ionic :
+
+   1. `position: relative`. En mode ios, Ionic pose `ion-title` en
+      `position: absolute; inset: 0` pour le centrer entre les boutons de
+      gauche et de droite. Le design maison aligne a gauche, en serif 28px : un
+      titre absolu dans une toolbar plus courte que lui deborde, et c est
+      exactement ce qui s est produit. En `relative` il devient un element du
+      flux, la toolbar prend sa hauteur, et il se place naturellement apres le
+      bouton retour.
+
+   2. `padding-inline: 0`. Ionic met `padding: 0 90px` sur l hote pour reserver
+      la place des boutons — inutile ici puisque le titre suit le flux. */
+.mrd-ion-title {
+  --color: var(--mrd-fg);
+  position: relative;
+  height: auto;
+  padding-inline: 0;
+  font-family: var(--mrd-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-align: left;
+  color: var(--mrd-fg);
+}
+.mrd-ion-toolbar-title {
+  --padding-top: 12px;
+  --padding-bottom: 10px;
+}
+/* 28px, comme `.mrd-screen-hdr-title`. */
+.mrd-ion-toolbar-title .mrd-ion-title {
+  font-size: 28px;
+  line-height: 1.15;
+}
+/* Ecrans secondaires : 24px, comme `.mrd-screen-title`, et le titre suit le
+   bouton retour. */
+.mrd-ion-header ion-buttons[slot="start"] + .mrd-ion-title {
+  font-size: 24px;
+  line-height: 1.2;
+}
+.mrd-ion-header ion-buttons {
+  margin-inline: 0;
+}
+.mrd-ion-header ion-buttons[slot="start"] {
+  margin-inline-end: 10px;
+}
+/* `.mrd-back-hdr` posait `margin-bottom: 6px` sous le titre. */
+.mrd-ion-header ion-buttons[slot="start"] ~ * {
+  margin-bottom: 0;
+}
+.mrd-ion-toolbar:has(ion-buttons[slot="start"]) {
+  --padding-bottom: 2px;
+}
+/* La barre segmentee occupe sa propre toolbar, pour rester epinglee sous le
+   titre quand le contenu defile. */
+.mrd-ion-toolbar-segment {
+  --padding-top: 0;
+  --padding-bottom: 6px;
+}
+.mrd-ion-toolbar-segment .mrd-segmented-row {
+  padding-top: 2px;
+}
+
+/* FAB : Ionic gere le placement et la safe area ; le disque garde le style
+   maison. */
+.mrd-fab {
+  --background: var(--mrd-aBtn);
+  --background-activated: var(--mrd-aDeep);
+  --background-hover: var(--mrd-a);
+  --color: var(--mrd-white);
+  --box-shadow: var(--mrd-glowAStrong);
+  --border-radius: 50%;
+  width: 58px;
+  height: 58px;
+}
+
 /* ─── GEAR BTN (home top-right) ──────────────────────────── */
 .mrd-gear-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--mrd-surf); border: 1px solid var(--mrd-border); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--mrd-shadowSm); flex-shrink: 0; }
 /* ── DARK MODE : tokens CSS variables ───────────────────────
@@ -880,7 +1000,22 @@ button { cursor: pointer; }
 /* Dégagement bas = hauteur réelle de la tab bar + home indicator (safe area),
    sinon le bas des pages passe sous les icônes du menu (constaté en création
    de recette sur iPhone). */
-.cnt { width: 100%; max-width: 100%; margin: 0; padding: 12px 12px calc(96px + env(safe-area-inset-bottom, 0px)); overflow-x: hidden; overflow-y: auto; flex: 1; }
+/* `.cnt` porte maintenant un `<ion-content>` et non plus un `<main>`.
+   Consequences :
+     – le defilement vient d Ionic (son `.inner-scroll` en shadow DOM), donc
+       plus d `overflow-y: auto` ni de `flex: 1` ;
+     – les marges passent par `--padding-*` : ecrites en `padding`, elles
+       s appliqueraient a l hote et non au contenu defilant ;
+     – la reserve basse de 96px + safe area disparait. Elle compensait une
+       barre du bas en `position: absolute` ; `ion-tabs` met la barre dans le
+       flux et l outlet exclut sa hauteur. La garder ferait un vide. */
+ion-content.cnt {
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --padding-top: 12px;
+  --padding-bottom: 16px;
+  --background: var(--mrd-bg);
+}
 .topbar { max-width: 900px; margin: 0 auto; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sh { justify-content: space-between; margin-bottom: 10px; }
 .st { font-size: 22px; font-weight: 700; }
@@ -1365,6 +1500,23 @@ html[data-theme="dark"] .auth-cta-secondary { background: var(--mrd-surf2); bord
 .task-name-inline { min-width: 0; }
 .task-modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; }
 /* ─── SETTINGS REDESIGN ──────────────────────────────────── */
+/* Le volet Réglages est encore un `<div class="cnt">` — il passera en
+   `ion-content` avec le reste des réglages en phase 5. En attendant il lui
+   faut son propre défilement : la règle `.cnt` d'origine a migré sur
+   `ion-content.cnt`, et sans ça la page ne défile plus du tout. */
+div.cnt {
+  width: 100%;
+  max-width: 100%;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Reprend a l identique le `padding` que `.mrd-shell .cnt` posait avant la
+     phase 3 : sans lui les cartes des reglages perdaient leur retrait de 14px
+     et la page remontait de 10px. */
+  padding: 10px var(--mrd-sp) 88px;
+  background: var(--mrd-bg);
+}
 .cnt--settings { padding: 0; background: var(--mrd-bgDeep); }
 html[data-theme="dark"] .cnt--settings { background: var(--mrd-bgDeep); }
 .mrd-set-page { display: flex; flex-direction: column; gap: 0; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px var(--mrd-sp) calc(var(--mrd-sp) + 24px); background: var(--mrd-bgDeep); }
@@ -2029,7 +2181,7 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 @keyframes splDraw   { to { stroke-dashoffset: 0; } }
 @keyframes splRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @media (max-width: 720px) {
-  .cnt { padding-bottom: 110px; }
+  ion-content.cnt { --padding-bottom: 24px; }
   .calgrid { grid-template-columns: 1fr; }
   .mslot { grid-template-columns: 1fr; }
   .meal-slot { grid-template-columns: 1fr; }
@@ -2096,7 +2248,35 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
    Harmonise tous les écrans avec les tokens --mrd-*
    ═══════════════════════════════════════════════════════════════ */
 /* ── Zone de contenu ──────────────────────────────────────── */
-.mrd-shell .cnt { padding: 10px var(--mrd-sp) 88px; background: var(--mrd-bg); }
+.mrd-shell ion-content.cnt {
+  --padding-start: var(--mrd-sp);
+  --padding-end: var(--mrd-sp);
+  --padding-top: 10px;
+  --padding-bottom: 16px;
+}
+/* Respiration haute selon la forme de l en-tete. Valeurs mesurees, pas
+   devinees : `tests/screenshots` compare les captures avant / apres et un
+   petit outil de correlation donne le decalage vertical exact de chaque ecran.
+     – en-tete simple (titre seul) : il manquait 10px ;
+     – en-tete a barre segmentee (les taches) : la seconde toolbar apporte
+       deja la respiration, en ajouter descendait le contenu de 3,5px. */
+.mrd-ion-page:has(> ion-header) ion-content.cnt {
+  --padding-top: 10px;
+}
+.mrd-ion-page:has(.mrd-ion-toolbar-segment) ion-content.cnt {
+  --padding-top: 0;
+}
+
+/* L accueil pose ses propres marges (`.mrd-home-hdr`, les sections) : avant la
+   phase 3 il n etait pas dans `.cnt` mais un enfant direct de `.mrd-screen`,
+   sans padding de coque. Les cumuler resserre toutes les cartes de 14px de
+   chaque cote. */
+.mrd-shell ion-content.cnt:has(.mrd-home) {
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+}
 /* ── Typographie commune ──────────────────────────────────── */
 .mrd-shell .st  { font-family: "DM Sans", sans-serif; font-size: 22px; font-weight: 600; color: var(--mrd-fg); letter-spacing: -0.01em; }
 .mrd-shell .div { color: var(--mrd-fg3); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin: 16px 0 8px; }
@@ -3008,9 +3188,18 @@ html[data-theme="dark"] .mrd-shell .rcard-recipe-thumb {
 /* ── Fiche recette — overlay dans .cnt ───────────────────── */
 /* L’overlay couvre tout le .cnt (y compris son padding), donc
    il doit gérer lui-même les marges horizontales. */
-.mrd-shell main.cnt:has(.recipes-page--sheet) {
+/* L overlay couvre tout le contenu : il faut neutraliser le defilement
+   d Ionic. `overflow: hidden` sur l hote ne suffirait pas — le defilement a
+   lieu dans son shadow DOM, d ou `::part(scroll)`. */
+.mrd-shell ion-content.cnt:has(.recipes-page--sheet) {
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+}
+.mrd-shell ion-content.cnt:has(.recipes-page--sheet)::part(scroll) {
   position: relative;
-  overflow: hidden; /* empêche le scroll du .cnt pendant la fiche */
+  overflow: hidden;
 }
 .mrd-shell .recipes-page.recipes-page--sheet {
   position: absolute;
@@ -3028,7 +3217,7 @@ html[data-theme="dark"] .mrd-shell .rcard-recipe-thumb {
   to   { opacity: 1; transform: translateY(0); }
 }
 /* Masquer le header shell quand la fiche est ouverte — évite le double bouton retour */
-.mrd-shell:has(.recipes-page--sheet) .mrd-screen > .mrd-back-hdr {
+.mrd-shell:has(.recipes-page--sheet) .mrd-ion-header {
   display: none;
 }
 .mrd-shell .recipe-sheet {
@@ -3282,7 +3471,7 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
 }
 /* ── Page création / édition recette ─────────────────────── */
 /* Overlay (même mécanique que --sheet) */
-.mrd-shell main.cnt:has(.recipes-page--edit) {
+.mrd-shell ion-content.cnt:has(.recipes-page--edit)::part(scroll) {
   position: relative;
   overflow: hidden;
 }
@@ -3296,7 +3485,7 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
   background: var(--mrd-bg);
   animation: mrdRecipeSheetFade 0.2s ease;
 }
-.mrd-shell:has(.recipes-page--edit) .mrd-screen > .mrd-back-hdr {
+.mrd-shell:has(.recipes-page--edit) .mrd-ion-header {
   display: none;
 }
 /* ── Page création/édition recette — compacte avec menus flottants ── */
@@ -3790,25 +3979,10 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
 .mrd-shell .inventory-link-toggle.on { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sage); }
 .mrd-shell .inventory-link-toggle-box { background: var(--mrd-surf2); border-color: var(--mrd-border); color: var(--mrd-fg3); }
 /* ── FAB bouton tâches ────────────────────────────────────── */
-.mrd-fab {
-  position: absolute;
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  right: 18px;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: var(--mrd-aBtn);
-  color: var(--mrd-white);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--mrd-glowAStrong);
-  cursor: pointer;
-  z-index: 25;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.mrd-fab:active { transform: scale(0.94); box-shadow: var(--mrd-glowA); }
+/* Le placement, la safe area et l etat presse viennent d `ion-fab-button`
+   (voir le bloc « EN-TETES IONIC » pour le style du disque). Ce bloc reglait a
+   la main un `bottom: calc(96px + env(safe-area-inset-bottom))` qui compensait
+   la barre du bas. */
 /* ── Modals centrés — système global ─────────────────────── */
 @keyframes mrdSlideUp {
   from { transform: translateY(16px) scale(0.985); opacity: 0; }
@@ -6866,16 +7040,26 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
    Les deux écrans occupent tout le .cnt : la grille tient les 14 créneaux sans
    défilement et le panneau bas se pose au-dessus de la barre d'onglets. */
 
-.mrd-shell main.cnt:has(.mrd-week),
-.mrd-shell main.cnt:has(.mpick) {
-  padding: 0;
+/* Grille de la semaine et selecteur de recettes : ils occupent tout l ecran
+   sans defilement (14 creneaux visibles d un coup, pied fixe pour le
+   selecteur). Le `display: flex` doit porter sur le conteneur de defilement
+   interne d Ionic, sinon les enfants ne s etirent pas. */
+.mrd-shell ion-content.cnt:has(.mrd-week),
+.mrd-shell ion-content.cnt:has(.mpick) {
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+}
+.mrd-shell ion-content.cnt:has(.mrd-week)::part(scroll),
+.mrd-shell ion-content.cnt:has(.mpick)::part(scroll) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 /* Le sélecteur a son propre pied fixe : la barre d'onglets s'efface. */
 .mrd-shell:has(.mpick) .mrd-ion-tabbar { display: none; }
-.mrd-shell:has(.mpick) .mrd-screen { padding-bottom: 0; }
+
 
 .mrd-week, .mpick { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 

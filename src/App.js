@@ -64,7 +64,14 @@ import { useAppRouting } from "./hooks/useAppRouting.js";
 import {
   IonActionSheet,
   IonApp,
+  IonButtons,
+  IonContent,
+  IonFab,
+  IonFabButton,
+  IonHeader,
   IonPage,
+  IonTitle,
+  IonToolbar,
   IonRoute,
   IonRouterOutlet,
   IonTabs,
@@ -1346,65 +1353,149 @@ function AppShell() {
      existant : le passage à `IonHeader` / `IonContent` est l'objet de la
      phase 3, et mélanger les deux ici rendrait la régression visuelle
      impossible à attribuer. */
+  /* ── En-tête d'écran ──────────────────────────────────────────────────
+     Passe de `<div class="mrd-screen-hdr">` / `<div class="mrd-back-hdr">` à
+     `IonHeader` > `IonToolbar` > `IonTitle`. Le gain n'est pas cosmétique :
+     Ionic accroche l'en-tête hors du flux de défilement, calcule le décalage
+     haut d'`ion-content` en conséquence, et gère la safe area du haut — trois
+     choses qui étaient écrites à la main.
+
+     Quatre écrans n'ont PAS d'en-tête de coque, et c'était déjà le cas avant :
+       – `home` : le bonjour et l'engrenage sont dans `HomeView` et défilent
+         avec le contenu ;
+       – `lists` : pose son propre titre, sur la ligne de « + Nouvelle » ;
+       – `meals` débloqué : `MealsView` pose le sien (sous le paywall, non — la
+         coque titre, sinon l'écran n'a plus de nom) ;
+       – `recipes` : pose son propre en-tête, avec ses actions.
+     Leur ajouter un `IonHeader` empilerait deux titres. */
+
+  const MAIN_TITLES = {
+    daily: "Tâches", weekly: "Tâches", monthly: "Tâches", mine: "Tâches",
+    agenda: "Agenda", meals: "Repas",
+  };
+  const SECONDARY_TITLES = {
+    notes: "Notes", inventory: "Inventaire", recipes: "Recettes",
+    history: "Historique", inbox: "Pense-bête 📥",
+  };
+
+  function renderPageHeader(tab) {
+    if (isSecondaryScreenId(tab)) {
+      if (tab === "recipes") return null;
+      return html`
+        <${IonHeader} className="mrd-ion-header">
+          <${IonToolbar} className="mrd-ion-toolbar">
+            <${IonButtons} slot="start">
+              ${/* Le vrai `IonBackButton` — et le geste de retour iOS — arrive
+                   en phase 4, avec la pile de navigation. La phase 3 ne change
+                   que la structure de l'en-tête. */null}
+              <button className="mrd-back-btn" aria-label="Retour" onClick=${() => setActiveTab("home")}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            <//>
+            <${IonTitle} className="mrd-ion-title">${SECONDARY_TITLES[tab] || ""}<//>
+            ${tab === "inventory" ? html`
+              <${IonButtons} slot="end" className="mrd-back-hdr-side">
+                <span className=${`mrd-hdr-switch-label${inventoryOrganiserMode ? " on" : ""}`}>Organiser</span>
+                <button
+                  type="button"
+                  className=${`mrd-hdr-switch${inventoryOrganiserMode ? " on" : ""}`}
+                  onClick=${() => setInventoryOrganiserMode((value) => !value)}
+                  aria-pressed=${inventoryOrganiserMode ? "true" : "false"}
+                >
+                  <span className="mrd-hdr-switch-knob"></span>
+                </button>
+              <//>
+            ` : null}
+          <//>
+        <//>
+      `;
+    }
+
+    if (tab === "home" || tab === "lists" || (tab === "meals" && isPremium)) return null;
+
+    return html`
+      <${IonHeader} className="mrd-ion-header">
+        <${IonToolbar} className="mrd-ion-toolbar mrd-ion-toolbar-title">
+          <${IonTitle} className="mrd-ion-title mrd-screen-hdr-title">${MAIN_TITLES[tab] || ""}<//>
+        <//>
+        ${TASK_PERIODS.includes(tab) ? html`
+          <${IonToolbar} className="mrd-ion-toolbar mrd-ion-toolbar-segment">
+                      <${SegmentedTabs}
+                        ariaLabel="Navigation des tâches"
+                        options=${[
+                          { id: "daily",   emoji: "☀️",  label: "Aujourd’hui" },
+                          { id: "weekly",  emoji: "📆",  label: "Semaine" },
+                          { id: "monthly", emoji: "🗓️", label: "Mois" },
+                          { id: "mine",    emoji: "👤",  label: "Mes tâches" },
+                        ]}
+                        activeId=${tab}
+                        onChange=${setActiveTab}
+                      />
+          <//>
+        ` : null}
+      <//>
+    `;
+  }
+
+  /* Bandeaux communs à tous les écrans : erreurs de foyer et choix de la
+     personne qui utilise l'appareil. Ils défilent avec le contenu. */
+  function renderPageBanners() {
+    return html`
+      ${familyError || bootstrapError ? html`
+        <div style=${{ padding: "0 14px" }}>
+          ${familyError ? html`<div className="error-box">${familyError}</div>` : null}
+          ${bootstrapError ? html`<div className="error-box">${bootstrapError}</div>` : null}
+        </div>
+      ` : null}
+
+      ${needsActivePersonChoice ? html`
+        <section className="ncard active-person-card" style=${{ margin: "12px" }}>
+          <div className="miniTitle">Cet appareil</div>
+          <div className="st">Qui utilise l’application sur cet appareil ?</div>
+          <div className="mini">Choisis une personne du foyer pour activer Mes tâches et les usages personnels sur ce téléphone.</div>
+          <div className="tych active-person-choices">
+            ${appPeopleRaw.map(
+              (person) => html`
+                <button key=${person.id} className="pc" onClick=${() => handleSetActivePerson(person.id)}>
+                  ${person.displayName}
+                </button>
+              `,
+            )}
+          </div>
+        </section>
+      ` : null}
+    `;
+  }
+
+  /* FAB « nouvelle tâche » — `IonFab` en `slot="fixed"` : il sort du flux de
+     défilement d'`ion-content`, et Ionic le place au-dessus de la safe area.
+     Remplace un `position: absolute; bottom: calc(96px + env(safe-area-inset-bottom))`
+     qui compensait la barre d'onglets à la main.
+
+     Il vit désormais DANS la page et non plus dans la coque : c'est ce qui
+     permet de supprimer la condition `["daily",…].includes(activeTab)` — la
+     page des tâches est la seule à en poser un. */
+  function renderPageFab(tab) {
+    if (!TASK_PERIODS.includes(tab)) return null;
+    return html`
+      <${IonFab} slot="fixed" vertical="bottom" horizontal="end">
+        <${IonFabButton} className="mrd-fab" title="Nouvelle tâche" onClick=${() => setTaskFabTrigger((n) => n + 1)}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        <//>
+      <//>
+    `;
+  }
+
   function screenPage(tab) {
     return html`
       <${IonPage} className="mrd-ion-page">
-        <div className="mrd-screen">
-${/* Back header for secondary screens */null}
-          ${isSecondaryScreenId(tab) && tab !== "recipes" ? html`
-            <div className=${`mrd-back-hdr${tab === "inventory" ? " mrd-back-hdr-with-side" : ""}`}>
-              <div className="mrd-back-hdr-main">
-                <button className="mrd-back-btn" onClick=${() => setActiveTab("home")}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                <span className="mrd-screen-title">
-                  ${{ notes: "Notes", inventory: "Inventaire", recipes: "Recettes", history: "Historique", inbox: "Pense-bête 📥" }[tab] || ""}
-                </span>
-              </div>
-              ${tab === "inventory" ? html`
-                <div className="mrd-back-hdr-side">
-                  <span className=${`mrd-hdr-switch-label${inventoryOrganiserMode ? " on" : ""}`}>Organiser</span>
-                  <button
-                    type="button"
-                    className=${`mrd-hdr-switch${inventoryOrganiserMode ? " on" : ""}`}
-                    onClick=${() => setInventoryOrganiserMode((value) => !value)}
-                    aria-pressed=${inventoryOrganiserMode ? "true" : "false"}
-                  >
-                    <span className="mrd-hdr-switch-knob"></span>
-                  </button>
-                </div>
-              ` : null}
-            </div>
-          ` : null}
-
-${/* Errors */null}
-          ${familyError || bootstrapError ? html`
-            <div style=${{ padding: "0 14px" }}>
-              ${familyError ? html`<div className="error-box">${familyError}</div>` : null}
-              ${bootstrapError ? html`<div className="error-box">${bootstrapError}</div>` : null}
-            </div>
-          ` : null}
-
-${/* Active person choice prompt */null}
-          ${needsActivePersonChoice ? html`
-            <section className="ncard active-person-card" style=${{ margin: "12px" }}>
-              <div className="miniTitle">Cet appareil</div>
-              <div className="st">Qui utilise l’application sur cet appareil ?</div>
-              <div className="mini">Choisis une personne du foyer pour activer Mes tâches et les usages personnels sur ce téléphone.</div>
-              <div className="tych active-person-choices">
-                ${appPeopleRaw.map(
-                  (person) => html`
-                    <button key=${person.id} className="pc" onClick=${() => handleSetActivePerson(person.id)}>
-                      ${person.displayName}
-                    </button>
-                  `,
-                )}
-              </div>
-            </section>
-          ` : null}
-
+        ${renderPageHeader(tab)}
+        <${IonContent} className="cnt">
+          ${renderPageBanners()}
           ${tab === "home"
             ? html`
                 <${HomeView}
@@ -1439,44 +1530,9 @@ ${/* Active person choice prompt */null}
                     setTimeout(() => setTaskFabTrigger((n) => n + 1), 60);
                   } : null}
                 />`
-            : html`
-
-                ${/* Screen header for main tabs.
-                     « lists » pose son propre titre (le bouton « + Nouvelle »
-                     partage sa ligne), et « meals » aussi — mais seulement une
-                     fois débloqué : sous le paywall c'est le shell qui titre,
-                     sinon l'écran n'a plus de nom. Même classe des deux côtés,
-                     donc même rendu. */null}
-                ${!isSecondaryScreenId(tab) && tab !== "lists" && !(tab === "meals" && isPremium) ? html`
-                  <div className="mrd-screen-hdr">
-                    <div className="mrd-screen-hdr-row">
-                      <span className="mrd-screen-hdr-title">
-                        ${{
-                          daily: "Tâches", weekly: "Tâches", monthly: "Tâches", mine: "Tâches",
-                          agenda: "Agenda", meals: "Repas",
-                        }[tab] || ""}
-                      </span>
-                    </div>
-                    ${["daily", "weekly", "monthly", "mine"].includes(tab) ? html`
-                      <${SegmentedTabs}
-                        ariaLabel="Navigation des tâches"
-                        options=${[
-                          { id: "daily",   emoji: "☀️",  label: "Aujourd’hui" },
-                          { id: "weekly",  emoji: "📆",  label: "Semaine" },
-                          { id: "monthly", emoji: "🗓️", label: "Mois" },
-                          { id: "mine",    emoji: "👤",  label: "Mes tâches" },
-                        ]}
-                        activeId=${tab}
-                        onChange=${setActiveTab}
-                      />
-                    ` : null}
-                  </div>
-                ` : null}
-                <main className="cnt">
-                  ${renderScreen(tab)}
-                </main>
-              `}
-        </div>
+            : renderScreen(tab)}
+        <//>
+        ${renderPageFab(tab)}
       <//>
     `;
   }
@@ -1770,26 +1826,6 @@ ${/* Nav bureau — barre latérale sur écrans larges, remplace la barre du bas
             { text: "Annuler", role: "cancel" },
           ]}
         />
-
-${/* FAB — tâches (ouvre la modale de création) */null}
-        ${plannerUnlocked && !showSettings && ["daily","weekly","monthly","mine"].includes(activeTab) ? html`
-          <button
-            className="mrd-fab"
-            onClick=${() => {
-              if (activeTab === "home") {
-                setActiveTab("daily");
-                setTimeout(() => setTaskFabTrigger((n) => n + 1), 60);
-              } else {
-                setTaskFabTrigger((n) => n + 1);
-              }
-            }}
-            title="Nouvelle tâche"
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
-            </svg>
-          </button>
-        ` : null}
 
 ${/* Modals — absolute-positioned within the shell */null}
         ${selectedProfile ? html`

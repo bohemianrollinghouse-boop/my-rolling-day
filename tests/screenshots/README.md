@@ -31,6 +31,21 @@ Un `ECART` n'est pas un échec : après la Phase 2 la barre d'onglets Ionic ne
 fera pas la même hauteur au pixel que `.mrd-bnav`, et tout le bas d'écran
 bougera légitimement. **L'œil tranche, pas le pourcentage.**
 
+## Mesurer un décalage vertical
+
+```bash
+node tests/screenshots/shift.mjs baseline phase-3 mobile-light__notes.png …
+```
+
+Un décalage vertical uniforme allume énormément de blocs sans être une vraie
+régression : chaque carte se retrouve dans le bloc du dessus. `shift.mjs`
+cherche, par corrélation sur les moyennes de lignes, le décalage qui minimise
+l'écart — et donne donc **de combien** il faut corriger, en pixels CSS.
+
+C'est ce qui a permis d'ajuster les en-têtes Ionic de la phase 3 sur des
+mesures (« il manque 10 px sur les écrans à titre seul, 0 sur ceux à barre
+segmentée ») au lieu de tâtonner à l'œil.
+
 ## Comment ça marche
 
 - `seed.mjs` — jeu de données injecté dans `window.__E2E_PLANNER_SEED`, lu par
@@ -42,6 +57,7 @@ bougera légitimement. **L'œil tranche, pas le pourcentage.**
   headless via CDP. Traverse l'onboarding, puis navigue d'écran en écran.
   Les animations sont neutralisées à l'injection (sinon une capture attrape une
   transition à mi-course).
+- `shift.mjs` — mesure du décalage vertical entre deux captures (voir plus haut).
 - `png.mjs` — décodeur PNG minimal (zlib + défiltrage). Aucune dépendance
   ajoutée : le projet n'en a que deux et une comparaison d'image ne justifie
   pas la troisième.
