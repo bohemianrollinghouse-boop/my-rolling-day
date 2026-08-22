@@ -3,6 +3,7 @@ import { IonFab, IonFabButton } from "@ionic/react";
 import { daysUntilExpiry, getCurrentAppDate } from "../../utils/date.js";
 import { findSimilarItem, formatQuantityUnit, normalizeProductName, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 // ─── constants ────────────────────────────────────────────────────
 
@@ -1135,9 +1136,8 @@ export function InventoryView({
     const selectValue = rangerSelectedLocId === null ? "" : rangerSelectedLocId;
 
     return html`
-      <div className="modal-backdrop task-create-backdrop" onClick=${closeRanger}>
-        <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}
-          style=${{ width: "min(440px, 100%)" }}>
+      <${MrdModal} isOpen=${true} onClose=${closeRanger} className="task-modal-redesign mrd-modal-wide">
+
 
           <div className="mrd-mhd">
             <span className="mrd-mtitle">
@@ -1202,8 +1202,7 @@ export function InventoryView({
             </div>
 
           </div>
-        </div>
-      </div>
+      <//>
     `;
   }
 
@@ -1230,9 +1229,8 @@ export function InventoryView({
       color: "var(--mrd-fg)", outline: "none", fontFamily: "inherit",
     };
     return html`
-      <div className="modal-backdrop task-create-backdrop" onClick=${closeModal}>
-        <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}
-          style=${{ width: "min(500px, 100%)" }}>
+      <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
+
 
           <div className="mrd-mhd">
             <span className="mrd-mtitle">${editingItemId ? "Modifier l'article" : "Ajouter un article"}</span>
@@ -1405,8 +1403,7 @@ export function InventoryView({
             </div>
 
           </form>
-        </div>
-      </div>
+      <//>
     `;
   }
 

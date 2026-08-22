@@ -5,6 +5,7 @@ import { completedIds, TaskCard, urgencyBadge } from "../tasks/TaskCard.js";
 import { SegmentedTabs } from "../common/SegmentedTabs.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
 import { getNotificationPermissionState, showAppNotification } from "../../utils/notify.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 // Déduplication immédiate des notifications envoyées dans cette session.
 // Évite les doublons quand focus + visibilitychange se déclenchent simultanément
@@ -774,8 +775,8 @@ function renderEntryCard(entry) {
       })();
 
       return html`
-        <div className="modal-backdrop" onClick=${close}>
-          <div className="modal-card task-modal-redesign" style=${{ width: "min(440px, 100%)", padding: 0 }} onClick=${(e) => e.stopPropagation()}>
+        <${MrdModal} isOpen=${true} onClose=${close} className="task-modal-redesign mrd-modal-visible">
+
 
             <!-- Fermeture -->
             <div style=${{ display: "flex", justifyContent: "flex-end", padding: "10px 10px 0" }}>
@@ -852,15 +853,13 @@ function renderEntryCard(entry) {
                 </div>
               </article>
             </div>
-
-          </div>
-        </div>
+        <//>
       `;
     }
 
     return html`
-      <div className="modal-backdrop" onClick=${() => setViewEntry(null)}>
-        <div className="modal-card task-modal" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${() => setViewEntry(null)} className="task-modal">
+
           <div className="task-modal-head">
             <div>
               <div className="miniTitle">
@@ -928,8 +927,7 @@ function renderEntryCard(entry) {
               ` : null}
             </div>
           ` : null}
-        </div>
-      </div>
+      <//>
     `;
   }
 
@@ -1298,9 +1296,8 @@ function renderEntryCard(entry) {
             const repeatLabel = viewMode === "day" ? "jour" : viewMode === "month" ? "mois" : "semaine";
             const isRecurringLocked = editing?.entryKind === "recurring";
             return html`
-              <div className="modal-backdrop task-create-backdrop" onClick=${closeModal}>
-                <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}
-                  style=${{ width: "min(560px, 100%)" }}>
+              <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
+
 
                   <!-- En-tête -->
                   <div className="mrd-mhd">
@@ -1594,8 +1591,7 @@ function renderEntryCard(entry) {
                     </div>
 
                   </form>
-                </div>
-              </div>
+              <//>
             `;
           })()
         : null}

@@ -4,6 +4,7 @@ import { CONDIMENTS } from "../../data/condiments.js";
 import { CategoryIcon, categoryToneClass } from "./CategoryIcons.js";
 import { VoiceCookingMode, parseMethodSteps } from "./VoiceCookingMode.js";
 import drinkFallbackIllustration from "../../assets/recipe-drink-fallback.svg";
+import { MrdModal } from "../common/MrdModal.js";
 
 const SEASONS = [
   { id: "spring", label: "Printemps", months: [3, 4, 5] },
@@ -301,12 +302,11 @@ export function RecipeSheet({
 
   if (isModal) {
     return html`
-      <div className="modal-backdrop mrd-recipe-view-backdrop" onClick=${() => onClose?.()}>
-        <div className="recipe-sheet mrd-recipe-view-sheet" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} sheet=${true} isOpen=${true} onClose=${() => onClose?.()} className="recipe-sheet mrd-recipe-view-sheet">
+
           ${header}
           ${body}
-        </div>
-      </div>
+      <//>
     `;
   }
 

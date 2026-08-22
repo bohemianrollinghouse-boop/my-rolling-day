@@ -1,5 +1,15 @@
+// Mode cuisine vocal — plein écran.
+//
+// Il se posait sur `document.body` via `createPortal`, en plus d'un overlay
+// maison en `position: fixed`. `ion-modal` est déjà un portail : le
+// `createPortal` disparaît, et avec lui la question de savoir qui gère la safe
+// area et le verrou de défilement.
+//
+// `backdropDismiss` reste à faux : on ne quitte pas un mode cuisine par un tap
+// à côté, les mains dans la pâte.
+
 import { html, useEffect, useRef, useState } from "../../lib.js";
-import { createPortal } from "react-dom";
+import { MrdModal } from "../common/MrdModal.js";
 import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { SpeechRecognition } from "@capacitor-community/speech-recognition";
 import { KeepAwake } from "@capacitor-community/keep-awake";
@@ -330,15 +340,15 @@ export function VoiceCookingMode({ recipe, onClose }) {
   }, []);
 
   if (!steps.length) {
-    return createPortal(html`
-      <div className="voice-cook-overlay">
+    return html`
+      <${MrdModal} isOpen=${true} onClose=${exit} backdropDismiss=${false} className="voice-cook-overlay">
         <div className="voice-cook-empty">
           <div className="voice-cook-empty-emoji">🎙</div>
           <p>Aucune étape de préparation renseignée pour cette recette.</p>
           <button type="button" className="aok" onClick=${exit}>Fermer</button>
         </div>
-      </div>
-    `, document.body);
+      <//>
+    `;
   }
 
   const isDone = status === "done";
@@ -376,8 +386,8 @@ export function VoiceCookingMode({ recipe, onClose }) {
     </div>
   `;
 
-  return createPortal(html`
-    <div className="voice-cook-overlay">
+  return html`
+    <${MrdModal} isOpen=${true} onClose=${exit} backdropDismiss=${false} className="voice-cook-overlay">
       <header className="voice-cook-header">
         <span className="voice-cook-title">${recipe?.name || "Recette"}</span>
         <button type="button" className="voice-cook-close" onClick=${exit} aria-label="Quitter le mode cuisine">✕</button>
@@ -411,6 +421,6 @@ export function VoiceCookingMode({ recipe, onClose }) {
           </button>
         `}
       </footer>
-    </div>
-  `, document.body);
+    <//>
+  `;
 }

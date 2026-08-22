@@ -30,6 +30,7 @@ import { productMatchKey } from "../../utils/units.js";
 import { CategoryIcon, categoryToneClass } from "../recipes/CategoryIcons.js";
 import { RecipeSheet, fmtScaledQty } from "../recipes/RecipeSheet.js";
 import { RecipePicker } from "./RecipePicker.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 const DAY_ABBR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const SLOTS = ["lunch", "dinner"];
@@ -663,8 +664,8 @@ export function MealsView({
     const meals = (count) => `${count} repas`;
 
     return html`
-      <div className="modal-backdrop" onClick=${() => setFillReport(null)}>
-        <div className="modal-card task-modal" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${() => setFillReport(null)} className="task-modal">
+
           <div className="task-modal-head">
             <div>
               <div className="miniTitle">Semaine remplie</div>
@@ -726,8 +727,7 @@ export function MealsView({
               </button>
             ` : null}
           </div>
-        </div>
-      </div>
+      <//>
     `;
   }
 
@@ -744,8 +744,8 @@ export function MealsView({
     const canSubmit = missingModal.selectedIds.length > 0 || (missingModal.selectedCondiments || []).length > 0;
 
     return html`
-      <div className="modal-backdrop" onClick=${() => setMissingModal(null)}>
-        <div className="modal-card task-modal" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${() => setMissingModal(null)} className="task-modal">
+
           <div className="task-modal-head">
             <div>
               <div className="miniTitle">${isManual ? "Liste de courses" : "Inventaire"}</div>
@@ -795,8 +795,7 @@ export function MealsView({
             <button type="button" className="acn" onClick=${() => setMissingModal(null)}>Fermer</button>
             ${canSubmit ? html`<button type="button" className="aok" onClick=${addSelectedMissingIngredients}>Ajouter à la liste</button>` : null}
           </div>
-        </div>
-      </div>
+      <//>
     `;
   }
 

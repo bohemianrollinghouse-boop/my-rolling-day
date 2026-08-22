@@ -1,5 +1,6 @@
 import { html, useState } from "../../lib.js";
 import { sendTesterFeedback } from "../../firebase/client.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 export function FeedbackWidget({ user, currentPage = "" }) {
   const [open, setOpen] = useState(false);
@@ -57,8 +58,8 @@ export function FeedbackWidget({ user, currentPage = "" }) {
       </button>
 
       ${open ? html`
-        <div className="fb-backdrop" onClick=${handleClose}>
-          <div className="fb-panel" onClick=${(e) => e.stopPropagation()}>
+        <${MrdModal} isOpen=${true} onClose=${handleClose} className="fb-panel">
+
             <div className="fb-panel-head">
               <span className="fb-panel-title">Signaler un problème</span>
               <button className="fb-panel-close" onClick=${handleClose} aria-label="Fermer">✕</button>
@@ -97,8 +98,7 @@ export function FeedbackWidget({ user, currentPage = "" }) {
                   : "Envoyer"}
               </button>
             </form>
-          </div>
-        </div>
+        <//>
       ` : null}
     </div>
   `;

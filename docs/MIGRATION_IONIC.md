@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 à 6 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 à 7 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -631,29 +631,113 @@ ambiguïté : l'accueil rendu en texte brut, sans cartes ni sérif. Annulé par
 tranche, une vérification que les accolades s'équilibrent, qu'elle ne contient
 qu'un seul `@media` et aucun en-tête de section.
 
-### Phase 7 — 🟠 Overlays : `IonModal`
+### Phase 7 — 🟠 Overlays : `IonModal` — ✅ TERMINÉE
 
-16 fichiers, à faire **un par un**, en commençant par les plus simples.
+**29 overlays maison convertis** dans 16 fichiers. Bilan : **51/57 captures
+IDENTIQUE**, les 6 autres expliquées plus bas.
 
-- [ ] Ordre proposé : `AppModals.js` (6 modales, les plus simples) →
-      `SettingsModals.js` → `NotesView` → `InboxView` → `TasksView` (formulaire
-      de tâche, le plus gros) → `AgendaView` → `InventoryView` → `ListsView` →
-      `MealsView` / `RecipePicker` → `RecipeSheet` / `RecipesView` →
-      `FeedbackWidget` → `VoiceCookingMode` (mode cuisine : à traiter en
-      dernier, il a ses propres contraintes de veille et de voix).
-- [ ] Feuilles basses (`.mrd-recipe-view-sheet`, panneau bas de `MealsView`) →
-      `IonModal` avec `breakpoints` / `initialBreakpoint`, ce qui donne la
-      poignée et le glissement gratuitement.
-- [ ] Supprimer au fur et à mesure : `.modal-backdrop`, `.modal-card`, les
-      keyframes `mrdSlideUp` / `mrdSlideDown` / `mrdFadeIn` / `mrdFadeOut`, et
-      le verrou de défilement de `ListsView.js:165-176`.
-- [ ] Garder les classes de contenu harmonisées (`.mrd-mhd`, `.mrd-mtitle`,
-      `.mrd-mbody`, `.mrd-mact`) : elles stylent l'**intérieur** des modales,
-      Ionic ne fournit que le contenant.
-- [ ] 🔴 `tests/e2e/tasks.test.js` cible `.task-modal-redesign` (21
-      occurrences) — à reprendre quand `TasksView` passe.
-- [ ] Nettoyer les règles CSS mortes en fin de phase (le projet a déjà fait ce
-      travail, cf. les 116 règles supprimées au log du 13 août).
+- [x] `src/components/common/MrdModal.js` — **enveloppe unique**. Les 16
+      fichiers recodaient le même `<div class="modal-backdrop" onClick=fermer>`
+      + `<div class="modal-card" onClick=stopPropagation>`, et ils avaient
+      divergé (trois variantes de fond, deux d'animation). Une seule enveloppe
+      garantit qu'ils ne redivergent pas.
+- [x] Feuilles basses → `sheet` (`initialBreakpoint` + poignée Ionic) :
+      `.mrd-recipe-view-sheet` dessinait sa poignée et son glissement à la main.
+- [x] `VoiceCookingMode` perd son `createPortal` : `ion-modal` est déjà un
+      portail. Et `backdropDismiss={false}` — on ne quitte pas un mode cuisine
+      d'un tap à côté, les mains dans la pâte.
+- [x] ~80 lignes de CSS mort supprimées : `.modal-backdrop`, `.modal-card`,
+      les keyframes `mrdSlideUp` / `mrdFadeIn` / `mrdFadeOut` / `mrdSlideDown`,
+      et l'état `.is-closing` de la popup notification.
+- [x] Les captures couvrent enfin des **états de modale** (5 nouveaux écrans).
+
+**Non converti, à dessein** : `.recipe-import-modal-backdrop` est un overlay de
+progression non fermable, pas une modale — il relève de la phase 8 avec les
+indicateurs de chargement.
+
+**Corrigé au passage dans le plan** : le §3 annonçait que le
+`document.documentElement.style.overflow = "hidden"` de `ListsView.js:165`
+serait remplacé par `ion-modal`. C'est faux — ce verrou sert au
+**glisser-déposer** (`dragState`), pas à une modale. Il reste.
+
+#### Le piège qui a coûté le plus : `.mrd-shell`
+
+**826 règles** de `styles.css` sont préfixées `.mrd-shell …`, un choix ancien
+fait pour gagner en spécificité. Or `ion-modal` se portale hors de la coque :
+`.mrd-shell` cesse d'être un ancêtre, et **tout le style intérieur des modales
+tombe**. Vu à la première capture — formulaire sans marges, libellés en texte
+brut, bouton de fermeture en carré nu.
+
+Réparé en réintroduisant la classe sur un conteneur interne
+(`.mrd-modal-inner`), purement comme crochet de descendance, avec une règle qui
+annule à côté ce que `.mrd-shell` porte en propre (safe area, fond opaque,
+`overflow: hidden`).
+
+#### La largeur n'était pas sur la carte, mais sur le fond
+
+`.task-create-backdrop .task-modal-redesign { width: min(720px, …) }` : la
+largeur des modales venait du **fond**, par descendance. Le fond supprimé, ces
+règles sont devenues mortes en silence et les 14 modales concernées seraient
+toutes retombées à la largeur par défaut de 520 px. Les classes de fond
+d'origine ont été récupérées depuis git, fichier par fichier et dans l'ordre,
+pour poser la bonne variante (`.mrd-modal-wide` 720 px,
+`.mrd-modal-settings` 430 px, `.mrd-modal-narrow` 420 px).
+
+Même mécanisme pour `overflow: visible`, qui empêchait les menus déroulants
+d'être coupés : une seule modale l'avait (l'agenda), et elle a
+`.mrd-modal-visible`.
+
+#### `contain: strict` mange `backdrop-filter`
+
+Le flou d'arrière-plan avait disparu. La valeur calculée de
+`backdrop-filter` était bien `blur(4px)` — mais `ion-modal` porte
+`contain: strict`, dont le `paint` fait de la modale sa propre racine de fond :
+il n'y a plus rien derrière à échantillonner, et le flou s'évanouit sans
+erreur. `contain: layout size style` le rétablit. C'est le seul endroit où l'on
+contredit Ionic, et c'est pour retrouver un effet du design maison.
+
+Deuxième réglage au même endroit : `--backdrop-opacity: 1`, parce que
+`--mrd-overlay` porte déjà son alpha et qu'Ionic le multipliait par 0,4.
+
+Différence assumée : le flou couvre maintenant l'en-tête et la barre d'onglets,
+là où l'ancien fond les laissait nets. C'est le comportement natif d'Ionic —
+toute l'app s'estompe derrière la modale — et c'est cohérent.
+
+#### Une régression de la phase 3, révélée seulement ici
+
+La fiche recette s'affichait **entièrement vide**. Cause : la règle
+`::part(scroll) { position: relative }` posée en phase 3. Le conteneur de
+défilement d'Ionic est en `position: absolute; inset: 0` — il a donc une taille
+définie **et** il fournit déjà le bloc conteneur dont l'overlay a besoin. Le
+passer en `relative` le fait se dimensionner sur son contenu, contenu qui est
+justement en `position: absolute` : hauteur nulle. Même défaut sur la page
+d'édition de recette.
+
+Restée invisible deux phases durant parce qu'**aucune capture n'ouvrait cette
+fiche**. C'est précisément ce qui a motivé l'ajout des états de modale.
+
+#### Trois erreurs d'outillage, notées pour ne pas les refaire
+
+1. `[^>]*` ne franchit pas une flèche `=>`. Le convertisseur cherchait la fin
+   d'une balise ainsi, et coupait au milieu de
+   `onClick=${(e) => e.stopPropagation()}`. Idem pour extraire un gestionnaire
+   avec `[^}]+`, qui s'arrête au premier `}` et tronque les fonctions
+   multi-lignes — produisant du JS invalide détecté seulement au build. Les deux
+   passent maintenant par un scan de profondeur d'accolades.
+2. **Jamais de backtick dans un commentaire placé dans un template literal** :
+   il termine la chaîne. Erreur commise en écrivant le commentaire qui
+   expliquait un autre piège.
+3. Ordre des arguments d'un helper de substitution inversé : les libellés se
+   sont retrouvés injectés dans le CSS à la place des règles. Détecté par
+   l'avertissement de syntaxe CSS d'esbuild, pas par le build lui-même.
+
+#### Tests : des délais fixes remplacés par des attentes
+
+Les modales Ionic s'animent (~300 ms à l'ouverture comme à la fermeture), là où
+les overlays maison apparaissaient d'un coup. Trois assertions de
+`tasks.test.js` reposaient sur un `setTimeout` fixe : elles passaient seules et
+échouaient dans la suite complète. Remplacées par `pollUntilGone` et
+`pollForProp`.
 
 ### Phase 8 — 🟡 Contrôles
 

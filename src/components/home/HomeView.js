@@ -2,6 +2,7 @@ import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { localDateKey } from "../../utils/date.js";
 import { CategoryIcon, categoryToneClass } from "../recipes/CategoryIcons.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 function initials(label) {
@@ -560,8 +561,8 @@ export function HomeView({
     if (!searchOpen) return null;
     const q = searchQuery.trim();
     return html`
-      <div className="gs-backdrop" onClick=${() => setSearchOpen(false)}>
-        <div className="gs-panel" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${() => setSearchOpen(false)} className="gs-panel">
+
           <div className="gs-bar">
             <svg className="gs-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
             <input
@@ -645,8 +646,7 @@ export function HomeView({
               ` : null}
             </div>
           `}
-        </div>
-      </div>
+      <//>
     `;
   }
 

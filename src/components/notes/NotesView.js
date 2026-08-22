@@ -1,4 +1,5 @@
 import { html, useState, useRef } from "../../lib.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 const VISIBILITY_EMOJI = {
   private: "🔒",
@@ -196,8 +197,8 @@ export function NotesView({ notes, activePersonId, people, onAddNote, onDeleteNo
     const canSave = isEditing && editText.trim();
 
     return html`
-      <div className="modal-backdrop note-modal-backdrop" onClick=${closeNoteModal}>
-        <div className=${`modal-card note-modal-card note-tone-${modalTone}`} onClick=${(event) => event.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${closeNoteModal} className=${`note-modal-card note-tone-${modalTone}`}>
+
           <div className="task-modal note-modal-shell">
             <div className="task-modal-head note-modal-head">
               <div>
@@ -280,8 +281,7 @@ export function NotesView({ notes, activePersonId, people, onAddNote, onDeleteNo
                   </div>
                 `}
           </div>
-        </div>
-      </div>
+      <//>
     `;
   }
 

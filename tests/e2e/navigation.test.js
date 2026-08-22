@@ -60,6 +60,7 @@ async function queryTextInActivePage(session, selector) {
   return evaluate(session, `(() => {
     const page = [...document.querySelectorAll(".ion-page")]
       .filter((p) => !p.classList.contains("ion-page-hidden"))
+      .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"))
       .pop();
     const root = page || document;
     return root.querySelector(${JSON.stringify(selector)})?.textContent?.trim() ?? "";
@@ -73,6 +74,7 @@ async function pollForSelectorInActivePage(session, selector, timeoutMs = 10_000
     const found = await evaluate(session, `(() => {
       const page = [...document.querySelectorAll(".ion-page")]
         .filter((p) => !p.classList.contains("ion-page-hidden"))
+        .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"))
         .pop();
       return !!(page || document).querySelector(${JSON.stringify(selector)});
     })()`);
@@ -109,11 +111,21 @@ async function clickTab(session, label) {
  * lui posant `.ion-page-hidden`. Sans cette attente, une assertion peut lire le
  * contenu de la page qu'on vient de quitter et échouer par intermittence.
  */
+/* Les modales apportent leur propre ".ion-page" (classe "ion-delegate-host") :
+   les compter empechait la condition « exactement une page visible » de se
+   realiser des qu une modale etait ouverte, et faisait attendre le delai
+   complet a chaque fois. Elles sont donc exclues, ici comme dans les helpers
+   qui cherchent « la page visible ».
+
+   Note : ne jamais mettre de backtick dans un commentaire place DANS un
+   template literal — il termine la chaine. C est exactement l erreur commise
+   en ecrivant ce commentaire la premiere fois. */
 async function waitForPageSettled(session, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const settled = await evaluate(session, `(() => {
-      const pages = [...document.querySelectorAll(".ion-page")];
+      const pages = [...document.querySelectorAll(".ion-page")]
+        .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"));
       if (!pages.length) return false;
       if (pages.some((p) => p.classList.contains("ion-page-invisible"))) return false;
       return pages.filter((p) => !p.classList.contains("ion-page-hidden")).length === 1;
@@ -238,21 +250,24 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
    */
   async function openStubbed({ touch = false } = {}) {
     const session = await openPageSession(browserHandle);
+    /* La modale « Activer les notifications ? » s'ouvre juste après
+       l'onboarding et couvre tout l'écran. Deux raisons de la neutraliser
+       partout, et non seulement dans les sessions tactiles :
+         – elle avalait le geste de balayage ;
+         – depuis qu'elle est une `ion-modal`, elle apporte sa propre
+           `.ion-page`, et les assertions qui visent « la page visible »
+           tombaient sur elle au lieu de l'écran.
+       Marquer la demande comme traitée (`src/utils/storage.js`) reproduit
+       l'état d'un utilisateur qui revient. */
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `try { localStorage.setItem("mrd_notif_prompt",
+        JSON.stringify({ dismissCount: 3, lastDismissed: null, granted: true })); } catch (e) {}`,
+    });
     if (touch) {
       await session.send("Emulation.setDeviceMetricsOverride", {
         width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
       });
       await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
-      /* La modale « Activer les notifications ? » s'ouvre juste après
-         l'onboarding et couvre tout l'écran : elle avalait le geste de
-         balayage, et le test échouait en restant sur `/notes` alors que le
-         geste était bien armé. Marquer la demande comme déjà traitée
-         (`src/utils/storage.js`) reproduit l'état d'un utilisateur qui revient,
-         ce qui est le contexte où le geste a un sens. */
-      await session.send("Page.addScriptToEvaluateOnNewDocument", {
-        source: `try { localStorage.setItem("mrd_notif_prompt",
-          JSON.stringify({ dismissCount: 3, lastDismissed: null, granted: true })); } catch (e) {}`,
-      });
     }
     await session.send("Page.navigate", { url: `${serverHandle.url}/` });
     await session.waitForEvent("Page.loadEventFired", 15_000);

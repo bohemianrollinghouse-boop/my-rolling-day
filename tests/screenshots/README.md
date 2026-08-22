@@ -15,8 +15,18 @@ node tests/screenshots/capture.mjs phase-2
 node tests/screenshots/compare.mjs baseline phase-2
 ```
 
-14 écrans × 3 variantes (`mobile-light`, `mobile-dark`, `desktop-light`) = 42
-captures. Compter ~4 min par exécution, build Vite compris.
+19 écrans × 3 variantes (`mobile-light`, `mobile-dark`, `mobile-xl-light`) = 57
+captures. Compter ~10 min par exécution, build Vite compris.
+
+Les 5 derniers écrans sont des **états de modale** (`modal-*`), ajoutés en
+phase 7 : sans eux la garde visuelle aurait été aveugle sur la conversion des
+16 overlays. Deux réserves à connaître :
+
+- `modal-note` capture en fait l'**édition en ligne** : une note qu'on possède
+  s'édite sur place, la modale ne s'ouvre que pour la note d'un autre membre.
+- `desktop-light` a disparu en phase 6 avec le rendu bureau, remplacé par
+  `mobile-xl-light` (430×932). Sa référence pré-Ionic a été régénérée depuis le
+  commit de la phase 0, dans un worktree git.
 
 ## Ce que ça vaut, et ce que ça ne vaut pas
 
@@ -70,6 +80,15 @@ et, dès que le router existe, l'URL. Il détecte lui-même la présence d'Ionic
 (`ion-tab-bar`) et bascule. C'est ce qui permet au **même** script de servir
 avant et après la migration — sans quoi la référence serait perdue à la
 première phase.
+
+## Piège : la page visible
+
+Avec `IonRouterOutlet`, la page quittée reste montée (`.ion-page-hidden`), et
+**une modale apporte sa propre `.ion-page`** (classe `ion-delegate-host`). Un
+`document.querySelector` global renvoie donc souvent le mauvais élément : la
+capture de la modale d'inventaire ouvrait en fait celle des tâches, depuis la
+page précédente. Le script et les tests e2e ciblent maintenant la dernière page
+visible **hors modale**.
 
 ## Prérequis
 

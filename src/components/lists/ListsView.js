@@ -3,6 +3,7 @@ import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
 import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
 import { SegmentedTabs } from "../common/SegmentedTabs.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 const LONG_PRESS_MS = 280;
 const DRAG_CANCEL_DISTANCE = 8;
@@ -844,15 +845,8 @@ export function ListsView({
           { id: "shared",    icon: "👥", label: "Partagé", sub: "Certaines personnes" },
         ];
         return html`
-          <div
-            className="modal-backdrop task-create-backdrop"
-            onClick=${() => setShowListModal(false)}
-          >
-            <div
-              className="modal-card task-modal-redesign"
-              style=${{ width: "min(480px, 100%)", maxHeight: "min(88vh, 800px)" }}
-              onClick=${(e) => e.stopPropagation()}
-            >
+          <${MrdModal} isOpen=${true} onClose=${() => setShowListModal(false)} className="task-modal-redesign mrd-modal-wide">
+
 
               <!-- En-tête -->
               <div className="mrd-mhd">
@@ -941,8 +935,7 @@ export function ListsView({
                 </button>
 
               </form>
-            </div>
-          </div>
+          <//>
           ${showEmojiPickerInList ? html`<${EmojiPicker}
             onSelect=${(emoji) => { setListForm((prev) => ({ ...prev, emoji })); setShowEmojiPickerInList(false); }}
             onClose=${() => setShowEmojiPickerInList(false)}
@@ -952,15 +945,12 @@ export function ListsView({
 
       ${showItemModal
         ? html`
-            <div
-              className="modal-backdrop task-create-backdrop"
-              onClick=${() => {
+            <${MrdModal} isOpen=${true} onClose=${() => {
                 setShowItemModal(false);
                 setEditingItem(null);
                 setShowItemQuantityFields(false);
-              }}
-            >
-              <div className="modal-card task-modal-redesign" onClick=${(event) => event.stopPropagation()}>
+              }} className="task-modal-redesign mrd-modal-wide">
+
                 <div className="mrd-mhd">
                   <span className="mrd-mtitle">
                     ${editingItem ? "Modifier l'article" : "Ajouter un article"}
@@ -1110,8 +1100,7 @@ export function ListsView({
                     <button className="aok" type="submit">${editingItem ? "Enregistrer" : "Ajouter"}</button>
                   </div>
                 </form>
-              </div>
-            </div>
+            <//>
           `
         : null}
 

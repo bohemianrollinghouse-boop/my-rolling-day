@@ -1129,10 +1129,6 @@ html[data-theme="dark"] .ldr-text { color: oklch(65% 0.025 58); }
     transform: none !important;
     stroke-dashoffset: 0 !important;
   }
-  .modal-backdrop, .modal-card,
-  .mrd-shell .modal-backdrop, .mrd-shell .modal-card {
-    animation: none !important;
-  }
 }
 .spin { display: none; }
 .migration-box { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: var(--mrd-surf2); border: 1px solid var(--mrd-borderSoft); border-radius: 12px; padding: 12px; margin-bottom: 16px; }
@@ -1347,8 +1343,6 @@ html[data-theme="dark"] .auth-cta-secondary { background: var(--mrd-surf2); bord
 .history-entry-text { font-size: 12px; color: var(--mrd-fg); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-entry-meta { font-size: 10px; color: var(--mrd-fg3); margin-top: 1px; line-height: 1.3; }
 .history-entry-empty { padding: 8px 0; font-size: 12px; }
-.modal-backdrop { position: fixed; inset: 0; background: var(--mrd-overlay); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; padding: 16px; z-index: 30; animation: mrdFadeIn 0.18s ease; }
-.modal-card { width: min(620px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--mrd-surf); border-radius: 20px; border: 1px solid var(--mrd-borderSoft); box-shadow: var(--mrd-shadowXl); animation: mrdSlideUp 0.22s ease; }
 .profile-card { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 .profile-hero { display: flex; gap: 14px; align-items: center; background: linear-gradient(180deg, var(--mrd-white), var(--mrd-surf2)); border: 1px solid var(--mrd-borderSoft); border-radius: 18px; padding: 14px; }
 .profile-avatar { width: 72px; height: 72px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--mrd-white); font-size: 30px; font-weight: 700; box-shadow: var(--mrd-shadowLg); }
@@ -1626,8 +1620,6 @@ html[data-theme="dark"] .mrd-set-page { background: var(--mrd-bgDeep); }
 .foyer-add-btn--detail { min-height: 46px; border-style: solid; background: var(--mrd-aLt); border-color: var(--mrd-aMd); }
 /* ── Modals Foyer ── */
 .foyer-modal { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
-.settings-modal-backdrop { align-items: center !important; padding: 18px !important; }
-.settings-modal-backdrop .modal-card { width: min(430px, 100%); max-height: calc(100vh - 36px); border-radius: 22px; margin-top: 0; }
 .foyer-modal-member-head { display: flex; align-items: center; gap: 12px; }
 .foyer-modal-member-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .foyer-modal-member-info strong { font-size: 15px; color: var(--mrd-fg); }
@@ -1875,7 +1867,6 @@ html[data-theme="dark"] .success-box { background: var(--mrd-sageLt); color: var
 html[data-theme="dark"] .app-toast { background: var(--mrd-sageLt); color: var(--mrd-sageDeep); }
 html[data-theme="dark"] .app-toast-action { background: var(--mrd-onA-mid); color: var(--mrd-sageDeep); }
 html[data-theme="dark"] .task-card,
-html[data-theme="dark"] .modal-card,
 html[data-theme="dark"] .history-person-card { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg); }
 html[data-theme="dark"] .profile-hero,
 html[data-theme="dark"] .profile-public-line { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg); }
@@ -2199,8 +2190,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   .mrd-shell .lists-page-list-card-subtitle { font-size: 12px; }
   .mrd-shell .lists-page-share-avatar { width: 18px; height: 18px; font-size: 9px; }
   .history-day-cards { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-  .modal-backdrop { align-items: stretch; padding: 0; }
-  .modal-card { width: 100%; max-height: 100vh; border-radius: 20px 20px 0 0; margin-top: auto; }
   .profile-hero { align-items: flex-start; }
   .profile-avatar { width: 64px; height: 64px; font-size: 26px; }
   .profile-name { font-size: 24px; }
@@ -2959,11 +2948,9 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 .history-empty-sub { font-size: 13px; color: var(--mrd-fg3); line-height: 1.5; max-width: 240px; }
 .mrd-shell .ubdg span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 /* ── Modals (bottom-sheet dans la coque) ─────────────────── */
-.mrd-shell .modal-card { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); }
 .mrd-shell .task-choice { background: var(--mrd-surf2); border-color: var(--mrd-border); color: var(--mrd-fg); border-radius: 12px; }
 .mrd-shell .task-choice.on { background: var(--mrd-aBtn); border-color: var(--mrd-a); color: var(--mrd-white); }
 .mrd-shell .task-modal-head .st { font-size: 20px; }
-.mrd-shell .modal-backdrop { backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 /* ── Réglages (dans la coque) ─────────────────────────────── */
 .mrd-shell .settings-card { background: var(--mrd-surf); border-color: var(--mrd-borderSoft); border-radius: var(--mrd-r); }
 .mrd-shell .settings-subcard { background: var(--mrd-bg); border-color: var(--mrd-border); border-radius: 12px; }
@@ -3182,8 +3169,16 @@ html[data-theme="dark"] .mrd-shell .rcard-recipe-thumb {
   --padding-top: 0;
   --padding-bottom: 0;
 }
+/* Surtout PAS `position: relative` ici. Le conteneur de defilement d Ionic est
+   en `position: absolute; inset: 0`, donc il a une taille definie ET il fournit
+   deja le bloc conteneur dont l overlay a besoin. Le passer en `relative` le
+   fait se dimensionner sur son contenu — contenu qui est justement en
+   `position: absolute` : hauteur nulle, et la fiche recette s affichait
+   entierement vide.
+
+   Regression introduite en phase 3 et restee invisible jusqu a la phase 7 :
+   aucune capture n ouvrait cette fiche. */
 .mrd-shell ion-content.cnt:has(.recipes-page--sheet)::part(scroll) {
-  position: relative;
   overflow: hidden;
 }
 .mrd-shell .recipes-page.recipes-page--sheet {
@@ -3456,8 +3451,9 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
 }
 /* ── Page création / édition recette ─────────────────────── */
 /* Overlay (même mécanique que --sheet) */
+/* Meme correction que pour la fiche : pas de `position: relative`, qui
+   effondrerait le conteneur de defilement (voir le commentaire plus haut). */
 .mrd-shell ion-content.cnt:has(.recipes-page--edit)::part(scroll) {
-  position: relative;
   overflow: hidden;
 }
 .mrd-shell .recipes-page.recipes-page--edit {
@@ -3985,52 +3981,148 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
   from { opacity: 1; }
   to   { opacity: 0; }
 }
-.mrd-shell .modal-backdrop {
-  position: fixed; inset: 0;
+/* Le systeme de modales maison vivait ici : `.modal-backdrop` (fixe, flou,
+   z-index, animation) et `.modal-card` (largeur, rayon, ombre, defilement).
+   Il est remplace par le bloc « MODALES IONIC » ci-dessous. Les largeurs
+   n etaient pas sur la carte mais heritees du FOND, par descendance — voir les
+   variantes `.mrd-modal-wide` / `.mrd-modal-settings`, qui les reprennent. */
+/* ─── MODALES IONIC ───────────────────────────────────────────
+   Toutes les modales passent par `components/common/MrdModal.js`, qui rend un
+   `ion-modal`. Ce bloc habille le contenant ; l interieur garde ses classes
+   maison (`.mrd-mhd`, `.mrd-mtitle`, `.mrd-mbody`, `.mrd-mact`…), qui n ont
+   pas change.
+
+   Comme partout avec Ionic, on passe par ses variables et ses `::part()` : son
+   fond et sa boite vivent dans un shadow DOM qu un selecteur ordinaire ne
+   traverse pas. `ion-modal` expose `backdrop`, `content` et `handle`. */
+.mrd-modal {
+  --width: min(520px, calc(100% - 40px));
+  --max-width: 520px;
+  --height: auto;
+  --max-height: min(88vh, 900px);
+  --border-radius: var(--mrd-rLg);
+  --background: var(--mrd-surf);
+  --box-shadow: var(--mrd-shadowXl);
+}
+/* Le fond.
+
+   Deux reglages non evidents, tous deux mesures dans le navigateur :
+
+   1. `--backdrop-opacity: 1`. `--mrd-overlay` porte deja son alpha (0.45) ;
+      sans ça Ionic multiplie par son propre 0.4 et l assombrissement est deux
+      fois trop faible.
+
+   2. `contain: layout size style` sur l hote, au lieu du `contain: strict`
+      d Ionic. `strict` inclut `paint`, ce qui fait de la modale sa propre
+      racine de fond : `backdrop-filter` s applique bien (verifie : la valeur
+      calculee est `blur(4px)`) mais n a plus rien a echantillonner derriere
+      elle, et le flou disparait sans erreur. Retirer `paint` le retablit.
+      C est le seul point ou l on contredit Ionic, et c est pour retrouver un
+      effet que le design maison avait. */
+.mrd-modal {
+  --backdrop-opacity: 1;
+  contain: layout size style;
+}
+.mrd-modal::part(backdrop) {
   background: var(--mrd-overlay);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 50;
-  animation: mrdFadeIn 0.18s ease;
+  opacity: 1;
 }
-.mrd-shell .modal-card {
-  width: min(520px, 100%);
-  max-height: min(88vh, 900px);
-  border-radius: 24px;
+/* Conteneur interne de chaque modale.
+
+   Il porte `.mrd-shell` uniquement comme crochet de descendance (voir
+   `MrdModal.js`) : 826 regles de contenu sont prefixees par lui, et `ion-modal`
+   se portale hors de la coque. On annule ici ce que `.mrd-shell` porte en
+   propre — safe area du haut, fond opaque, `overflow: hidden` — qui n a rien a
+   faire dans une modale. On garde `display: flex; flex-direction: column`, qui
+   etait deja l environnement du contenu avant la migration. */
+.mrd-modal-inner.mrd-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-top: 0;
+  background: none;
+  overflow: visible;
+  position: static;
+  display: flex;
+  flex-direction: column;
+}
+
+.mrd-modal::part(content) {
   border: 1px solid var(--mrd-borderSoft);
-  box-shadow: var(--mrd-shadowXl);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  animation: mrdSlideUp 0.22s ease;
 }
-/* Suppression de la poignée bottom-sheet */
-.mrd-shell .modal-card::before {
-  display: none;
+html[data-theme="dark"] .mrd-modal::part(content) {
+  border-color: var(--mrd-border);
 }
+
+/* Variantes de largeur.
+
+   Elles reprennent, une par une, ce que les classes de fond disparues
+   portaient. C est la subtilite de la phase 7 : la largeur des modales
+   n etait pas sur la carte mais sur son FOND, par descendance
+   (`.task-create-backdrop .task-modal-redesign { width: min(720px, …) }`).
+   Le fond supprime, ces regles sont devenues mortes en silence et toutes les
+   modales seraient retombees a la largeur par defaut. */
+
+/* `.task-create-backdrop` — formulaires : taches, agenda, pense-bete, listes,
+   inventaire. La plus large, parce qu elle porte des grilles de champs. */
+.mrd-modal-wide {
+  --width: min(720px, calc(100% - 28px));
+  --max-width: 720px;
+  --max-height: min(88vh, 920px);
+}
+
+/* `.settings-modal-backdrop` — modales des reglages. */
+.mrd-modal-settings {
+  --width: min(430px, calc(100% - 36px));
+  --max-width: 430px;
+  --max-height: calc(100vh - 36px);
+  --border-radius: 22px;
+}
+
+/* Menus deroulants non coupes.
+
+   `.modal-backdrop:not(.task-create-backdrop) .task-modal-redesign` posait
+   `overflow: visible` : les modales hors formulaire ont des suggestions et des
+   menus qui debordent de leur boite. Cote Ionic le defilement est sur
+   `::part(scroll)` du contenu, d ou cette variante. A ne pas mettre sur une
+   modale haute : sans defilement, son bas devient inatteignable. */
+.mrd-modal-visible::part(content) {
+  overflow: visible;
+}
+
+/* Variante etroite : remplace les `style={{ width: "min(420px, 100%)" }}`
+   ecrits en ligne sur trois modales. */
+.mrd-modal-narrow {
+  --width: min(420px, calc(100% - 40px));
+  --max-width: 420px;
+}
+
+/* Feuille basse glissable — pour les ecrans qui occupaient deja toute la
+   hauteur (fiche recette, panneau des repas). La poignee et le glissement
+   viennent d Ionic ; `.mrd-recipe-view-sheet` les dessinait a la main. */
+.mrd-modal-sheet {
+  --width: 100%;
+  --max-width: 680px;
+  --height: 100%;
+  --max-height: 100%;
+  --border-radius: var(--mrd-rLg) var(--mrd-rLg) 0 0;
+}
+.mrd-modal-sheet::part(content) {
+  border: none;
+  border-top: 1px solid var(--mrd-borderSoft);
+}
+.mrd-modal-sheet::part(handle) {
+  background: var(--mrd-fg3);
+}
+
 /* ── Task form redesign ─────────────────────────────────── */
 .mrd-shell .task-modal-redesign {
   padding: 0;
   background: var(--mrd-surf);
-}
-.mrd-shell .task-create-backdrop {
-  justify-content: center;
-  align-items: center;
-  padding: 18px 14px calc(18px + env(safe-area-inset-bottom, 0px));
-}
-.mrd-shell .task-create-backdrop .task-modal-redesign {
-  width: min(720px, 100%);
-  max-height: min(88vh, 920px);
-  margin: 0 auto;
-  border-radius: 24px;
-  border-bottom: 1px solid var(--mrd-borderSoft);
-  animation: mrdModalFloat 0.22s ease;
-}
-.mrd-shell .task-create-backdrop .task-modal-redesign::before {
-  display: none;
 }
 .mrd-shell .task-modal-redesign input[type="text"],
 .mrd-shell .task-modal-redesign input[type="date"],
@@ -4106,15 +4198,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign select {
   from { opacity: 0; transform: translateY(14px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-@media (max-width: 720px) {
-  .mrd-shell .task-create-backdrop {
-    padding: 14px 10px calc(14px + env(safe-area-inset-bottom, 0px));
-  }
-  .mrd-shell .task-create-backdrop .task-modal-redesign {
-    max-height: min(86vh, 920px);
-    border-radius: 22px;
-  }
-}
 /* ── Modals — classes harmonisées (partagées entre tous les modals) ── */
 .mrd-shell .mrd-mhd {
   display: flex; align-items: center; justify-content: space-between;
@@ -4181,7 +4264,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign select {
 .mrd-notes-masonry .ncard.note-pinned { position: relative; border-width: 2px; }
 .note-pin-btn--active { opacity: 1 !important; background: oklch(96% 0.04 80 / 0.8) !important; }
 .note-modal-card { width: min(680px, 100%); overflow: hidden; }
-.note-modal-backdrop { align-items: center; }
 .note-modal-shell { padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 14px; }
 .note-modal-head { margin-bottom: 0; align-items: flex-start; }
 .note-modal-close { width: 28px; height: 28px; font-size: 18px; line-height: 1; }
@@ -4199,12 +4281,12 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign select {
 .note-modal-read-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .note-modal-read-actions { justify-content: flex-end; }
 @media (max-width: 520px) {
-  .note-modal-backdrop { align-items: center; padding: 16px; }
-  .note-modal-backdrop .note-modal-card {
-    width: min(680px, 100%);
-    max-height: calc(100vh - 32px);
-    border-radius: 20px;
-    margin-top: 0;
+  /* La largeur de la note en petit ecran passe par la variable de modale. */
+  .mrd-modal.note-modal-card {
+    --width: min(680px, calc(100% - 32px));
+    --max-width: 680px;
+    --max-height: calc(100vh - 32px);
+    --border-radius: 20px;
   }
   .note-modal-shell { padding: 16px; }
   .note-modal-footer { align-items: stretch; }
@@ -4242,8 +4324,19 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign select {
 .notes-empty-title { font-size: 16px; font-weight: 600; color: var(--mrd-fg2); }
 .notes-empty-sub { font-size: 13px; color: var(--mrd-fg3); line-height: 1.5; max-width: 220px; }
 /* ── Recherche globale ───────────────────────────────────── */
-.gs-backdrop { position: fixed; inset: 0; background: var(--mrd-overlay); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: flex-start; justify-content: center; padding: 16px; animation: mrdFadeIn 0.15s ease; }
-.gs-panel { width: min(560px, 100%); background: var(--mrd-surf); border-radius: 20px; border: 1px solid var(--mrd-borderSoft); box-shadow: var(--mrd-shadowXl); overflow: hidden; animation: mrdSlideUp 0.18s ease; margin-top: 10vh; }
+/* Recherche globale : la boite vient d `ion-modal`. Elle etait posee a 10vh du
+   haut ; on garde ce placement par une marge sur le contenu, Ionic centrant
+   ses modales. */
+.mrd-modal.gs-panel {
+  --width: min(560px, calc(100% - 32px));
+  --max-width: 560px;
+  --border-radius: 20px;
+  align-items: flex-start;
+}
+.mrd-modal.gs-panel::part(content) {
+  overflow: hidden;
+  margin-top: 10vh;
+}
 .gs-bar { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--mrd-borderSoft); }
 .gs-icon { color: var(--mrd-fg3); flex-shrink: 0; }
 .gs-input { flex: 1; border: none; background: transparent; font-size: 16px; font-weight: 500; color: var(--mrd-fg); outline: none; font-family: inherit; }
@@ -5037,9 +5130,9 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
 /* Le popup de détail tâche est petit et n'a pas besoin de scroll.
    overflow: visible permet au dropdown absolu du menu ⋮ de s'afficher
    sans être coupé par le overflow: auto global de .modal-card. */
-.mrd-shell .modal-backdrop:not(.task-create-backdrop) .task-modal-redesign {
-  overflow: visible;
-}
+/* `overflow: visible` etait pose ici sur les modales hors formulaire, pour que
+   leurs menus deroulants ne soient pas coupes. Repris cote Ionic par
+   `.mrd-modal-visible` (voir le bloc « MODALES IONIC »). */
 /* ── Agenda modal — dark theme date/time inputs ─────────────── */
 html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="date"],
 html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
@@ -5147,12 +5240,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
   text-decoration: line-through;
 }
 /* ── Fiche recette dans les repas (modal pleine hauteur) ── */
-.mrd-recipe-view-backdrop {
-  position: fixed !important;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
 .mrd-recipe-view-sheet {
   width: 100%;
   max-width: 680px;
@@ -5395,19 +5482,22 @@ html[data-theme="dark"] .onboarding-back-button { background: var(--mrd-surf); b
 html[data-theme="dark"] .onboarding-empty-state,
 html[data-theme="dark"] .onboarding-inline-message { background: var(--mrd-surf2); border-color: var(--mrd-border); color: var(--mrd-fg2); }
 /* ── Notification prompt (pop-up après création du foyer) ── */
-.notif-prompt-overlay {
-  position: fixed; inset: 0; z-index: 60;
+/* Le fond de cette pop-up etait plus opaque que les autres
+   (`--mrd-scrimStrong`, flou 6px) : on le reporte sur la partie `backdrop`
+   d Ionic, sinon elle recevrait le fond commun. */
+.mrd-modal.notif-prompt-card::part(backdrop) {
   background: var(--mrd-scrimStrong);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
-.notif-prompt-card {
-  width: min(380px, 100%);
-  background: var(--mrd-surf);
-  border-radius: 24px;
-  border: 1px solid var(--mrd-borderSoft);
-  box-shadow: var(--mrd-shadowXl);
+/* La boite (largeur, fond, bordure, rayon, ombre) vient de `ion-modal` depuis
+   la phase 7 : il ne reste que la mise en page interne. */
+.mrd-modal.notif-prompt-card {
+  --width: min(380px, calc(100% - 40px));
+  --max-width: 380px;
+}
+.notif-prompt-card .ion-page,
+.mrd-modal.notif-prompt-card::part(content) {
   padding: 32px 28px 28px;
   display: flex; flex-direction: column; align-items: center;
   text-align: center; gap: 0;
@@ -5440,8 +5530,6 @@ html[data-theme="dark"] .onboarding-inline-message { background: var(--mrd-surf2
   font-family: inherit; transition: background 0.15s;
 }
 .notif-prompt-btn-secondary:hover { background: var(--mrd-surf2); }
-.invite-codes-backdrop { align-items: center; }
-.invite-codes-backdrop .modal-card { border-radius: 24px; margin-top: 0; }
 .invite-codes-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; width: 100%; }
 .invite-code-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--mrd-surf2); border-radius: 8px; gap: 8px; }
 .invite-code-name { font-weight: 600; font-size: 0.95rem; color: var(--mrd-fg); }
@@ -5457,7 +5545,7 @@ html[data-theme="dark"] .notif-prompt-btn-secondary:hover { background: var(--mr
 /* ── Dark : auth-shell / onboarding-shell fond ── */
 html[data-theme="dark"] .auth-shell,
 html[data-theme="dark"] .onboarding-shell,
-html[data-theme="dark"] .notif-prompt-overlay { background: oklch(12% 0.015 50 / 0.65); }
+html[data-theme="dark"] .mrd-modal.notif-prompt-card::part(backdrop) { background: oklch(12% 0.015 50 / 0.65); }
 
 /* ── Dark : inputs auth/onboarding (surcharge contexte mrd-shell) ── */
 html[data-theme="dark"] .auth-input,
@@ -5669,8 +5757,7 @@ html[data-theme="dark"] .auth-back:hover { background: var(--mrd-surf2); color: 
 }
 @media (max-width: 420px) {
   .auth-shell,
-  .onboarding-shell,
-  .notif-prompt-overlay {
+  .onboarding-shell {
     padding-left: 18px;
     padding-right: 18px;
   }
@@ -5788,33 +5875,19 @@ html[data-theme="dark"] .auth-back:hover { background: var(--mrd-surf2); color: 
 .notification-status-line:hover {
   color: var(--mrd-fg2);
 }
-/* Popup notification — position + animation d'ouverture */
-.notification-modal-backdrop {
-  align-items: center;
-  padding: 18px;
-  animation: mrdFadeIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* Les animations d ouverture et de fermeture de la popup notification
+   vivaient ici (mrdFadeIn / mrdSlideUp / mrdFadeOut / mrdSlideDown, plus un
+   etat `.is-closing`). `ion-modal` anime l entree ET la sortie tout seul. */
+/* Idem : la boite vient d `ion-modal`, seule la mise en page interne reste. */
+.mrd-modal.notification-modal-card {
+  --width: min(380px, calc(100% - 40px));
+  --max-width: 380px;
 }
-.notification-modal-backdrop .notification-modal-card {
-  animation: mrdSlideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-/* Animation de fermeture */
-.notification-modal-backdrop.is-closing {
-  animation: mrdFadeOut 0.22s ease forwards;
-  pointer-events: none;
-}
-.notification-modal-backdrop.is-closing .notification-modal-card {
-  animation: mrdSlideDown 0.22s ease forwards;
-}
-.notification-modal-card {
-  width: min(380px, 100%);
+.mrd-modal.notification-modal-card::part(content) {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border: 1px solid var(--mrd-borderSoft);
-  border-radius: 24px;
-  background: var(--mrd-surf);
   padding: 24px 20px 20px;
-  box-shadow: var(--mrd-shadowXl);
 }
 .notification-modal-title {
   margin: 0;
@@ -6188,27 +6261,20 @@ html[data-theme="dark"] .notif-prompt-title { color: var(--mrd-a); }
 }
 .fb-tab:hover { background: var(--mrd-aBtn); transform: translateY(-50%) translateX(-20px); box-shadow: var(--mrd-glowAStrong); }
 .fb-tab:active { opacity: 0.85; transform: translateY(-50%) translateX(-20px) scale(0.94); }
-/* Backdrop */
-.fb-backdrop {
-  position: absolute;
-  inset: 0;
-  background: var(--mrd-overlay);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Le fond du widget de retour est desormais celui d `ion-modal`. Ce qui
+   suivait ces proprietes reste : c est la mise en page du panneau. */
+.mrd-modal.fb-panel {
   padding: 20px;
 }
 /* Panel centré */
-.fb-panel {
-  width: 100%;
-  max-width: 420px;
-  background: var(--mrd-surf);
-  border: 1px solid var(--mrd-border);
-  border-radius: 22px;
-  box-shadow: var(--mrd-shadowXl);
+/* La boite (largeur, fond, bordure, rayon, ombre) vient d `ion-modal` depuis la
+   phase 7 ; seule la mise en page interne reste. */
+.mrd-modal.fb-panel {
+  --width: min(420px, calc(100% - 36px));
+  --max-width: 420px;
+  --border-radius: 22px;
+}
+.mrd-modal.fb-panel::part(content) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -6304,7 +6370,7 @@ html[data-theme="dark"] .notif-prompt-title { color: var(--mrd-a); }
 .fb-panel-send:hover:not(:disabled) { background: var(--mrd-aBtn); }
 .fb-panel-send:disabled { opacity: 0.45; cursor: default; }
 /* Dark mode */
-html[data-theme="dark"] .fb-panel { background: var(--mrd-surf); border-color: var(--mrd-border); }
+html[data-theme="dark"] .mrd-modal.fb-panel { --background: var(--mrd-surf); }
 html[data-theme="dark"] .fb-panel-head { border-bottom-color: var(--mrd-border); }
 html[data-theme="dark"] .fb-panel-title { color: var(--mrd-fg); }
 html[data-theme="dark"] .fb-panel-close { background: var(--mrd-surf2); color: var(--mrd-fg2); }
@@ -6976,7 +7042,23 @@ html[data-theme="dark"] .recipe-import-modal { background: #2B241F; border-color
 .mrd-shell .recipes-page .rcard-recipe-thumb { display: flex; align-items: center; justify-content: center; }
 
 /* ══ Mode cuisine vocal (VoiceCookingMode) ══════════════════════ */
-.voice-cook-overlay { position: fixed; inset: 0; z-index: 9990; background: var(--mrd-bg); display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top, 0px) + 12px) 20px calc(env(safe-area-inset-bottom, 0px) + 28px); }
+/* Mode cuisine : modale Ionic plein ecran depuis la phase 7. Le positionnement
+   fixe, le z-index et les safe areas viennent d Ionic ; il ne reste que la mise
+   en page interne et les marges de lecture. */
+.mrd-modal.voice-cook-overlay {
+  --width: 100%;
+  --max-width: 100%;
+  --height: 100%;
+  --max-height: 100%;
+  --border-radius: 0;
+  --background: var(--mrd-bg);
+}
+.mrd-modal.voice-cook-overlay::part(content) {
+  border: none;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 20px 28px;
+}
 .voice-cook-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; position: relative; z-index: 3; }
 .voice-cook-title { font-family: var(--mrd-serif); font-weight: 600; font-size: 20px; color: var(--mrd-fg); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .voice-cook-close { border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); border-radius: 50%; width: 32px; height: 32px; font-size: 14px; cursor: pointer; flex-shrink: 0; }

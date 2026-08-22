@@ -21,6 +21,7 @@ import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
  */
 
 import { html, useState } from "../../lib.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
@@ -379,26 +380,8 @@ export function NewHouseholdWizard({
   // ── Rendu ──────────────────────────────────────────────────────────────────
 
   return html`
-    <div
-      className="modal-backdrop new-household-wizard-backdrop"
-      onClick=${onClose}
-      style=${{ zIndex: 1100 }}
-    >
-      <div
-        className="onboarding-shell new-household-wizard-shell"
-        onClick=${(e) => e.stopPropagation()}
-        style=${{
-          position: "relative",
-          maxWidth: 480,
-          width: "100%",
-          margin: "auto",
-          borderRadius: 24,
-          minHeight: "auto",
-          maxHeight: "90dvh",
-          overflowY: "auto",
-          padding: "24px 20px 20px",
-        }}
-      >
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="onboarding-shell new-household-wizard-shell">
+
         <!-- Bouton fermer -->
         <button
           type="button"
@@ -455,7 +438,6 @@ export function NewHouseholdWizard({
           nextDisabled=${!canProceed}
           busy=${busy}
         />
-      </div>
-    </div>
+    <//>
   `;
 }

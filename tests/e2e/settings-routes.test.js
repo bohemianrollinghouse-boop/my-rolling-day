@@ -56,17 +56,29 @@ async function click(session, selector) {
 async function inActivePage(session, expression) {
   return evaluate(session, `(() => {
     const page = [...document.querySelectorAll(".ion-page")]
-      .filter((p) => !p.classList.contains("ion-page-hidden")).pop();
+      .filter((p) => !p.classList.contains("ion-page-hidden"))
+      .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"))
+      .pop();
     const root = page || document;
     return ${expression};
   })()`);
 }
 
+/* Les modales apportent leur propre ".ion-page" (classe "ion-delegate-host") :
+   les compter empechait la condition « exactement une page visible » de se
+   realiser des qu une modale etait ouverte, et faisait attendre le delai
+   complet a chaque fois. Elles sont donc exclues, ici comme dans les helpers
+   qui cherchent « la page visible ».
+
+   Note : ne jamais mettre de backtick dans un commentaire place DANS un
+   template literal — il termine la chaine. C est exactement l erreur commise
+   en ecrivant ce commentaire la premiere fois. */
 async function waitForPageSettled(session, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const settled = await evaluate(session, `(() => {
-      const pages = [...document.querySelectorAll(".ion-page")];
+      const pages = [...document.querySelectorAll(".ion-page")]
+        .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"));
       if (!pages.length) return false;
       if (pages.some((p) => p.classList.contains("ion-page-invisible"))) return false;
       return pages.filter((p) => !p.classList.contains("ion-page-hidden")).length === 1;
@@ -146,7 +158,9 @@ async function openSettingsSection(session, title, linkText) {
 async function clickBackButton(session) {
   await evaluate(session, `(() => {
     const page = [...document.querySelectorAll(".ion-page")]
-      .filter((p) => !p.classList.contains("ion-page-hidden")).pop();
+      .filter((p) => !p.classList.contains("ion-page-hidden"))
+      .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"))
+      .pop();
     const btn = (page || document).querySelector("ion-back-button");
     (btn?.shadowRoot?.querySelector("button") || btn)?.click();
   })()`);

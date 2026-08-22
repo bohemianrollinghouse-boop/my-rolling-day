@@ -3,6 +3,7 @@ import { html, useMemo, useState, useEffect, useRef } from "../../lib.js";
 import { TaskCard as SharedTaskCard } from "./TaskCard.js";
 import { getCurrentAppDate, getCurrentAppTimestamp, localDateKey } from "../../utils/date.js";
 import { EmojiPicker } from "./EmojiPicker.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 const LONG_PRESS_MS = 280;
 const DRAG_CANCEL_DISTANCE = 8;
@@ -1012,9 +1013,8 @@ export function TasksView({
         : null}
 
       ${showAllDeadlines ? html`
-        <div className="modal-backdrop" onClick=${() => setShowAllDeadlines(false)}>
-          <div className="modal-card task-modal" onClick=${(event) => event.stopPropagation()}
-            style=${{ maxHeight: "80vh", overflowY: "auto" }}>
+        <${MrdModal} isOpen=${true} onClose=${() => setShowAllDeadlines(false)} className="task-modal">
+
             <div className="task-modal-head">
               <div>
                 <div className="miniTitle">Tâches</div>
@@ -1025,8 +1025,7 @@ export function TasksView({
             ${allDeadlineTasks.length
               ? allDeadlineTasks.map(renderAllDeadlineCard)
               : html`<div className="empty">Aucune tâche avec échéance.</div>`}
-          </div>
-        </div>
+        <//>
       ` : null}
 
       ${showCreate ? (() => {
@@ -1044,8 +1043,8 @@ export function TasksView({
         const selectedTaskReminder = form.taskReminder || "none";
 
         return html`
-          <div className="modal-backdrop task-create-backdrop" onClick=${closeCreate}>
-            <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}>
+          <${MrdModal} isOpen=${true} onClose=${closeCreate} className="task-modal-redesign mrd-modal-wide">
+
 
               <div className="mrd-mhd">
                 <span className="mrd-mtitle">${editingTaskId ? "Modifier la tâche" : "Nouvelle tâche"}</span>
@@ -1380,8 +1379,7 @@ export function TasksView({
                 </button>
 
               </form>
-            </div>
-          </div>
+          <//>
           ${showEmojiPicker ? html`<${EmojiPicker}
             onSelect=${(emoji) => { updateForm("icon", emoji); setShowEmojiPicker(false); }}
             onClose=${() => setShowEmojiPicker(false)}
@@ -1402,8 +1400,8 @@ export function TasksView({
                 }
               : null;
             return html`
-              <div className="modal-backdrop" onClick=${closeTaskDetails}>
-                <div className="modal-card task-modal" onClick=${(event) => event.stopPropagation()}>
+              <${MrdModal} isOpen=${true} onClose=${closeTaskDetails} className="task-modal">
+
                   <div className="task-modal-head task-modal-head-bare">
                     <div className="task-menu-wrap">
                       <button className="task-menu-btn" onClick=${() => setDetailMenuOpen((open) => !open)} title="Actions">⋮</button>
@@ -1427,8 +1425,7 @@ export function TasksView({
                       showOrder=${false}
                     />
                   </div>
-                </div>
-              </div>
+              <//>
             `;
           })()
         : null}

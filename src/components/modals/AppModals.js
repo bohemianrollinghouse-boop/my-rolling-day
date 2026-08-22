@@ -1,12 +1,20 @@
+// Modales de l'app — toutes passées à `MrdModal` (donc `ion-modal`).
+//
+// Chacune était un `<div class="modal-backdrop" onClick=fermer>` contenant un
+// `<div class="modal-card" onClick=stopPropagation>` : le `stopPropagation`
+// existait uniquement pour empêcher un clic dans la modale de la refermer. Avec
+// `ion-modal`, la fermeture au tap dehors est gérée par le composant et ces
+// deux niveaux de `<div>` disparaissent, `stopPropagation` compris.
+
 import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 // ── Fiche profil (éditable ou lecture seule) ──────────────────────────────
 
 export function ProfileModal({ profile, canEdit, draft, onDraftChange, onClose, onSave }) {
   return html`
-    <div className="modal-backdrop" onClick=${onClose}>
-      <div className="modal-card profile-card" onClick=${(event) => event.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="profile-card">
         <div className="task-modal-head">
           <div>
             <div className="miniTitle">${canEdit ? "Mon profil" : "Profil public"}</div>
@@ -59,8 +67,7 @@ export function ProfileModal({ profile, canEdit, draft, onDraftChange, onClose, 
                 <div className="profile-public-line">${profile.mood || "Aucune humeur partagee pour le moment."}</div>
               </div>
             `}
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -74,8 +81,7 @@ export function NotifPromptModal({ onActivate, onLater, dismissCount = 0 }) {
     : "My Rolling Day peut t'envoyer des rappels pour les tâches, l'agenda et les autres moments importants, même quand l'application est fermée.";
 
   return html`
-    <div className="notif-prompt-overlay">
-      <div className="notif-prompt-card">
+    <${MrdModal} isOpen=${true} onClose=${onLater} className="notif-prompt-card">
         <div className="notif-prompt-icon">🔔</div>
         <h2 className="notif-prompt-title">${title}</h2>
         <p className="notif-prompt-body">${body}</p>
@@ -83,8 +89,7 @@ export function NotifPromptModal({ onActivate, onLater, dismissCount = 0 }) {
         <button type="button" className="notif-prompt-btn-secondary" onClick=${onLater}>
           ${dismissCount >= 2 ? "Non merci" : "Plus tard"}
         </button>
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -92,8 +97,7 @@ export function NotifPromptModal({ onActivate, onLater, dismissCount = 0 }) {
 
 export function InviteCodesModal({ inviteCodes, onClose }) {
   return html`
-    <div className="modal-backdrop invite-codes-backdrop" onClick=${onClose}>
-      <div className="modal-card task-modal-redesign" style=${{ width: "min(400px, 100%)" }} onClick=${(e) => e.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal-redesign mrd-modal-narrow">
         <div className="mrd-mhd">
           <span className="mrd-mtitle">Codes d'invitation</span>
           <button type="button" className="mrd-mclose" onClick=${onClose}>✕</button>
@@ -114,8 +118,7 @@ export function InviteCodesModal({ inviteCodes, onClose }) {
             <button type="button" className="aok" onClick=${onClose}>Fermer</button>
           </div>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -158,11 +161,7 @@ export function NotificationModal({ notification, onClose, onNavigate }) {
   }
 
   return html`
-    <div
-      className=${`modal-backdrop notification-modal-backdrop${closing ? " is-closing" : ""}`}
-      onClick=${handleClose}
-    >
-      <div className="notification-modal-card" onClick=${(e) => e.stopPropagation()}>
+    <${MrdModal} isOpen=${!closing} onClose=${onClose} className="notification-modal-card">
         <div style=${{ display: "flex", justifyContent: "center", marginBottom: "4px" }}>
           <span style=${{ fontSize: "36px", lineHeight: 1 }}>🔔</span>
         </div>
@@ -193,8 +192,7 @@ export function NotificationModal({ notification, onClose, onNavigate }) {
             Fermer
           </button>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -211,8 +209,7 @@ export function StaleTaskModal({ task, alert, onClose, onMoveToDaily, onMoveToWe
   const missedCount = Number(alert.missedCount) || 0;
 
   return html`
-    <div className="modal-backdrop task-create-backdrop" onClick=${onClose}>
-      <div className="modal-card task-modal-redesign stale-task-modal" style=${{ width: "min(420px, 100%)" }} onClick=${(event) => event.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal-redesign stale-task-modal mrd-modal-narrow">
         <div className="mrd-mhd">
           <span className="mrd-mtitle">${title}</span>
           <button type="button" className="mrd-mclose" onClick=${onClose}>✕</button>
@@ -245,8 +242,7 @@ export function StaleTaskModal({ task, alert, onClose, onMoveToDaily, onMoveToWe
             ${isRecurring ? html`<button type="button" className="aok" onClick=${onClose}>Compris</button>` : null}
           </div>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -254,8 +250,7 @@ export function StaleTaskModal({ task, alert, onClose, onMoveToDaily, onMoveToWe
 
 export function HouseholdWelcomeModal({ onClose, onAddMembers }) {
   return html`
-    <div className="modal-backdrop task-create-backdrop" onClick=${onClose}>
-      <div className="modal-card task-modal-redesign" style=${{ width: "min(460px, 100%)" }} onClick=${(event) => event.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal-redesign">
         <div className="mrd-mhd">
           <span className="mrd-mtitle">Bienvenue dans votre foyer</span>
           <button type="button" className="mrd-mclose" onClick=${onClose}>✕</button>
@@ -270,7 +265,6 @@ export function HouseholdWelcomeModal({ onClose, onAddMembers }) {
             <button type="button" className="aok" onClick=${onAddMembers}>Ajouter des membres</button>
           </div>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }

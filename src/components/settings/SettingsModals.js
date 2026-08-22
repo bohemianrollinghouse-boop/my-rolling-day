@@ -1,6 +1,7 @@
 import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
 import { SettingsSwitch } from "./SettingsUI.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 // ── Modal : édition d'un membre du foyer ──────────────────────────────────
 
@@ -18,8 +19,8 @@ export function EditMemberModal({
   onDeletePerson,
 }) {
   return html`
-    <div className="modal-backdrop settings-modal-backdrop" onClick=${onClose}>
-      <div className="modal-card task-modal foyer-modal" onClick=${(e) => e.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal foyer-modal mrd-modal-settings">
+
         <div className="task-modal-head">
           <div className="foyer-modal-member-head">
             <div className="foyer-member-badge foyer-member-badge--lg"
@@ -79,8 +80,7 @@ export function EditMemberModal({
             Supprimer le compte
           </button>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -125,8 +125,8 @@ export function AddPersonModal({ onClose, onAddPerson, onInviteCreated }) {
   }
 
   return html`
-    <div className="modal-backdrop settings-modal-backdrop" onClick=${onClose}>
-      <div className="modal-card task-modal foyer-modal" onClick=${(e) => e.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal foyer-modal mrd-modal-settings">
+
         <div className="task-modal-head">
           <strong>Ajouter un membre</strong>
           <button type="button" className="acn foyer-modal-close" onClick=${onClose}>✕</button>
@@ -196,8 +196,7 @@ export function AddPersonModal({ onClose, onAddPerson, onInviteCreated }) {
           <button type="button" className="acn" onClick=${onClose}>Annuler</button>
           <button type="button" className="aok" onClick=${handleSubmit} disabled=${!canSubmit}>Valider</button>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }
 
@@ -205,8 +204,8 @@ export function AddPersonModal({ onClose, onAddPerson, onInviteCreated }) {
 
 export function NewMemberInviteModal({ invite, onClose }) {
   return html`
-    <div className="modal-backdrop settings-modal-backdrop" onClick=${onClose}>
-      <div className="modal-card task-modal foyer-modal foyer-modal-invite-confirm" onClick=${(e) => e.stopPropagation()}>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal foyer-modal foyer-modal-invite-confirm mrd-modal-settings">
+
         <div className="task-modal-head">
           <strong>Invitation creee</strong>
           <button type="button" className="acn foyer-modal-close" onClick=${onClose}>X</button>
@@ -223,7 +222,6 @@ export function NewMemberInviteModal({ invite, onClose }) {
         <div className="foyer-modal-footer">
           <button type="button" className="aok" onClick=${onClose}>Fermer</button>
         </div>
-      </div>
-    </div>
+    <//>
   `;
 }

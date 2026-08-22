@@ -49,6 +49,31 @@ const SCREENS = [
   { id: "recipes",       label: "Recettes",             nav: { quick: "Recettes" },                   ready: ".cnt" },
   { id: "history",       label: "Historique",           nav: { quick: "Historique" },                 ready: ".cnt" },
   { id: "settings",      label: "Reglages",             nav: { gear: true },                          ready: ".mrd-set-page, .cnt" },
+
+  /* ── Etats de modale ───────────────────────────────────────────────────
+     Sans eux, la garde visuelle serait aveugle sur toute la phase 7 : les
+     16 overlays maison passent a `IonModal` et aucune capture ne les
+     montrait. `open` decrit le clic qui ouvre la modale, une fois l ecran
+     atteint. */
+  { id: "modal-task-create", label: "Modale — nouvelle tache", nav: { tab: "Tâches" },
+    open: { selector: ".mrd-fab, ion-fab-button" }, ready: ".task-modal-redesign, ion-modal" },
+  /* Attention : les notes du jeu d essai appartiennent a l utilisateur, et une
+     note qu on possede s edite EN LIGNE (`startInlineEdit`) au lieu d ouvrir la
+     modale. Cette capture montre donc l edition en ligne. La modale de note ne
+     s ouvre que pour une note d un autre membre, cas non couvert. */
+  { id: "modal-note",        label: "Note — edition en ligne", nav: { quick: "Notes" },
+    open: { text: ["Code du portail"], selector: ".ncard" }, ready: ".note-inline-editing, .note-modal-card, ion-modal" },
+  { id: "modal-inventory",   label: "Modale — article",        nav: { quick: "Inventaire" },
+    open: { selector: ".mrd-fab, ion-fab-button" }, ready: ".modal-card, ion-modal" },
+  /* La carte de recette n est pas cliquable en entier : elle porte un bouton
+     « Ouvrir ». Le premier selecteur essaye la carte, faute de quoi on clique
+     le bouton par son libelle. */
+  { id: "modal-recipe",      label: "Fiche recette",           nav: { quick: "Recettes" },
+    open: { text: ["Ouvrir"], selector: "button" },
+    ready: ".recipes-page--sheet, .mrd-recipe-view-sheet, .recipe-sheet, ion-modal" },
+  { id: "modal-list",        label: "Detail de liste",         nav: { quick: "Listes" },
+    open: { text: ["Liste de courses"], selector: ".lists-page-list-card" },
+    ready: ".ldv-item, .ldv-head, ion-modal" },
 ];
 
 /**
@@ -113,7 +138,12 @@ async function clickByText(session, selector, text) {
   return evaluate(session, `(() => {
     ${DEEP_QUERY_HELPER}
     const wanted = ${JSON.stringify(text)}.trim().toLowerCase();
-    const nodes = window.__mrdDeepAll(${JSON.stringify(selector)});
+    const page = [...document.querySelectorAll(".ion-page")]
+      .filter((p) => !p.classList.contains("ion-page-hidden"))
+      .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"))
+      .pop();
+    const scoped = page ? [...page.querySelectorAll(${JSON.stringify(selector)})] : [];
+    const nodes = scoped.length ? scoped : window.__mrdDeepAll(${JSON.stringify(selector)});
     const norm = (n) => (n.textContent || "").trim().toLowerCase();
     const hit = nodes.find((n) => norm(n) === wanted)
              || nodes.find((n) => norm(n).includes(wanted))
@@ -124,10 +154,24 @@ async function clickByText(session, selector, text) {
   })()`);
 }
 
+/**
+ * Clic sur le premier element correspondant, **dans la page visible**.
+ *
+ * `document.querySelector` prend le premier du document, donc celui d une page
+ * restee montee et cachee : la capture de la modale d inventaire ouvrait en
+ * fait celle des taches, depuis la page precedente. Meme piege que pour les
+ * assertions e2e — avec une pile de pages, une requete non scopee n a plus de
+ * sens.
+ */
 async function clickSelector(session, selector) {
   return evaluate(session, `(() => {
     ${DEEP_QUERY_HELPER}
-    const el = window.__mrdDeepAll(${JSON.stringify(selector)})[0];
+    const page = [...document.querySelectorAll(".ion-page")]
+      .filter((p) => !p.classList.contains("ion-page-hidden"))
+      .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"))
+      .pop();
+    const scoped = page ? [...page.querySelectorAll(${JSON.stringify(selector)})] : [];
+    const el = scoped[0] || window.__mrdDeepAll(${JSON.stringify(selector)})[0];
     if (!el) return false;
     el.click();
     return true;
@@ -142,11 +186,21 @@ async function clickSelector(session, selector) {
  * mi-course, ou deux pages superposees. On attend donc qu il ne reste qu une
  * seule page visible et aucune page marquee invisible.
  */
+/* Les modales apportent leur propre ".ion-page" (classe "ion-delegate-host") :
+   les compter empechait la condition « exactement une page visible » de se
+   realiser des qu une modale etait ouverte, et faisait attendre le delai
+   complet a chaque fois. Elles sont donc exclues, ici comme dans les helpers
+   qui cherchent « la page visible ».
+
+   Note : ne jamais mettre de backtick dans un commentaire place DANS un
+   template literal — il termine la chaine. C est exactement l erreur commise
+   en ecrivant ce commentaire la premiere fois. */
 async function waitForPageSettled(session, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const settled = await evaluate(session, `(() => {
-      const pages = [...document.querySelectorAll(".ion-page")];
+      const pages = [...document.querySelectorAll(".ion-page")]
+        .filter((p) => !p.classList.contains("ion-delegate-host") && !p.closest("ion-modal"));
       if (!pages.length) return true; // pas encore de router : rien a attendre
       if (pages.some((p) => p.classList.contains("ion-page-invisible"))) return false;
       return pages.filter((p) => !p.classList.contains("ion-page-hidden")).length === 1;
@@ -247,6 +301,21 @@ async function clickAny(session, selectors, text) {
   return false;
 }
 
+/** Ferme une modale restee ouverte — sinon l ecran suivant est capture dessous. */
+async function dismissModal(session) {
+  const open = await evaluate(session, `!!document.querySelector("ion-modal, .modal-backdrop, .note-modal-backdrop, .recipes-page--sheet")`);
+  if (!open) return;
+  await evaluate(session, `(() => {
+    const m = document.querySelector("ion-modal");
+    if (m?.dismiss) { m.dismiss(); return; }
+    // Overlays maison : cliquer le fond, ou le bouton de fermeture.
+    const closer = document.querySelector(".mrd-mclose, .note-modal-close, .delbtn, .mrd-back-btn");
+    if (closer) { closer.click(); return; }
+    document.querySelector(".modal-backdrop, .note-modal-backdrop")?.click();
+  })()`);
+  await sleep(450);
+}
+
 /** Ferme une feuille d actions ouverte, si besoin. */
 async function dismissActionSheet(session) {
   const open = await evaluate(session, `!!document.querySelector("ion-action-sheet")`);
@@ -255,16 +324,26 @@ async function dismissActionSheet(session) {
   await sleep(400);
 }
 
-/** Revient a l accueil, quel que soit l ecran courant. */
+/**
+ * Revient a l accueil, quel que soit l ecran courant.
+ *
+ * Les etapes sont conditionnelles a dessein : avec 19 ecrans x 3 variantes,
+ * quelques centaines de millisecondes de frais fixes par ecran finissent par
+ * faire des minutes. On ne paie que ce qui est necessaire.
+ */
 async function backToHome(session) {
   await dismissActionSheet(session);
+  await dismissModal(session);
   // Un ecran secondaire ou les reglages : sortir d abord par le bouton retour.
-  await clickSelector(session, "ion-back-button");
-  await clickSelector(session, ".mrd-back-btn");
-  await sleep(350);
+  const hasBack = await evaluate(session, `!!document.querySelector("ion-back-button, .mrd-back-btn")`);
+  if (hasBack === true) {
+    await clickSelector(session, "ion-back-button");
+    await clickSelector(session, ".mrd-back-btn");
+    await waitForPageSettled(session);
+  }
   await clickAny(session, TAB_SELECTORS, "Accueil");
   await waitForPageSettled(session);
-  await sleep(250);
+  await sleep(200);
 }
 
 /**
@@ -276,6 +355,28 @@ async function backToHome(session) {
  * Router, donc `IonRouterOutlet` gardait la page precedente a l ecran. Les
  * captures montraient l accueil sous le titre « Agenda ».
  */
+/**
+ * Ouvre une modale depuis l ecran courant.
+ *
+ * `text` d abord (cliquer un element identifiable par son libelle), sinon le
+ * premier selecteur qui repond. Les deux listes acceptent les selecteurs
+ * maison ET Ionic, pour que le meme script serve avant et apres la phase 7.
+ */
+async function openOverlay(session, open) {
+  if (!open) return true;
+  let clicked = false;
+  if (open.text) {
+    for (const label of open.text) {
+      if (await clickByText(session, open.selector, label) === true) { clicked = true; break; }
+    }
+  }
+  if (!clicked) clicked = await clickSelector(session, open.selector) === true;
+  if (!clicked) return false;
+  // Une modale Ionic s anime : attendre qu elle soit posee.
+  await sleep(700);
+  return true;
+}
+
 async function gotoScreen(session, screen) {
   const { tab, sub, quick, quickOpen, gear } = screen.nav;
 
@@ -295,7 +396,8 @@ async function gotoScreen(session, screen) {
     const ok = await clickAny(session, QUICK_ITEM_SELECTORS, quick);
     await waitForPageSettled(session);
     await sleep(500);
-    return ok === true;
+    if (ok !== true) return false;
+    return openOverlay(session, screen.open);
   }
 
   if (tab) {

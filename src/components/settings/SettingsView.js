@@ -12,6 +12,7 @@ import { EditMemberModal, AddPersonModal, NewMemberInviteModal } from "./Setting
 import { SettingsSupportPage } from "./SettingsSupportPage.js";
 import { NewHouseholdWizard } from "./NewHouseholdWizard.js";
 import { scrollActivePageToTop } from "../../utils/scroll.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 export function SettingsView({
   isOnboarding = false,
@@ -731,8 +732,8 @@ export function SettingsView({
           </div>
         </div>
         ${showNotificationModal ? html`
-        <div className="modal-backdrop settings-modal-backdrop notification-modal-backdrop" onClick=${() => setShowNotificationModal(false)}>
-          <div className="notification-modal-card" onClick=${(event) => event.stopPropagation()}>
+        <${MrdModal} isOpen=${true} onClose=${() => setShowNotificationModal(false)} className="notification-modal-card mrd-modal-settings">
+
             <h2 className="notification-modal-title">Notifications</h2>
             ${(notificationPermission === "denied" || notificationPermission === "granted") ? html`
               <p className="notification-modal-text">${
@@ -777,8 +778,7 @@ export function SettingsView({
                 </button>
               </div>
             `}
-          </div>
-        </div>
+        <//>
         ` : null}
       `;
     }
@@ -1311,8 +1311,8 @@ export function SettingsView({
         <//>
 
         ${showNotificationModal ? html`
-        <div className="modal-backdrop settings-modal-backdrop notification-modal-backdrop" onClick=${() => setShowNotificationModal(false)}>
-            <div className="notification-modal-card" onClick=${(event) => event.stopPropagation()}>
+        <${MrdModal} isOpen=${true} onClose=${() => setShowNotificationModal(false)} className="notification-modal-card mrd-modal-settings">
+
               <h2 className="notification-modal-title">Notifications</h2>
               ${(notificationPermission === "denied" || notificationPermission === "granted") ? html`
                 <p className="notification-modal-text">${
@@ -1357,8 +1357,7 @@ export function SettingsView({
                   </button>
                 </div>
               `}
-            </div>
-          </div>
+        <//>
         ` : null}
 
         <${SectionCard}

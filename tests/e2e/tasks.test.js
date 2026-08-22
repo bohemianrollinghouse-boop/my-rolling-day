@@ -304,6 +304,49 @@ async function reachHomePage(session) {
 }
 
 /**
+ * Attend qu'une propriete d'un element atteigne une valeur.
+ *
+ * Remplace les `await sleep(300)` suivis d'une assertion : depuis que les
+ * modales sont animees, le rendu React qui active le bouton « Créer la tâche »
+ * peut arriver apres ce delai quand la machine est chargee. Le test passait
+ * seul et echouait dans la suite complete — le symptome classique d'un delai
+ * fixe la ou il faut une attente sur condition.
+ */
+async function pollForProp(session, selector, prop, expected, timeoutMs = 8_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { result } = await session.send("Runtime.evaluate", {
+      expression: `document.querySelector(${JSON.stringify(selector)})?.[${JSON.stringify(prop)}] ?? null`,
+      returnByValue: true,
+    });
+    if (result.value === expected) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
+/**
+ * Attend qu'un selecteur DISPARAISSE du DOM.
+ *
+ * Necessaire depuis que les modales sont des `ion-modal` : leur fermeture est
+ * animee (~300 ms) et l'element reste monte le temps de l'animation. Un delai
+ * fixe de 600 ms passait en isolation et echouait par intermittence quand la
+ * suite complete chargeait la machine.
+ */
+async function pollUntilGone(session, selector, timeoutMs = 8_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { result } = await session.send("Runtime.evaluate", {
+      expression: `!document.querySelector(${JSON.stringify(selector)})`,
+      returnByValue: true,
+    });
+    if (result.value === true) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
+/**
  * Navigue vers l'onglet Tâches depuis la page d'accueil.
  */
 async function goToTasksTab(session) {
@@ -859,22 +902,20 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
           })()
         `,
       });
-      await new Promise((r) => setTimeout(r, 300));
-
-      // Vérifier que le bouton submit est activé
-      const submitDisabled = await queryProp(session, ".task-modal-redesign button[type='submit']", "disabled");
-      assert.equal(submitDisabled, false, "Le bouton 'Créer la tâche' doit être activé après saisie du nom");
+      // Vérifier que le bouton submit est activé — attendu, pas supposé après un
+      // délai fixe : le rendu React qui l'active peut arriver plus tard quand la
+      // machine est chargée par la suite complète.
+      assert.ok(
+        await pollForProp(session, ".task-modal-redesign button[type='submit']", "disabled", false),
+        "Le bouton 'Créer la tâche' doit être activé après saisie du nom",
+      );
 
       // Soumettre
       await click(session, ".task-modal-redesign button[type='submit']");
-      await new Promise((r) => setTimeout(r, 600));
 
-      // La modale doit se fermer
-      const modalGone = await session.send("Runtime.evaluate", {
-        expression: `!document.querySelector(".task-modal-redesign")`,
-        returnByValue: true,
-      });
-      assert.equal(modalGone.result.value, true, "La modale doit se fermer après création");
+      // La modale doit se fermer — attendue, pas supposee apres un delai fixe.
+      assert.ok(await pollUntilGone(session, ".task-modal-redesign"),
+        "La modale doit se fermer après création");
 
       // La tâche doit apparaître dans la liste
       const taskOk = await session.send("Runtime.evaluate", {
@@ -936,7 +977,7 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
       await new Promise((r) => setTimeout(r, 300));
 
       await click(session, ".task-modal-redesign button[type='submit']");
-      await new Promise((r) => setTimeout(r, 600));
+      await pollUntilGone(session, ".task-modal-redesign");
 
       // Vérifier que la modale est fermée et aucun crash
       const bootState = await session.send("Runtime.evaluate", {
@@ -1007,7 +1048,7 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
 
       // Soumettre
       await click(session, ".task-modal-redesign button[type='submit']");
-      await new Promise((r) => setTimeout(r, 600));
+      await pollUntilGone(session, ".task-modal-redesign");
 
       // Pas de crash
       const bootState = await session.send("Runtime.evaluate", {
@@ -1051,7 +1092,7 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
       });
       await new Promise((r) => setTimeout(r, 200));
       await click(session, ".task-modal-redesign button[type='submit']");
-      await new Promise((r) => setTimeout(r, 600));
+      await pollUntilGone(session, ".task-modal-redesign");
 
       // Lire le compteur done avant toggle
       const doneBefore = await session.send("Runtime.evaluate", {

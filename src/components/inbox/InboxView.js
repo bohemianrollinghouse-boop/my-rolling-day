@@ -2,6 +2,7 @@ import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
 import { localDateKey, getCurrentAppDate, addMinutesToTime } from "../../utils/date.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
+import { MrdModal } from "../common/MrdModal.js";
 
 /* ─── CONSTANTS ──────────────────────────────────────────── */
 const HINTS = [
@@ -291,8 +292,8 @@ export function InboxView({
     const formValid = Boolean(taskForm.text.trim()) && (!isDeadline || Boolean(taskForm.dueDate)) && !hasInvalidDueRepeat;
 
     return html`
-      <div className="modal-backdrop task-create-backdrop" onClick=${closeModal}>
-        <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
+
 
           <div className="mrd-mhd">
             <span className="mrd-mtitle">Créer une tâche</span>
@@ -427,8 +428,7 @@ export function InboxView({
             >Créer la tâche →</button>
 
           </form>
-        </div>
-      </div>
+      <//>
       ${showEmojiPicker ? html`<${EmojiPicker}
         onSelect=${(emoji) => { updateTaskForm("icon", emoji); setShowEmojiPicker(false); }}
         onClose=${() => setShowEmojiPicker(false)}
@@ -441,9 +441,8 @@ export function InboxView({
     const formValid = Boolean(agendaForm.text.trim()) && Boolean(agendaForm.dateKey);
 
     return html`
-      <div className="modal-backdrop task-create-backdrop" onClick=${closeModal}>
-        <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}
-          style=${{ width: "min(560px, 100%)" }}>
+      <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
+
 
           <div className="mrd-mhd">
             <span className="mrd-mtitle">Ajouter au calendrier</span>
@@ -625,8 +624,7 @@ export function InboxView({
             </div>
 
           </form>
-        </div>
-      </div>
+      <//>
       ${showEmojiPicker ? html`<${EmojiPicker}
         onSelect=${(emoji) => { updateAgendaForm("icon", emoji); setShowEmojiPicker(false); }}
         onClose=${() => setShowEmojiPicker(false)}
@@ -639,8 +637,8 @@ export function InboxView({
     const formValid = Boolean(noteForm.text.trim());
 
     return html`
-      <div className="modal-backdrop task-create-backdrop" onClick=${closeModal}>
-        <div className="modal-card task-modal-redesign" onClick=${(e) => e.stopPropagation()}>
+      <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
+
 
           <div className="mrd-mhd">
             <span className="mrd-mtitle">Créer une note</span>
@@ -709,8 +707,7 @@ export function InboxView({
             </div>
 
           </form>
-        </div>
-      </div>
+      <//>
     `;
   }
 
