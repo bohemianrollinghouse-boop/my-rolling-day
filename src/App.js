@@ -65,6 +65,8 @@ import {
   IonActionSheet,
   IonApp,
   IonBackButton,
+  IonToast,
+  IonToggle,
   IonButtons,
   IonContent,
   IonFab,
@@ -1471,14 +1473,12 @@ function AppShell() {
             ${tab === "inventory" ? html`
               <${IonButtons} slot="end" className="mrd-back-hdr-side">
                 <span className=${`mrd-hdr-switch-label${inventoryOrganiserMode ? " on" : ""}`}>Organiser</span>
-                <button
-                  type="button"
-                  className=${`mrd-hdr-switch${inventoryOrganiserMode ? " on" : ""}`}
-                  onClick=${() => setInventoryOrganiserMode((value) => !value)}
-                  aria-pressed=${inventoryOrganiserMode ? "true" : "false"}
-                >
-                  <span className="mrd-hdr-switch-knob"></span>
-                </button>
+                <${IonToggle}
+                  className="mrd-hdr-switch"
+                  checked=${inventoryOrganiserMode}
+                  onIonChange=${(event) => setInventoryOrganiserMode(event.detail.checked)}
+                  aria-label="Organiser l'inventaire"
+                />
               <//>
             ` : null}
           <//>
@@ -1831,18 +1831,25 @@ ${/* Modals — absolute-positioned within the shell */null}
         />
       ` : null}
 
-      ${toast?.text
-        ? html`
-            <div className="app-toast-wrap">
-              <div className="app-toast">
-                <span>${toast.text}</span>
-                ${toast.action?.label
-                  ? html`<button className="app-toast-action" onClick=${toast.action.onClick}>${toast.action.label}</button>`
-                  : null}
-              </div>
-            </div>
-          `
-        : null}
+      ${/* Les 40 appels a `showToast` n ont pas change : seul le rendu passe a
+           `ion-toast`, qui apporte le placement au-dessus de la safe area, la
+           file d attente et l annonce aux lecteurs d ecran.
+
+           `key` force un remontage a chaque message : sans lui, deux toasts
+           consecutifs avec le meme texte ne rejouent pas l animation. Le
+           minuteur reste cote App (`useEffect` sur `toast.id`) plutot que de
+           passer par `duration`, pour garder le comportement d origine. */null}
+      <${IonToast}
+        key=${toast?.id || "toast"}
+        isOpen=${Boolean(toast?.text)}
+        message=${toast?.text || ""}
+        position="bottom"
+        className="app-toast"
+        onDidDismiss=${() => setToast(null)}
+        buttons=${toast?.action?.label
+          ? [{ text: toast.action.label, handler: toast.action.onClick }]
+          : []}
+      />
 
       ${postOnboardingState === "notify" ? html`
         <${NotifPromptModal}

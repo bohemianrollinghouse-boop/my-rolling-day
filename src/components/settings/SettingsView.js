@@ -13,6 +13,7 @@ import { SettingsSupportPage } from "./SettingsSupportPage.js";
 import { NewHouseholdWizard } from "./NewHouseholdWizard.js";
 import { scrollActivePageToTop } from "../../utils/scroll.js";
 import { MrdModal } from "../common/MrdModal.js";
+import { confirmDialog, promptDialog } from "../../utils/dialogs.js";
 
 export function SettingsView({
   isOnboarding = false,
@@ -326,9 +327,11 @@ export function SettingsView({
 
   async function handleLeaveFamilyClick() {
     if (!onLeaveFamily || !currentFamily) return;
-    const confirmed = window.confirm(
-      `Quitter le foyer "${currentFamily.name || "ce foyer"}" ? Ton profil y restera sans compte lie.`,
-    );
+    const confirmed = await confirmDialog({
+      header: "Quitter le foyer",
+      message: `Quitter « ${currentFamily.name || "ce foyer"} » ? Ton profil y restera sans compte lié.`,
+      confirmText: "Quitter",
+    });
     if (!confirmed) return;
     await onLeaveFamily();
   }
@@ -336,22 +339,33 @@ export function SettingsView({
   async function handleDeleteFamilyClick() {
     if (!onDeleteFamily || !currentFamily) return;
     const name = currentFamily.name || "ce foyer";
-    const confirmed = window.confirm(
-      `Supprimer definitivement le foyer "${name}" ?\n\nToutes les donnees (taches, agenda, repas, listes, membres...) seront effacees pour tous les membres. Cette action est irreversible.`,
-    );
+    const confirmed = await confirmDialog({
+      header: "Supprimer le foyer",
+      message: `Supprimer définitivement « ${name} » ? Toutes les données (tâches, agenda, repas, listes, membres…) seront effacées pour tous les membres. Cette action est irréversible.`,
+      confirmText: "Supprimer",
+      destructive: true,
+    });
     if (!confirmed) return;
     await onDeleteFamily();
   }
 
   async function handleDeleteAccountClick() {
     if (!onDeleteAccount) return;
-    const confirmed = window.confirm(
-      "Supprimer definitivement ton compte ? Tu seras retiree de tes foyers et tu devras te reconnecter si tu changes d'avis.",
-    );
+    const confirmed = await confirmDialog({
+      header: "Supprimer le compte",
+      message: "Supprimer définitivement ton compte ? Tu seras retirée de tes foyers et tu devras te reconnecter si tu changes d'avis.",
+      confirmText: "Supprimer",
+      destructive: true,
+    });
     if (!confirmed) return;
     let currentPassword = "";
     if (authMode === "password") {
-      currentPassword = window.prompt("Entre ton mot de passe actuel pour confirmer la suppression de ton compte.") || "";
+      currentPassword = await promptDialog({
+        header: "Confirme ton mot de passe",
+        message: "Entre ton mot de passe actuel pour confirmer la suppression de ton compte.",
+        type: "password",
+        confirmText: "Supprimer",
+      });
       if (!currentPassword.trim()) return;
     }
     await onDeleteAccount(currentPassword);
@@ -560,9 +574,12 @@ export function SettingsView({
                             disabled=${busy}
                             onClick=${async () => {
                               const name = family.name || "ce foyer";
-                              const ok = window.confirm(
-                                `Supprimer definitivement "${name}" ?\n\nToutes les donnees (taches, agenda, repas, listes, membres...) seront effacees. Action irreversible.`
-                              );
+                              const ok = await confirmDialog({
+                                header: "Supprimer le foyer",
+                                message: `Supprimer définitivement « ${name} » ? Toutes les données (tâches, agenda, repas, listes, membres…) seront effacées. Action irréversible.`,
+                                confirmText: "Supprimer",
+                                destructive: true,
+                              });
                               if (!ok) return;
                               await (onDeleteFamilyById || onDeleteFamily)(family.id);
                             }}

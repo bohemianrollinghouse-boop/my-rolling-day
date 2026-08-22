@@ -2,6 +2,7 @@ import { DEFAULT_MEMBER_COLOR } from "../../constants.js";
 import { html, useState } from "../../lib.js";
 import { SettingsSwitch } from "./SettingsUI.js";
 import { MrdModal } from "../common/MrdModal.js";
+import { confirmDialog } from "../../utils/dialogs.js";
 
 // ── Modal : édition d'un membre du foyer ──────────────────────────────────
 
@@ -71,11 +72,16 @@ export function EditMemberModal({
             </button>
           ` : null}
           <button type="button" className="ghost-btn settings-danger-btn foyer-modal-action-btn foyer-modal-delete-btn"
-            onClick=${() => {
-              if (window.confirm('Supprimer "' + (person.displayName || "ce membre") + '" ?')) {
-                onDeletePerson(person.id);
-                onClose();
-              }
+            onClick=${async () => {
+              const ok = await confirmDialog({
+                header: "Supprimer le compte",
+                message: `Supprimer « ${person.displayName || "ce membre"} » ?`,
+                confirmText: "Supprimer",
+                destructive: true,
+              });
+              if (!ok) return;
+              onDeletePerson(person.id);
+              onClose();
             }}>
             Supprimer le compte
           </button>

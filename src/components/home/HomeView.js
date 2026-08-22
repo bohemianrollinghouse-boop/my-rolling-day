@@ -3,6 +3,7 @@ import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { localDateKey } from "../../utils/date.js";
 import { CategoryIcon, categoryToneClass } from "../recipes/CategoryIcons.js";
 import { MrdModal } from "../common/MrdModal.js";
+import { IonSearchbar } from "@ionic/react";
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 function initials(label) {
@@ -563,19 +564,23 @@ export function HomeView({
     return html`
       <${MrdModal} isOpen=${true} onClose=${() => setSearchOpen(false)} className="gs-panel">
 
+          ${/* Loupe et bouton d effacement viennent d `ion-searchbar` ; ils
+               etaient un SVG et un `<button>` maison. La touche Echap n a plus
+               besoin d etre geree : `ion-modal` la prend, comme le tap dehors.
+               `showCancelButton="focus"` remplace la croix de fermeture. */null}
           <div className="gs-bar">
-            <svg className="gs-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            <input
+            <${IonSearchbar}
               className="gs-input"
-              type="search"
-              placeholder="Chercher une tâche, recette, note…"
-              autoFocus
               value=${searchQuery}
-              onInput=${(e) => setSearchQuery(e.currentTarget.value)}
-              onKeyDown=${(e) => e.key === "Escape" && setSearchOpen(false)}
+              placeholder="Chercher une tâche, recette, note…"
+              onIonInput=${(event) => setSearchQuery(event.detail.value ?? "")}
+              debounce=${0}
+              enterkeyhint="search"
+              showCancelButton="focus"
+              cancelButtonText="Fermer"
+              onIonCancel=${() => setSearchOpen(false)}
               aria-label="Recherche globale"
             />
-            <button className="gs-close" onClick=${() => setSearchOpen(false)} aria-label="Fermer">×</button>
           </div>
 
           ${q.length < 2 ? html`

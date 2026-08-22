@@ -6,6 +6,9 @@ import { RecipeSheet, groupIngredients, condimentLabel } from "./RecipeSheet.js"
 import { RecipeLibrary } from "./RecipeLibrary.js";
 import drinkFallbackIllustration from "../../assets/recipe-drink-fallback.svg";
 import { scrapeRecipeFromUrl, categorizeRecipe, importErrorMessage } from "../../firebase/clientRecipes.js";
+import { confirmDialog } from "../../utils/dialogs.js";
+import { MrdModal } from "../common/MrdModal.js";
+import { IonProgressBar } from "@ionic/react";
 
 const DRINK_FALLBACK_ILLUSTRATION = drinkFallbackIllustration;
 
@@ -585,9 +588,15 @@ export function RecipesView({
     if (createdId) setSheetRecipeId(createdId);
   }
 
-  function deleteEditingRecipe() {
+  async function deleteEditingRecipe() {
     if (!editingRecipeId) return;
-    if (!window.confirm("Supprimer cette recette ? Cette action est d\u00E9finitive.")) return;
+    const ok = await confirmDialog({
+      header: "Supprimer la recette",
+      message: "Cette action est définitive.",
+      confirmText: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     onDeleteRecipe?.(editingRecipeId);
     closeEditPage();
   }
@@ -752,8 +761,18 @@ export function RecipesView({
 
             <!-- Modale de progression de l'import -->
             ${importState.modal ? html`
-              <div className="recipe-import-modal-backdrop">
-                <div className="recipe-import-modal">
+              ${/* Dernier overlay maison de la phase 7, laisse de cote parce
+                   qu il n etait pas fermable : ce n est pas une modale au sens
+                   « boite qu on ferme », c est un ecran d attente. Il devient
+                   une `MrdModal` avec `backdropDismiss` conditionnel — un tap
+                   a cote ne doit rien faire pendant l import, mais doit
+                   pouvoir fermer une fois l issue connue. */null}
+              <${MrdModal}
+                isOpen=${true}
+                onClose=${() => setImportState((current) => ({ ...current, modal: false }))}
+                backdropDismiss=${Boolean(importState.error || importState.warning || importState.pct >= 100)}
+                className="recipe-import-modal mrd-modal-narrow"
+              >
                   <div className="recipe-import-modal-icon">${importState.error ? "😕" : importState.warning ? "⚠️" : importState.pct >= 100 ? "✅" : "🔗"}</div>
                   <div className="recipe-import-modal-title">
                     ${importState.error ? "Import impossible"
@@ -761,9 +780,13 @@ export function RecipesView({
                       : importState.pct >= 100 ? "Recette importée !"
                       : "Import de la recette"}
                   </div>
-                  <div className=${`recipe-import-progress ${importState.error ? "recipe-import-progress--error" : ""} ${importState.warning ? "recipe-import-progress--warn" : ""}`}>
-                    <div className="recipe-import-progress-fill" style=${{ width: `${importState.pct}%` }}></div>
-                  </div>
+                  ${/* La barre etait un `<div>` dont on pilotait la largeur en
+                       ligne. `ion-progress-bar` prend une valeur de 0 a 1 et
+                       porte la semantique de barre de progression. */null}
+                  <${IonProgressBar}
+                    className=${`recipe-import-progress ${importState.error ? "recipe-import-progress--error" : ""} ${importState.warning ? "recipe-import-progress--warn" : ""}`}
+                    value=${Math.max(0, Math.min(1, (importState.pct || 0) / 100))}
+                  />
                   <div className="recipe-import-modal-label">
                     ${importState.error ? importState.error
                       : importState.warning ? importState.warning
@@ -777,8 +800,7 @@ export function RecipesView({
                       ${importState.warning ? "Continuer" : "Fermer"}
                     </button>
                   ` : null}
-                </div>
-              </div>
+              <//>
             ` : null}
           ` : null}
 

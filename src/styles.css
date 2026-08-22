@@ -617,23 +617,87 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
 .mrd-screen-title { font-family: var(--mrd-serif); font-weight: 600; font-size: 24px; color: var(--mrd-fg); letter-spacing: -0.02em; }
 .mrd-hdr-switch-label { font-size: 11px; font-weight: 600; color: var(--mrd-fg3); letter-spacing: 0.04em; user-select: none; transition: color 0.2s; }
 .mrd-hdr-switch-label.on { color: var(--mrd-a); }
-.mrd-hdr-switch { position: relative; width: 40px; height: 22px; background: var(--mrd-switchOff); border: none; border-radius: 99px; cursor: pointer; flex-shrink: 0; padding: 0; transition: background 0.2s; }
-.mrd-hdr-switch.on { background: var(--mrd-a); }
-.mrd-hdr-switch-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--mrd-white); transition: left 0.2s; box-shadow: var(--mrd-shadowXs); display: block; }
-.mrd-hdr-switch.on .mrd-hdr-switch-knob { left: 20px; }
+/* ─── INTERRUPTEURS IONIC ─────────────────────────────────────
+   Trois interrupteurs etaient dessines a la main : une piste, un bouton
+   positionne en absolu, et une classe `.on` qui deplaçait le bouton de 2 a
+   20px. `ion-toggle` fournit la piste, le bouton, l animation, le geste de
+   glissement et la semantique de case a cocher.
+
+   Les dimensions d origine (40x22, bouton de 18) sont conservees par ses
+   variables. */
+.mrd-hdr-switch,
+.rlib-switch-track,
+.mpick-switch-track {
+  --track-background: var(--mrd-switchOff);
+  --track-background-checked: var(--mrd-a);
+  --handle-background: var(--mrd-white);
+  --handle-background-checked: var(--mrd-white);
+  --handle-box-shadow: var(--mrd-shadowXs);
+  --handle-width: 18px;
+  --handle-height: 18px;
+  --handle-spacing: 2px;
+  --border-radius: 99px;
+  width: 40px;
+  height: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+  padding: 0;
+  contain: none;
+}
 /* ─── SCREEN HEADER (main tabs) ──────────────────────────── */
 .mrd-screen-hdr { padding: 12px var(--mrd-sp) 0; background: var(--mrd-bg); flex-shrink: 0; }
 .mrd-screen-hdr-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .mrd-screen-hdr-title { font-family: var(--mrd-serif); font-weight: 600; font-size: 28px; color: var(--mrd-fg); letter-spacing: -0.02em; line-height: 1.1; }
 .mrd-segmented-row { width: 100%; display: flex; justify-content: center; margin: 0 auto; }
-.mrd-subtabs { display: flex; align-items: stretch; gap: 4px; padding: 4px; background: var(--mrd-surf2); border: 1px solid var(--mrd-borderSoft); border-radius: 99px; width: 100%; min-height: 44px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
-.mrd-subtabs::-webkit-scrollbar { display: none; }
-.mrd-subtab-btn { flex: 1 1 0; min-width: 0; min-height: 36px; border: none; background: transparent; color: var(--mrd-fg2); padding: 0 6px; border-radius: 99px; font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; text-align: center; font-family: "DM Sans", sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 5px; line-height: 1; box-sizing: border-box; overflow: hidden; }
-.mrd-subtab-btn.on { background: var(--mrd-surf); color: var(--mrd-fg); box-shadow: var(--mrd-shadowMd); overflow: visible; }
+/* `ion-segment` depuis la phase 8. Le defilement horizontal, la semantique de
+   groupe d onglets et l indicateur anime viennent d Ionic ; ce bloc ne fait plus
+   que l habillage. Comme partout, on passe par ses variables. */
+.mrd-subtabs {
+  --background: var(--mrd-surf2);
+  border: 1px solid var(--mrd-borderSoft);
+  border-radius: 99px;
+  width: 100%;
+  /* Hauteur FIXE, et `overflow: hidden`. `ion-segment` place son indicateur en
+     absolu : sans hauteur bornee il suit la taille du bouton (plus grande avec
+     un emoji au-dessus du libelle) et depasse de la piste arrondie, en haut
+     comme en bas. La piste faisait 57px avant la migration ; on la retrouve. */
+  height: 60px;
+  min-height: 60px;
+  padding: 4px;
+  overflow: hidden;
+  contain: none;
+}
+.mrd-subtab-btn {
+  --background: transparent;
+  --background-checked: var(--mrd-surf);
+  --background-hover: transparent;
+  --color: var(--mrd-fg2);
+  --color-checked: var(--mrd-fg);
+  --indicator-color: var(--mrd-surf);
+  --indicator-box-shadow: var(--mrd-shadowMd);
+  --border-radius: 99px;
+  --padding-start: 6px;
+  --padding-end: 6px;
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: "DM Sans", sans-serif;
+}
+/* Emoji au-dessus du libelle : c est une decision de design de l app, pas un
+   comportement d Ionic. `ion-segment-button` empile deja ses enfants en
+   colonne, il ne reste que l espacement. */
+.mrd-subtab-btn.stacked::part(native) {
+  flex-direction: column;
+  gap: 2px;
+}
 .mrd-subtab-emoji { font-size: 14px; line-height: 1; flex-shrink: 0; }
 .mrd-subtab-lbl { font-size: 12px; font-weight: 700; line-height: 1; white-space: nowrap; }
 @media (max-width: 430px) {
-  .mrd-subtab-btn.stacked { flex-direction: column; gap: 2px; padding: 5px 4px; min-height: 50px; }
+  .mrd-subtab-btn.stacked { --padding-start: 4px; --padding-end: 4px; }
   .mrd-subtab-emoji { font-size: 13px; }
   .mrd-subtab-lbl { font-size: 10px; }
 }
@@ -1256,9 +1320,28 @@ html[data-theme="dark"] .auth-cta-secondary { background: var(--mrd-surf2); bord
 .seg-btn.on { background: var(--mrd-white); color: var(--mrd-fg); box-shadow: var(--mrd-shadowSm); }
 .error-box { background: var(--mrd-dangerLt); color: var(--mrd-dangerDeep); border: 1px solid var(--mrd-dangerMd); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
 .success-box { background: var(--mrd-sageLt); color: var(--mrd-sageDeep); border: 1px solid var(--mrd-sageMd); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
-.app-toast-wrap { position: absolute; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 12px); transform: translateX(-50%); z-index: 9999; pointer-events: none; width: min(92%, 400px); }
-.app-toast { background: oklch(38% 0.10 155 / 0.96); color: var(--mrd-white); border-radius: 14px; padding: 12px 14px; box-shadow: var(--mrd-shadowXl); font-size: 13px; line-height: 1.35; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: auto; }
-.app-toast-action { border: none; background: var(--mrd-onA-mid); color: var(--mrd-white); border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+/* Toast — `ion-toast` depuis la phase 8. Le placement (au-dessus de la barre
+   d onglets et de la safe area), la file d attente et l annonce aux lecteurs
+   d ecran viennent d Ionic ; `.app-toast-wrap` les calculait a la main avec un
+   `bottom: calc(64px + env(safe-area-inset-bottom) + 12px)`. */
+.app-toast {
+  --background: oklch(38% 0.10 155 / 0.96);
+  --color: var(--mrd-white);
+  --border-radius: 14px;
+  --box-shadow: var(--mrd-shadowXl);
+  --max-width: min(92%, 400px);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.app-toast::part(button) {
+  background: var(--mrd-onA-mid);
+  color: var(--mrd-white);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .family-panel { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
 .family-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .family-chip { border: 1px solid var(--mrd-border); background: var(--mrd-white); border-radius: 999px; padding: 8px 12px; color: var(--mrd-fg2); margin: 6px 6px 0 0; }
@@ -3986,6 +4069,153 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
    Il est remplace par le bloc « MODALES IONIC » ci-dessous. Les largeurs
    n etaient pas sur la carte mais heritees du FOND, par descendance — voir les
    variantes `.mrd-modal-wide` / `.mrd-modal-settings`, qui les reprennent. */
+/* ─── BARRES DE RECHERCHE IONIC ───────────────────────────────
+   Les quatre champs de recherche avaient chacun un SVG de loupe dessine a la
+   main, et aucun bouton d effacement. `ion-searchbar` fournit les deux, plus le
+   clavier « rechercher » et l annonce aux lecteurs d ecran.
+
+   Les classes d origine (`.rlib-search`, `.mpick-search`,
+   `.notes-search-input`, `.gs-input`) sont conservees comme crochets, mais
+   c est maintenant l hote `ion-searchbar` qu elles habillent.
+
+   ⚠️ Les selecteurs sont qualifies par `ion-searchbar`, et ce n est pas
+   cosmetique. Les styles PAR COMPOSANT d Ionic sont injectes a l execution dans
+   un `<style>` du `<head>`, donc APRES cette feuille : a specificite egale,
+   Ionic gagne toujours. Un `.notes-search-input { height: 38px }` (0,1,0) perd
+   contre `.sc-ion-searchbar-ios-h` (0,1,0) — mesure : hauteur 60px au lieu de
+   38, padding 12px au lieu de 0. `ion-searchbar.notes-search-input` vaut
+   (0,1,1) et passe devant. C est la raison de fond pour laquelle Ionic veut
+   qu on passe par ses variables partout ou il en expose. */
+ion-searchbar.rlib-search,
+ion-searchbar.mpick-search,
+ion-searchbar.notes-search-input,
+ion-searchbar.gs-input {
+  /* Ces valeurs reprennent celles des champs d origine (`.mrd-shell .rlib-search`
+     et `.ainp`) : fond `--mrd-surf`, bordure, rayon 13px, hauteur 38px. Le
+     premier essai avait mis `--mrd-surf2` et un rayon de 99px : le fond etait
+     alors a peine distinguable de la page, et la pilule avait disparu. */
+  --background: var(--mrd-surf);
+  --color: var(--mrd-fg);
+  --placeholder-color: var(--mrd-fg3);
+  --icon-color: var(--mrd-fg3);
+  --clear-button-color: var(--mrd-fg3);
+  --cancel-button-color: var(--mrd-a);
+  --border-radius: 13px;
+  --box-shadow: none;
+  padding-inline: 0;
+  padding-block: 0;
+  min-height: 38px;
+  height: 38px;
+  contain: none;
+}
+/* `ion-searchbar` est un composant **scoped**, pas shadow : il n a pas de
+   `::part()` (verifie dans sa source) mais son balisage interne est dans le
+   light DOM, donc accessible par selecteur ordinaire. C est le seul moyen de
+   ramener sa hauteur a celle du champ d origine — sans ça elle passe de 38 a
+   ~55px et pousse tout le contenu de 17 a 22px vers le bas. */
+ion-searchbar.rlib-search .searchbar-input,
+ion-searchbar.mpick-search .searchbar-input,
+ion-searchbar.notes-search-input .searchbar-input,
+ion-searchbar.gs-input .searchbar-input {
+  height: 38px;
+  padding-inline-start: 34px;
+  padding-inline-end: 34px;
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+}
+ion-searchbar.rlib-search .searchbar-search-icon,
+ion-searchbar.mpick-search .searchbar-search-icon,
+ion-searchbar.notes-search-input .searchbar-search-icon,
+ion-searchbar.gs-input .searchbar-search-icon {
+  inset-inline-start: 10px;
+  width: 15px;
+  height: 15px;
+  top: 12px;
+}
+/* La bordure va sur l HOTE. `ion-searchbar` n expose ni variable de bordure ni
+   `::part()` — verifie dans sa source, il n a aucune part. Un
+   `::part(native)` ecrit par analogie avec les autres composants serait
+   silencieusement inerte. */
+ion-searchbar.rlib-search,
+ion-searchbar.mpick-search,
+ion-searchbar.notes-search-input {
+  border: 1px solid var(--mrd-border);
+  border-radius: 13px;
+  overflow: hidden;
+}
+ion-searchbar.rlib-search,
+ion-searchbar.mpick-search,
+ion-searchbar.notes-search-input,
+ion-searchbar.gs-input {
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+}
+/* La recherche globale vit dans une modale a coins arrondis : la barre y est
+   posee a plat, sans rayon propre. */
+ion-searchbar.gs-input {
+  --border-radius: 0;
+  --background: transparent;
+  height: 52px;
+  min-height: 52px;
+  border: none;
+}
+ion-searchbar.gs-input .searchbar-input {
+  height: 52px;
+  font-size: 15px;
+}
+ion-searchbar.gs-input .searchbar-search-icon {
+  top: 19px;
+  width: 16px;
+  height: 16px;
+}
+
+html[data-theme="dark"] ion-searchbar.rlib-search,
+html[data-theme="dark"] ion-searchbar.mpick-search,
+html[data-theme="dark"] ion-searchbar.notes-search-input {
+  --background: var(--mrd-surf);
+}
+
+/* ─── ALERTES IONIC ───────────────────────────────────────────
+   Remplacent `window.confirm` et `window.prompt`, qui gelaient le fil JS et
+   affichaient un dialogue systeme hors charte. Posees par le controleur
+   imperatif (`src/utils/dialogs.js`), d ou le style par `cssClass`. */
+.mrd-alert {
+  --background: var(--mrd-surf);
+  --backdrop-opacity: 1;
+  --max-width: min(420px, calc(100% - 40px));
+}
+.mrd-alert .alert-wrapper {
+  border: 1px solid var(--mrd-borderSoft);
+  border-radius: var(--mrd-rLg);
+  box-shadow: var(--mrd-shadowXl);
+}
+.mrd-alert .alert-title {
+  font-family: var(--mrd-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--mrd-fg);
+}
+.mrd-alert .alert-message {
+  color: var(--mrd-fg2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mrd-alert .alert-button {
+  color: var(--mrd-a);
+  font-weight: 700;
+  text-transform: none;
+}
+/* Suppression definitive : le bouton de confirmation passe en rouge. */
+.mrd-alert-danger .alert-button-role-confirm {
+  color: var(--mrd-danger);
+}
+.mrd-alert .alert-input {
+  background: var(--mrd-surf2);
+  border: 1px solid var(--mrd-border);
+  border-radius: var(--mrd-r);
+  color: var(--mrd-fg);
+}
+
 /* ─── MODALES IONIC ───────────────────────────────────────────
    Toutes les modales passent par `components/common/MrdModal.js`, qui rend un
    `ion-modal`. Ce bloc habille le contenant ; l interieur garde ses classes
@@ -4314,7 +4544,8 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign select {
 /* ── Notes toolbar (recherche + filtre) ─────────────────── */
 .notes-toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .notes-search-wrap { position: relative; }
-.notes-search-input { padding-right: 34px; }
+/* `padding-right: 34px` reservait la place d une croix maison ; le bouton
+   d effacement d `ion-searchbar` gere son propre espace. */
 .notes-search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--mrd-fg3); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .notes-search-clear:hover { color: var(--mrd-fg); }
 .notes-filter-tabs { width: 100%; }
@@ -7003,40 +7234,41 @@ html[data-theme="dark"] .ibx-home-row { border-bottom-color: var(--mrd-surf); }
 .recipe-edit-ing-group-inp { margin-top: 8px; width: 100%; font-size: 13px; }
 
 /* ── Modale de progression de l'import ─────────────────────────── */
-.recipe-import-modal-backdrop {
-  position: fixed; inset: 0; z-index: 90;
-  background: oklch(27% 0.05 48 / 0.5);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center; padding: 28px;
-}
-.recipe-import-modal {
-  width: min(340px, 100%); background: var(--mrd-surf);
-  border-radius: 22px; border: 1px solid var(--mrd-borderSoft);
-  box-shadow: 0 28px 80px oklch(27% 0.05 48 / 0.25);
-  padding: 26px 22px 22px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-  animation: mrdSlideUp 0.22s ease;
+/* La boite et le fond viennent d `ion-modal` depuis la phase 8. */
+.mrd-modal.recipe-import-modal::part(content) {
+  padding: 26px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
 }
 .recipe-import-modal-icon { font-size: 34px; line-height: 1; }
 .recipe-import-modal-title { font-size: 17px; font-weight: 700; color: var(--mrd-fg); }
+/* `ion-progress-bar` : la piste et le remplissage viennent de ses variables ;
+   la largeur etait pilotee en ligne par un `<div>` enfant. */
 .recipe-import-progress {
-  width: 100%; height: 8px; border-radius: 999px;
-  background: var(--mrd-surf2); overflow: hidden;
+  --background: var(--mrd-surf3);
+  --progress-background: var(--mrd-sageBtn);
+  height: 8px;
+  border-radius: 99px;
+  width: 100%;
 }
-.recipe-import-progress-fill {
-  height: 100%; border-radius: 999px;
-  background: linear-gradient(90deg, var(--mrd-a), var(--mrd-sage, #5E7A6B));
-  transition: width 0.6s ease;
-  background-size: 200% 100%;
-  animation: recipeImportShimmer 1.6s linear infinite;
-}
-.recipe-import-progress--error .recipe-import-progress-fill { background: #B3423A; animation: none; }
-.recipe-import-progress--warn .recipe-import-progress-fill { background: #B07D2B; animation: none; }
-@keyframes recipeImportShimmer { 0% { background-position: 0% 0; } 100% { background-position: -200% 0; } }
+.recipe-import-progress--error { --progress-background: var(--mrd-danger); }
+.recipe-import-progress--warn { --progress-background: var(--mrd-amber); }
+/* Le `<div>` de remplissage et son animation de miroitement ont disparu avec
+   `ion-progress-bar`, qui gere les deux. Ses deux surcharges de couleur
+   ecrivaient `#B3423A` et `#B07D2B` en dur — hors palette, et invisibles pour
+   le test de tokens, qui ne surveillait que le JS. Elles passent aux tokens
+   dans le bloc de la barre, plus haut. */
 .recipe-import-modal-label { font-size: 13px; color: var(--mrd-fg2); line-height: 1.5; min-height: 20px; }
 .recipe-import-modal-close { width: 100%; margin-top: 4px; }
-html[data-theme="dark"] .recipe-import-modal { background: #2B241F; border-color: #40362E; }
-@media (prefers-reduced-motion: reduce) { .recipe-import-progress-fill { animation: none; } }
+/* `#2B241F` / `#40362E` en dur ici aussi : remplaces par les tokens de surface,
+   qui basculent seuls. */
+html[data-theme="dark"] .mrd-modal.recipe-import-modal {
+  --background: var(--mrd-surf);
+}
+
 
 /* Icône de catégorie centrée dans la vignette des cartes recettes (fallback sans photo) */
 .mrd-shell .recipes-page .rcard-recipe-thumb { display: flex; align-items: center; justify-content: center; }
@@ -7261,10 +7493,10 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 .mpick-title { flex: 1; min-width: 0; font-family: var(--mrd-serif); font-size: 21px; font-weight: 600; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .mpick-searchrow { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 18px 10px; }
-.mpick-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 13px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); color: var(--mrd-fg3); }
-.mpick-search-input { flex: 1; min-width: 0; border: none; background: transparent; font-family: var(--mrd-sans); font-size: 13.5px; color: var(--mrd-fg); }
-.mpick-search-input:focus { outline: none; }
-.mpick-search-input::placeholder { color: var(--mrd-fg3); }
+/* Ancienne pilule du conteneur : doublon avec `ion-searchbar`. */
+.mpick-search { flex: 1; min-width: 0; border: none; background: transparent; font-family: var(--mrd-sans); font-size: 13.5px; color: var(--mrd-fg); }
+/* Le `<input>` nu du selecteur n existe plus ; `--placeholder-color` et l etat
+   de focus viennent d `ion-searchbar`. */
 .mpick-refine { flex: none; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 13px; border-radius: 13px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
 .mpick-refine.on { background: var(--mrd-aLt); border-color: var(--mrd-a); color: var(--mrd-a); }
 
@@ -7285,10 +7517,7 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 .mpick-switch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mpick-switch-label { font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; color: var(--mrd-fg); }
 .mpick-switch-sub { font-family: var(--mrd-sans); font-size: 10.5px; color: var(--mrd-fg3); }
-.mpick-switch-track { flex: none; width: 40px; height: 23px; padding: 3px; border-radius: 999px; background: var(--mrd-switchOff); display: flex; align-items: center; justify-content: flex-start; transition: background .15s ease-out; }
-.mpick-switch-track.on { background: var(--mrd-aBtn); justify-content: flex-end; }
-.mpick-switch-knob { width: 17px; height: 17px; border-radius: 999px; background: var(--mrd-white); }
-.mpick-panel-sep { height: 1px; background: var(--mrd-borderSoft); }
+piste maison du selecteur de recettes.mpick-panel-sep { height: 1px; background: var(--mrd-borderSoft); }
 .mpick-group { display: flex; flex-direction: column; gap: 6px; }
 .mpick-group-label { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-fg3); }
 .mpick-chips { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -7391,10 +7620,11 @@ html[data-theme="dark"] .mpick-rail-item.on .mpick-rail-dot { background: var(--
 .mrd-shell .rlib-add { width: 36px; height: 36px; flex-shrink: 0; border: none; border-radius: 13px; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 19px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 
 .mrd-shell .rlib-searchrow { display: flex; align-items: center; gap: 8px; padding: 0 4px 10px; }
-.mrd-shell .rlib-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 13px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); color: var(--mrd-fg3); }
-.mrd-shell .rlib-search-input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: none; border-radius: 0; box-shadow: none; background: transparent; font-family: var(--mrd-sans); font-size: 13.5px; color: var(--mrd-fg); }
-.mrd-shell .rlib-search-input:focus { outline: none; box-shadow: none; }
-.mrd-shell .rlib-search-input::placeholder { color: var(--mrd-fg3); }
+/* Ces quatre regles habillaient le `<span>` conteneur et son `<input>` nu.
+   `ion-searchbar` porte les deux roles ; son style est dans le bloc
+   « BARRES DE RECHERCHE IONIC ». Il faut cependant `flex: 1` pour qu elle
+   partage la ligne avec le bouton « Affiner ». */
+.mrd-shell .rlib-search { flex: 1; min-width: 0; }
 .mrd-shell .rlib-refine { flex: none; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 13px; border-radius: 13px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
 .mrd-shell .rlib-refine.on { background: var(--mrd-aLt); border-color: var(--mrd-a); color: var(--mrd-a); }
 
@@ -7416,10 +7646,7 @@ html[data-theme="dark"] .mpick-rail-item.on .mpick-rail-dot { background: var(--
 .mrd-shell .rlib-switch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mrd-shell .rlib-switch-label { font-family: var(--mrd-sans); font-size: 12.5px; font-weight: 500; color: var(--mrd-fg); }
 .mrd-shell .rlib-switch-sub { font-family: var(--mrd-sans); font-size: 10.5px; color: var(--mrd-fg3); }
-.mrd-shell .rlib-switch-track { flex: none; width: 40px; height: 23px; padding: 3px; border-radius: 999px; background: var(--mrd-switchOff); display: flex; align-items: center; justify-content: flex-start; transition: background .15s ease-out; }
-.mrd-shell .rlib-switch-track.on { background: var(--mrd-aBtn); justify-content: flex-end; }
-.mrd-shell .rlib-switch-knob { width: 17px; height: 17px; border-radius: 999px; background: var(--mrd-white); }
-
+piste maison de la bibliotheque de recettes
 .mrd-shell .rlib-panel-sep { height: 1px; background: var(--mrd-borderSoft); }
 .mrd-shell .rlib-group { display: flex; flex-direction: column; gap: 6px; }
 .mrd-shell .rlib-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

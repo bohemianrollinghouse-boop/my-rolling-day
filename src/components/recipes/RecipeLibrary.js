@@ -24,6 +24,7 @@ import {
   recipeTotalMinutes,
 } from "../../utils/recipeFilters.js";
 import { CategoryIcon, categoryToneClass } from "./CategoryIcons.js";
+import { IonSearchbar, IonToggle } from "@ionic/react";
 
 /* Mêmes libellés que le sélecteur des repas — ils doivent rester identiques. */
 const CATEGORIES = [
@@ -423,21 +424,19 @@ export function RecipeLibrary({
 
       <!-- ── Recherche + Affiner ───────────────────────────────── -->
       <div className="rlib-searchrow">
-        <span className="rlib-search">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
-            <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          <input
-            className="rlib-search-input"
-            type="search"
-            enterkeyhint="search"
-            placeholder="Rechercher une recette…"
-            value=${query}
-            onInput=${(event) => setQuery(event.target.value)}
-            autocomplete="off"
-          />
-        </span>
+        ${/* L icone de loupe etait un SVG dessine a la main, le bouton
+             d effacement inexistant. `ion-searchbar` fournit les deux, plus le
+             clavier « rechercher » et l annonce aux lecteurs d ecran. */null}
+        <${IonSearchbar}
+          className="rlib-search"
+          value=${query}
+          placeholder="Rechercher une recette…"
+          onIonInput=${(event) => setQuery(event.detail.value ?? "")}
+          debounce=${0}
+          enterkeyhint="search"
+          autocomplete="off"
+          aria-label="Rechercher une recette"
+        />
         <button
           type="button"
           className=${`rlib-refine${activeFilters.length ? " on" : ""}`}
@@ -473,7 +472,19 @@ export function RecipeLibrary({
                 <span className="rlib-switch-label">${item.label}</span>
                 <span className="rlib-switch-sub">${item.sub}</span>
               </span>
-              <span className=${`rlib-switch-track${item.on ? " on" : ""}`}><span className="rlib-switch-knob"></span></span>
+              ${/* La piste et le bouton etaient dessines a la main (deux
+                   `<span>` et une classe `on`). `ion-toggle` fournit la piste,
+                   le bouton, l animation et la semantique de case a cocher.
+                   `onClick=${(e) => e.stopPropagation()}` : le toggle est dans
+                   un `<button>` qui bascule deja, sans quoi le clic compterait
+                   deux fois et l etat reviendrait a sa valeur initiale. */null}
+              <${IonToggle}
+                className="rlib-switch-track"
+                checked=${Boolean(item.on)}
+                onClick=${(event) => event.stopPropagation()}
+                onIonChange=${item.toggle}
+                aria-label=${item.label}
+              />
             </button>
           `)}
 

@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 à 7 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **migration terminée (phases 0 à 8).** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -739,44 +739,142 @@ les overlays maison apparaissaient d'un coup. Trois assertions de
 échouaient dans la suite complète. Remplacées par `pollUntilGone` et
 `pollForProp`.
 
-### Phase 8 — 🟡 Contrôles
+### Phase 8 — 🟡 Contrôles — ✅ TERMINÉE
 
-Phase peu risquée, très rentable en confort natif. Peut se découper.
+Bilan : **31 IDENTIQUE · 17 PROCHE · 6 ÉCART · 3 RÉGRESSION** (les 3 sont
+l'écran Notes, décalé de 5 px).
 
-- [ ] `ion-toast` : les 40 appels passent par un helper unique
-      (`useToast`), pas par 40 `IonToast` inline. Le bouton d'action existant
-      (`toast.action`) se mappe sur `buttons`.
-- [ ] `ion-alert` : les 3 `window.confirm` (`SettingsModals`, `SettingsView`,
-      `RecipesView`) — un `confirm()` bloquant en WebView natif est à éviter.
-- [ ] `ion-select` : les 12 `<select>` (roue native au lieu du menu système).
-- [ ] `ion-datetime` : les 14 `input type=date|time` (`AgendaView` 2,
-      `InventoryView` 1, `InboxView` 4, `SettingsView` 3, `TasksView` 4). ⚠️
-      Vérifier le format renvoyé — le code lit `event.target.value` en
-      `YYYY-MM-DD`, `IonDatetime` renvoie de l'ISO 8601. Passer par
-      `utils/date.js`, ne pas parser à la main dans les vues.
-- [ ] `ion-segment` : `SegmentedTabs` devient une enveloppe autour d'
-      `IonSegment` (API de props inchangée → les 6 vues appelantes ne bougent
-      pas). Retirer les règles `.mrd-subtab*`. ⚠️ Le variant `stacked`
-      (emoji + libellé) doit survivre.
-- [ ] `ion-searchbar` : les 4 `type="search"`.
-- [ ] `ion-toggle` : `.mrd-hdr-switch` et les interrupteurs des réglages.
-- [ ] `ion-spinner` / `ion-loading` : les 10 états de chargement. Le splash
-      `.ldr` d'`index.html` **reste maison** — il s'affiche avant que React
-      soit monté, Ionic n'est pas encore là.
+- [x] **`ion-toast`** — les 40 appels à `showToast` n'ont pas changé, seul le
+      rendu. `.app-toast-wrap` calculait son placement à la main
+      (`bottom: calc(64px + env(safe-area-inset-bottom) + 12px)`).
+- [x] **`ion-alert`** — les 6 `window.confirm` **et** le `window.prompt` du mot
+      de passe. C'est le seul contrôle de la phase qui n'était pas qu'une
+      question d'apparence : `confirm()` gèle le fil JavaScript, et en WebView
+      le dialogue est celui du système, hors charte. Passé par le **contrôleur
+      impératif** (`src/utils/dialogs.js`) plutôt qu'un `<IonAlert>` monté : les
+      appels sont dispersés dans 3 composants, un contrôleur évite d'ajouter un
+      état et un rendu conditionnel à chacun.
+- [x] **`ion-segment`** — `SegmentedTabs` devient une enveloppe. Son API de
+      props est inchangée, donc les 3 vues appelantes n'ont pas bougé. Le
+      variant `stacked` (emoji au-dessus du libellé) survit.
+- [x] **`ion-toggle`** — 3 interrupteurs dessinés à la main (une piste, un
+      bouton en absolu, une classe `.on` qui le déplaçait de 2 à 20 px).
+- [x] **`ion-searchbar`** — les 4 champs de recherche, chacun avec son SVG de
+      loupe dessiné à la main et aucun bouton d'effacement.
+- [x] **`ion-progress-bar`** + `MrdModal` — l'overlay de progression d'import,
+      seul overlay laissé de côté en phase 7 parce qu'il n'était pas fermable.
+      `backdropDismiss` est maintenant conditionnel : inerte pendant l'import,
+      actif une fois l'issue connue.
+- [x] Le splash `.ldr` reste maison : il s'affiche **avant** que React soit
+      monté, Ionic n'existe pas encore.
+- [x] 3 couleurs en dur trouvées au passage (`#B3423A`, `#B07D2B`, `#2B241F`)
+      et passées aux tokens. Le test de tokens ne surveillait que le JS.
 
-### Phase 9 — ⚪ Gains natifs nouveaux (facultatif, après stabilisation)
+#### Décision : `<select>` et `<input type="date|time">` restent natifs
 
-- [ ] `ion-refresher` sur Accueil / Tâches / Listes (tirer pour rafraîchir).
-- [ ] `ion-item-sliding` : glisser pour supprimer sur les listes de courses,
-      les tâches, l'inventaire.
-- [ ] `@capacitor/keyboard` + `ion-footer` si la Phase 3 n'a pas suffi à régler
-      les champs masqués.
-- [ ] Deep links pour les invitations, maintenant que le router existe
-      (rouvre la piste fermée dans `TODO_NATIF` §3).
-- [ ] Code-splitting par route — le router rend enfin le découpage naturel, et
-      le bundle mono-chunk de 1,46 Mo est une dette connue.
+Le plan prévoyait `ion-select` pour les 12 `<select>` et `ion-datetime` pour les
+14 champs de date et d'heure. **Écarté après examen**, et c'est un écart au plan
+qu'il faut assumer explicitement :
+
+Dans une WebView Capacitor, `<select>` et `<input type="date">` ouvrent le
+**sélecteur natif du système** — la roue iOS, le calendrier Android.
+`ion-select` et `ion-datetime` sont des réimplémentations JavaScript. Les
+remplacer reviendrait à retirer un contrôle de plateforme pour y mettre du code,
+ce qui va contre l'objectif (« le moins de custom possible »). S'y ajoutent, pour
+`ion-datetime`, un changement de rendu substantiel (le champ compact devient un
+bouton qui ouvre un calendrier plein écran) et la conversion de format ISO
+signalée au §5 — sur les formulaires de création de tâche et d'agenda, les plus
+utilisés de l'app.
+
+Si tu veux malgré tout un rendu de sélecteur homogène entre iOS et Android, c'est
+faisable — mais c'est un choix de design, pas une exigence de la migration.
+
+#### Le piège qui explique toute la phase — et rétrospectivement les autres
+
+Les styles **par composant** d'Ionic sont injectés **à l'exécution** dans un
+`<style>` du `<head>`, donc **après** `styles.css`. À spécificité égale, Ionic
+gagne toujours.
+
+Constaté sur `ion-searchbar` : `.notes-search-input { height: 38px }` (0,1,0)
+perd contre `.sc-ion-searchbar-ios-h` (0,1,0). Mesuré dans le navigateur —
+hauteur 60 px au lieu de 38, padding 12 px au lieu de 0 — alors que la règle
+était bien présente dans le CSS et que la classe était bien sur l'hôte.
+`ion-searchbar.notes-search-input` vaut (0,1,1) et passe devant.
+
+C'est la raison de fond pour laquelle Ionic veut qu'on passe par ses variables
+partout où il en expose : elles sont lues *par* son CSS, au lieu de lutter
+contre lui. Et c'est la même mécanique que le filet d'en-tête (phase 3) et la
+palette sombre (phase 1) : trois symptômes d'une seule cause, comprise
+seulement ici.
+
+Autre découverte, propre à `ion-searchbar` : c'est un composant **scoped**, pas
+shadow. Il n'expose aucun `::part()` — un `::part(native)` écrit par analogie
+avec les autres composants est silencieusement inerte — mais son balisage
+interne est dans le light DOM, donc accessible par sélecteur ordinaire. C'est le
+seul moyen d'en régler la hauteur.
+
+#### Tests : deux attentes trompeuses de plus
+
+- `pollForSelector(".task-modal-redesign")` réussissait **trop tôt** : l'hôte
+  `ion-modal` entre dans le DOM dès son montage, mais Ionic ne rend son contenu
+  qu'à la présentation. Le champ n'existait pas encore, la saisie ne partait
+  pas, le bouton restait désactivé. Le test attend maintenant le **champ**.
+- Une assertion sur `disabled` après un `setTimeout` fixe : remplacée par
+  `pollForProp`.
+
+Les deux passaient seuls et échouaient dans la suite complète.
+
+### Phase 9 — ⚪ Gains natifs nouveaux — non entamée
+
+Volontairement laissée ouverte : ce sont des **ajouts** de fonctionnalité, pas
+la migration. Le socle est en place pour chacun.
+
+- [ ] `ion-refresher` sur Accueil / Tâches / Listes.
+- [ ] `ion-item-sliding` : glisser pour supprimer.
+- [ ] `@capacitor/keyboard` + `ion-footer` si la phase 3 n'a pas suffi — **à
+      vérifier sur device**, comme tout le natif (`TODO_NATIF`).
+- [ ] Deep links pour les invitations : le router existe maintenant, la piste
+      fermée dans `TODO_NATIF` §3 est réouverte.
+- [ ] Code-splitting par route. Le bundle est passé de **1 505 kB à 2 524 kB**
+      (gzip 380 → 605). Le router rend enfin le découpage naturel, et c'est le
+      point de dette le plus net que laisse la migration.
 
 ---
+
+## Bilan de la migration
+
+| | Avant | Après |
+|---|---|---|
+| Navigation | `useState` (`activeTab`, `showSettings`, 2 sous-pages) | `@ionic/react-router`, l'URL est la source de vérité |
+| Barre du bas | `.mrd-bnav`, 219 lignes | `ion-tab-bar` |
+| Coque d'écran | `.mrd-screen` / `.cnt`, 22 safe areas à la main | `ion-page` / `ion-header` / `ion-content` |
+| Retour | 3 chemins divergents | une seule pile — bouton, geste iOS, retour Android |
+| Overlays | 29, dans 16 fichiers, 3 variantes de fond | `MrdModal`, une enveloppe |
+| Dialogues | `window.confirm` × 6, `window.prompt` | `ion-alert` |
+| Contrôles | toast, segment, 3 interrupteurs, 4 loupes SVG | `ion-toast`, `ion-segment`, `ion-toggle`, `ion-searchbar` |
+| Rendu bureau | barre latérale 240 px | supprimé (décision produit) |
+| Tests | 155 pass, **24 skipped en silence** | 191 pass, 0 skipped |
+| Garde visuelle | aucune | 57 captures × comparateur par blocs |
+| Bundle JS | 1 505 kB (gzip 380) | 2 524 kB (gzip 605) |
+
+### Ce que la garde visuelle a attrapé et que rien d'autre n'aurait vu
+
+1. La barre latérale bureau recouverte par `IonTabs` (phase 2).
+2. Un bouton retour apparu au-dessus de « Listes », deux titres empilés (2).
+3. Le FAB de l'inventaire devenu un carré gris — signalé à 3,5 % seulement, et
+   d'abord classé comme bruit (4).
+4. Tout le style intérieur des modales effondré (7).
+5. **La fiche recette entièrement vide**, régression de la phase 3 restée
+   invisible deux phases faute d'une capture qui l'ouvre (7).
+6. 348 lignes de CSS supprimées par erreur, accolades pourtant équilibrées et
+   build vert (6).
+
+### Ce qui reste à valider sur device
+
+Rien du natif n'est vérifié — c'était déjà le constat de `TODO_NATIF` avant la
+migration, et ça n'a pas changé. En particulier : le bouton retour Android
+(réécrit en phase 5), le geste de retour iOS (vérifié en headless seulement), et
+le comportement du clavier sur les formulaires.
 
 ## 5. Risques transverses
 

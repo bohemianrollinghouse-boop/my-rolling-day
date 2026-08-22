@@ -24,6 +24,7 @@ import {
   recipeTotalMinutes,
 } from "../../utils/recipeFilters.js";
 import { CategoryIcon, categoryToneClass } from "../recipes/CategoryIcons.js";
+import { IonSearchbar, IonToggle } from "@ionic/react";
 
 /* Mêmes listes que l'onglet Recettes — les libellés doivent rester identiques. */
 const CATEGORIES = [
@@ -254,20 +255,19 @@ export function RecipePicker({
       </div>
 
       <div className="mpick-searchrow">
-        <span className="mpick-search">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
-            <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <input
-            className="mpick-search-input"
-            type="search"
-            placeholder="Chercher…"
-            value=${query}
-            onInput=${(e) => setQuery(e.target.value)}
-            autocomplete="off"
-          />
-        </span>
+        ${/* Le `<span class="mpick-search">` et son SVG de loupe ont disparu :
+             ils faisaient doublon avec la pilule et l icone d `ion-searchbar`.
+             La classe du conteneur passe sur la barre elle-meme. */null}
+        <${IonSearchbar}
+          className="mpick-search"
+          value=${query}
+          placeholder="Chercher…"
+          onIonInput=${(event) => setQuery(event.detail.value ?? "")}
+          debounce=${0}
+          enterkeyhint="search"
+          autocomplete="off"
+          aria-label="Chercher une recette"
+        />
         <button
           type="button"
           className=${`mpick-refine${activeFilters.length ? " on" : ""}`}
@@ -295,7 +295,13 @@ export function RecipePicker({
                   <span className="mpick-switch-label">${item.label}</span>
                   <span className="mpick-switch-sub">${item.sub}</span>
                 </span>
-                <span className=${`mpick-switch-track${item.on ? " on" : ""}`}><span className="mpick-switch-knob"></span></span>
+                <${IonToggle}
+                  className="mpick-switch-track"
+                  checked=${Boolean(item.on)}
+                  onClick=${(event) => event.stopPropagation()}
+                  onIonChange=${item.toggle}
+                  aria-label=${item.label}
+                />
               </button>
               ${item.id === "season" && season ? html`
                 <div className="mpick-period">

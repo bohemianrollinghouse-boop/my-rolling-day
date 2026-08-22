@@ -886,7 +886,16 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
 
       // Ouvrir la modale
       await click(session, ".mrd-fab");
-      await pollForSelector(session, ".task-modal-redesign", 5_000);
+      /* Attendre le CHAMP, pas la modale. Depuis que les modales sont des
+         `ion-modal`, l'hôte apparaît dans le DOM dès son montage — mais Ionic
+         ne rend son contenu qu'à la présentation. Attendre `.task-modal-redesign`
+         réussissait donc trop tôt : le champ n'existait pas encore, la saisie
+         ne partait pas, et le bouton restait désactivé. Passait seul,
+         échouait sous la charge de la suite complète. */
+      assert.ok(
+        await pollForSelector(session, ".task-modal-redesign input", 8_000),
+        "le champ de la modale doit être rendu",
+      );
 
       // Saisir le nom de la tâche
       // L'input est dans .mrd-mbody, sans attribut name — on cible par placeholder
@@ -960,7 +969,16 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
 
       // Ouvrir la modale
       await click(session, ".mrd-fab");
-      await pollForSelector(session, ".task-modal-redesign", 5_000);
+      /* Attendre le CHAMP, pas la modale. Depuis que les modales sont des
+         `ion-modal`, l'hôte apparaît dans le DOM dès son montage — mais Ionic
+         ne rend son contenu qu'à la présentation. Attendre `.task-modal-redesign`
+         réussissait donc trop tôt : le champ n'existait pas encore, la saisie
+         ne partait pas, et le bouton restait désactivé. Passait seul,
+         échouait sous la charge de la suite complète. */
+      assert.ok(
+        await pollForSelector(session, ".task-modal-redesign input", 8_000),
+        "le champ de la modale doit être rendu",
+      );
 
       const TASK_NAME = "Tâche E2E hebdo";
       await session.send("Runtime.evaluate", {
@@ -1006,7 +1024,16 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
 
       // Ouvrir la modale
       await click(session, ".mrd-fab");
-      await pollForSelector(session, ".task-modal-redesign", 5_000);
+      /* Attendre le CHAMP, pas la modale. Depuis que les modales sont des
+         `ion-modal`, l'hôte apparaît dans le DOM dès son montage — mais Ionic
+         ne rend son contenu qu'à la présentation. Attendre `.task-modal-redesign`
+         réussissait donc trop tôt : le champ n'existait pas encore, la saisie
+         ne partait pas, et le bouton restait désactivé. Passait seul,
+         échouait sous la charge de la suite complète. */
+      assert.ok(
+        await pollForSelector(session, ".task-modal-redesign input", 8_000),
+        "le champ de la modale doit être rendu",
+      );
 
       // Saisir le nom
       const TASK_NAME = "Tâche E2E deadline";
@@ -1077,7 +1104,16 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
 
       // Créer une tâche d'abord
       await click(session, ".mrd-fab");
-      await pollForSelector(session, ".task-modal-redesign", 5_000);
+      /* Attendre le CHAMP, pas la modale. Depuis que les modales sont des
+         `ion-modal`, l'hôte apparaît dans le DOM dès son montage — mais Ionic
+         ne rend son contenu qu'à la présentation. Attendre `.task-modal-redesign`
+         réussissait donc trop tôt : le champ n'existait pas encore, la saisie
+         ne partait pas, et le bouton restait désactivé. Passait seul,
+         échouait sous la charge de la suite complète. */
+      assert.ok(
+        await pollForSelector(session, ".task-modal-redesign input", 8_000),
+        "le champ de la modale doit être rendu",
+      );
       const TASK_NAME = "Tâche à cocher E2E";
       await session.send("Runtime.evaluate", {
         expression: `
@@ -1163,7 +1199,16 @@ test("CDP: module des tâches — cycle complet", { timeout: 240_000 }, async (t
 
       // Ouvrir la modale
       await click(session, ".mrd-fab");
-      await pollForSelector(session, ".task-modal-redesign", 5_000);
+      /* Attendre le CHAMP, pas la modale. Depuis que les modales sont des
+         `ion-modal`, l'hôte apparaît dans le DOM dès son montage — mais Ionic
+         ne rend son contenu qu'à la présentation. Attendre `.task-modal-redesign`
+         réussissait donc trop tôt : le champ n'existait pas encore, la saisie
+         ne partait pas, et le bouton restait désactivé. Passait seul,
+         échouait sous la charge de la suite complète. */
+      assert.ok(
+        await pollForSelector(session, ".task-modal-redesign input", 8_000),
+        "le champ de la modale doit être rendu",
+      );
 
       // Saisir un nom
       await session.send("Runtime.evaluate", {

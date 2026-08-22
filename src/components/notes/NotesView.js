@@ -1,5 +1,6 @@
 import { html, useState, useRef } from "../../lib.js";
 import { MrdModal } from "../common/MrdModal.js";
+import { IonSearchbar } from "@ionic/react";
 
 const VISIBILITY_EMOJI = {
   private: "🔒",
@@ -289,12 +290,13 @@ export function NotesView({ notes, activePersonId, people, onAddNote, onDeleteNo
     return html`
       <div className="notes-toolbar">
         <div className="notes-search-wrap">
-          <input
-            type="search"
-            className="ainp notes-search-input"
-            placeholder="Rechercher une note…"
+          <${IonSearchbar}
+            className="notes-search-input"
             value=${search}
-            onInput=${(e) => setSearch(e.currentTarget.value)}
+            placeholder="Rechercher une note…"
+            onIonInput=${(event) => setSearch(event.detail.value ?? "")}
+            debounce=${0}
+            enterkeyhint="search"
             aria-label="Rechercher une note"
           />
           ${search ? html`<button type="button" className="notes-search-clear" onClick=${() => setSearch("")} aria-label="Effacer la recherche">×</button>` : null}
