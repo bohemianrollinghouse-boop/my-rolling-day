@@ -11,6 +11,7 @@ import {
 import { EditMemberModal, AddPersonModal, NewMemberInviteModal } from "./SettingsModals.js";
 import { SettingsSupportPage } from "./SettingsSupportPage.js";
 import { NewHouseholdWizard } from "./NewHouseholdWizard.js";
+import { scrollActivePageToTop } from "../../utils/scroll.js";
 
 export function SettingsView({
   isOnboarding = false,
@@ -199,8 +200,7 @@ export function SettingsView({
     onSupportPageChange("");
     onSettingsPageChange(page || "main");
     requestAnimationFrame(() => {
-      const scroller = document.querySelector(".mrd-screen .cnt");
-      if (scroller?.scrollTo) scroller.scrollTo({ top: 0, behavior: "auto" });
+      scrollActivePageToTop();
     });
   }
 

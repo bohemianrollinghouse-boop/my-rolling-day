@@ -2,6 +2,7 @@ import { html, useEffect, useState } from "../../lib.js";
 import { createBugReport, createFeatureRequest } from "../../firebase/client.js";
 import { LegalTextPage } from "./SettingsUI.js";
 import { PrivacyPolicyPage, TERMS_SECTIONS } from "./SettingsLegal.js";
+import { scrollActivePageToTop } from "../../utils/scroll.js";
 
 // ── Page support / légal (montée quand supportPage est défini) ────────────
 // Passe key=${supportPage} depuis SettingsView pour réinitialiser l'état
@@ -15,8 +16,7 @@ export function SettingsSupportPage({ supportPage, onBack, userId }) {
 
   // Remonte en haut à chaque montage (= chaque changement de supportPage via key)
   useEffect(() => {
-    const scroller = document.querySelector(".mrd-screen .cnt");
-    if (scroller?.scrollTo) scroller.scrollTo({ top: 0, behavior: "auto" });
+    scrollActivePageToTop();
   }, []);
 
   const pageTitle =

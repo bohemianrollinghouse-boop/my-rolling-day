@@ -413,14 +413,30 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
   .mrd-sidebar-btn.on .mrd-sidebar-btn-label { color: var(--mrd-a); }
   .mrd-sidebar-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--mrd-danger); color: var(--mrd-white); font-size: 10px; font-weight: 700; line-height: 18px; text-align: center; }
   .mrd-sidebar-sep { height: 1px; background: var(--mrd-borderSoft); margin: 10px 8px; }
-  /* Contenu recentré à une largeur de lecture confortable dans l'espace restant */
-  .cnt,
+  /* Contenu recentré à une largeur de lecture confortable dans l'espace
+     restant.
+
+     `.cnt` porte maintenant un `ion-content`, dont la boîte occupe toute la
+     page : `max-width` + `margin: auto` posés sur lui rétrécissaient le
+     conteneur sans le recentrer, et les réglages se retrouvaient collés à
+     gauche sur écran large. On contraint donc son conteneur de défilement
+     interne, qu'Ionic expose via `::part(scroll)`. */
+  ion-content.cnt::part(scroll) {
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
+  }
   .mrd-set-page,
   .mrd-home {
     max-width: 820px;
     margin-left: auto;
     margin-right: auto;
   }
+  /* Pas de recentrage de l'en-tête sur la colonne de lecture : il reste au
+     bord, comme le faisait `.mrd-back-hdr` avec son `align-self: stretch`.
+     (Tentative retirée : la règle était écrite ici mais perdait contre celle
+     du bloc « EN-TETES IONIC », de même spécificité et plus bas dans le
+     fichier — elle n'a jamais rien fait.) */
   /* Les en-têtes suivent la même boîte que le contenu qu'ils titrent. Avec des
      marges auto ils se réduisaient à leur contenu et flottaient au milieu de
      l'écran, décalés de la colonne qu'ils annoncent. */
@@ -1540,8 +1556,14 @@ div.cnt {
   padding: 10px var(--mrd-sp) 88px;
   background: var(--mrd-bg);
 }
-.cnt--settings { padding: 0; background: var(--mrd-bgDeep); }
-html[data-theme="dark"] .cnt--settings { background: var(--mrd-bgDeep); }
+ion-content.cnt--settings {
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --background: var(--mrd-bgDeep);
+}
+html[data-theme="dark"] ion-content.cnt--settings { --background: var(--mrd-bgDeep); }
 .mrd-set-page { display: flex; flex-direction: column; gap: 0; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px var(--mrd-sp) calc(var(--mrd-sp) + 24px); background: var(--mrd-bgDeep); }
 html[data-theme="dark"] .mrd-set-page { background: var(--mrd-bgDeep); }
 /* ── Carte profil (expandable) ── */

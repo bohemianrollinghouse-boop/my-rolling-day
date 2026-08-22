@@ -4,3 +4,4 @@ import "./e2e/profile-creation.test.js";
 import "./e2e/navigation.test.js";
 import "./e2e/tasks.test.js";
 import "./e2e/ionic-theme.test.js";
+import "./e2e/settings-routes.test.js";

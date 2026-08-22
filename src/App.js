@@ -83,10 +83,14 @@ import { isPremiumTab } from "./utils/premium.js";
 import {
   HOME_PATH,
   SETTINGS_PATH,
+  SETTINGS_SECTIONS,
+  SUPPORT_PAGES,
   TASK_PERIODS,
   isSecondaryScreen as isSecondaryScreenId,
   isSettingsPath,
   pathForTab,
+  settingsPathFor,
+  settingsStateFromPath,
   tabFromPath,
 } from "./routes.js";
 
@@ -192,8 +196,18 @@ function AppShell() {
   const showSettings = isSettingsPath(location.pathname);
   const activeTab = tabFromPath(location.pathname);
 
+  /* `go` remplace les appels directs a `navigate` pour une raison precise :
+     plusieurs endroits enchaînent deux changements d'etat qui visaient la meme
+     destination (par exemple « efface la sous-page » puis « ouvre la section »).
+     Avec des routes, cela empilait deux entrees d'historique identiques et le
+     bouton retour paraissait ne rien faire au premier appui. */
+  function go(path, { replace = false } = {}) {
+    if (path === location.pathname) return;
+    navigate(path, { replace });
+  }
+
   function setActiveTab(tab, { replace = false } = {}) {
-    navigate(pathForTab(tab), { replace });
+    go(pathForTab(tab), { replace });
   }
 
   /* Dernier écran hors réglages, pour savoir où revenir en fermant les
@@ -207,10 +221,25 @@ function AppShell() {
 
   function setShowSettings(open) {
     if (open) {
-      navigate(SETTINGS_PATH);
+      go(SETTINGS_PATH);
       return;
     }
-    navigate(lastPlannerPathRef.current || HOME_PATH, { replace: true });
+    go(lastPlannerPathRef.current || HOME_PATH, { replace: true });
+  }
+
+  /* Sous-pages des réglages : dérivées de l'URL, comme `activeTab`. Les noms
+     et le vocabulaire des props de `SettingsView` sont conservés (`"main"` pour
+     le sommaire, `""` pour « pas dans une page de support »), donc la vue n'a
+     pas été touchée. */
+  const { section: settingsSubPage, support: settingsSupportPage } =
+    settingsStateFromPath(location.pathname);
+
+  function setSettingsSubPage(section) {
+    go(settingsPathFor(section));
+  }
+
+  function setSettingsSupportPage(page) {
+    go(settingsPathFor(settingsSubPage, page));
   }
 
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
@@ -238,8 +267,6 @@ function AppShell() {
   // de notifications une fois le foyer chargé.
   const justLoggedInRef = useRef(false);
   const [settingsAutoOpenAddPersonSignal, setSettingsAutoOpenAddPersonSignal] = useState(0);
-  const [settingsSupportPage, setSettingsSupportPage] = useState("");
-  const [settingsSubPage, setSettingsSubPage] = useState("main");
   const isPremium = Boolean(currentFamily?.premiumOverride);
   const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
   const handleActivatePremium = () => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
@@ -372,10 +399,18 @@ function AppShell() {
     initNotifications().catch(() => {});
   }, []);
 
-  // Bouton retour Android : remonte la navigation au lieu de quitter l'app.
-  // Ordre : sous-page Réglages → Réglages → onglet home → sortie de l'app.
-  const backNavRef = useRef({});
-  backNavRef.current = { showSettings, settingsSubPage, activeTab };
+  /* Bouton retour Android.
+     Il reimplementait la cascade a la main : sous-page Réglages → Réglages →
+     onglet accueil → sortie. Cette cascade est exactement ce que fait la pile
+     d'historique depuis que chaque ecran a une route, et le routeur d'Ionic
+     anime la transition sur `popstate` — comme le font deja le geste de
+     balayage et le retour du navigateur, tous deux verifies.
+
+     Ionic n'intercepte pas ce bouton a notre place : `ion-app` ecoute
+     l'evenement DOM `backbutton`, convention Cordova que Capacitor ne
+     declenche pas. Ce gestionnaire reste donc le seul — pas de double retour.
+
+     ⚠️ A valider sur device : rien n'est verifie en natif (cf. TODO_NATIF). */
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
     let listenerHandle = null;
@@ -383,20 +418,12 @@ function AppShell() {
     import("@capacitor/app").then(({ App: CapacitorApp }) => {
       if (cancelled) return;
       CapacitorApp.addListener("backButton", () => {
-        const nav = backNavRef.current;
-        if (nav.showSettings) {
-          if (nav.settingsSubPage && nav.settingsSubPage !== "main") {
-            setSettingsSubPage("main");
-          } else {
-            setShowSettings(false);
-          }
+        const path = window.location.pathname;
+        if (path === HOME_PATH || path === "/") {
+          CapacitorApp.exitApp();
           return;
         }
-        if (nav.activeTab !== "home") {
-          setActiveTab("home");
-          return;
-        }
-        CapacitorApp.exitApp();
+        window.history.back();
       }).then((handle) => {
         if (cancelled) handle.remove();
         else listenerHandle = handle;
@@ -449,17 +476,35 @@ function AppShell() {
     setActivePersonId((current) => (current && availableIds.includes(current) ? current : ""));
   }, [currentFamilyId, appPeopleRaw, linkedPerson?.id]);
 
+  /* Remise à zéro à la déconnexion.
+     `wasSignedInRef` distingue une vraie déconnexion du démarrage : cet effet
+     tourne aussi au premier rendu, `user` valant `null` avant la réponse de
+     Firebase. La nuance était sans conséquence quand tout ici n'était que des
+     `setState` ; elle en a une maintenant qu'un écran est une URL. */
+  const wasSignedInRef = useRef(false);
   useEffect(() => {
-    if (!user) {
-      setDeviceMode("personal");
-      setShowSettings(false);
-      setShowHouseholdWelcomeModal(false);
-      setPostOnboardingState(null);
-      setPostOnboardingInviteCodes([]);
-      setSettingsSupportPage("");
-      setSettingsSubPage("main");
-      setDataMessage("");
-      setToast(null);
+    if (user) {
+      wasSignedInRef.current = true;
+      return;
+    }
+    setDeviceMode("personal");
+    setShowHouseholdWelcomeModal(false);
+    setPostOnboardingState(null);
+    setPostOnboardingInviteCodes([]);
+    setDataMessage("");
+    setToast(null);
+
+    /* Trois appels ont disparu d'ici : `setShowSettings(false)`,
+       `setSettingsSupportPage("")` et `setSettingsSubPage("main")`. C'étaient
+       des resets de `useState` ; devenus des navigations, ils empilaient
+       **deux** entrées `/settings` — et comme cet effet tourne au démarrage,
+       deux retours depuis n'importe quel écran ramenaient dans les réglages
+       après l'onboarding. Une seule navigation les remplace, et seulement sur
+       une vraie déconnexion : au démarrage, toucher à l'URL détruirait un lien
+       profond avant même que l'utilisateur soit connu. */
+    if (wasSignedInRef.current) {
+      wasSignedInRef.current = false;
+      go(HOME_PATH, { replace: true });
     }
   }, [user]);
 
@@ -1126,6 +1171,29 @@ function AppShell() {
     `;
   }
 
+  /* Foyer créé mais encore sans personne : le planificateur n'a rien à
+     afficher, et c'est dans les réglages que se fait l'ajout de membres.
+     `plannerUnlocked = hasFamily && people.length > 0`.
+
+     Un **rendu** et non une redirection, et la nuance a coûté un test :
+     `hasFamily` passe à vrai avant que les personnes n'arrivent de Firestore.
+     Rediriger vers `/settings` dans cette fenêtre marchait, mais rien ne
+     ramenait ensuite l'utilisateur : l'app restait sur les réglages une fois
+     l'onboarding fini. Un rendu conditionnel est réversible, une entrée
+     d'historique ne l'est pas.
+
+     La route `/settings` existe toujours, pour la navigation volontaire. */
+  if (showSettings || !plannerUnlocked) {
+    return html`
+      <div className="mrd-outer">
+        <div className="mrd-shell">
+          ${settingsPage()}
+        </div>
+        <${FeedbackWidget} user=${user} currentPage="settings" />
+      </div>
+    `;
+  }
+
   /* ── Contenu d'un écran ────────────────────────────────────────────────
      C'était une valeur (`plannerContent`) calculée pour l'onglet courant.
      Avec `IonRouterOutlet`, la page sortante reste montée le temps de la
@@ -1542,214 +1610,131 @@ function AppShell() {
     `;
   }
 
-  /* ── Réglages ──────────────────────────────────────────────────────────
-     Volontairement **hors** de la barre d'onglets : les réglages couvrent
-     l'écran entier, sans onglets en bas. C'est aussi ce que faisait
-     l'ancien `showSettings`, à ceci près que la condition vient maintenant
-     de l'URL.
+  /* ── Page Réglages ─────────────────────────────────────────────────────
+     Les réglages sont rendus **hors** de l'outlet des onglets, en retour
+     anticipé. Trois structures ont été essayées, dans cet ordre :
 
-     Les sous-pages (`settingsSubPage`, `settingsSupportPage`) restent des
-     `useState` — leur passage en routes imbriquées est l'objet de la
-     phase 5. */
-  if (showSettings || !plannerUnlocked) {
+       1. Dans l'outlet, barre d'onglets masquée. Donnait la transition de
+          page, mais Ionic protestait à chaque navigation — « [ion-tabs] Tab
+          with id: "undefined" does not exist », la route des réglages n'ayant
+          aucun onglet correspondant — et l'arbre d'éléments de `SettingsView`
+          était reconstruit trois fois (une par route) à chaque rendu. Sous la
+          charge de la suite e2e complète, le navigateur finissait par mourir.
+       2. Un outlet parent (`/settings/*` d'un côté, les onglets de l'autre) :
+          c'est la structure canonique d'Ionic, et ce serait le bon choix — mais
+          les outlets imbriqués avec react-router v6 sont précisément là où se
+          cachent les bugs, et il n'y a pas de documentation pour s'y appuyer.
+          Écarté faute de pouvoir le valider.
+       3. Retour anticipé, la structure d'avant la phase 5. Retenue.
+
+     Ce qu'on perd : l'animation de poussée en entrant dans les réglages.
+     Ce qu'on garde : l'URL comme source de vérité, les sous-pages en routes,
+     l'`IonBackButton` (qui remonte la pile même hors outlet) et la disparition
+     de la cascade de retour codée à la main.
+
+     Les sous-pages viennent de l'URL :
+       `/settings`                    → sommaire
+       `/settings/:section`           → une des 9 sections
+       `/settings/support/:page`      → une des 5 pages de support
+     La cascade de retour codée à la main (support → section → sortie) est
+     remplacée par un `IonBackButton` : chaque niveau est une entrée
+     d'historique, donc la pile fait le travail. */
+  function settingsPage() {
     return html`
-      <div className="mrd-outer">
-        <div className="mrd-shell">
-          <div className="mrd-screen">
-${/* Settings close header */null}
-          ${showSettings && plannerUnlocked ? html`
-            <div className="mrd-back-hdr">
-              <button className="mrd-back-btn" onClick=${() => {
-                if (settingsSupportPage) {
-                  setSettingsSupportPage("");
-                  return;
-                }
-                if (settingsSubPage !== "main") {
-                  setSettingsSubPage("main");
-                  return;
-                }
-                setShowSettings(false);
-              }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M15 18l-6-6 6-6" stroke="var(--mrd-fg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <span className="mrd-screen-title">Réglages</span>
-            </div>
-          ` : null}
-
-${/* Errors */null}
-          ${familyError || bootstrapError ? html`
-            <div style=${{ padding: "0 14px" }}>
-              ${familyError ? html`<div className="error-box">${familyError}</div>` : null}
-              ${bootstrapError ? html`<div className="error-box">${bootstrapError}</div>` : null}
-            </div>
-          ` : null}
-
-            <div className="cnt cnt--settings">
-                  <${SettingsView}
-                    isOnboarding=${!plannerUnlocked}
-                    currentFamily=${currentFamily}
-                    families=${safeFamilies}
-                    currentRole=${currentRole}
-                    userProfile=${userProfile}
-                    linkedPerson=${linkedPerson}
-                    memberDirectory=${memberDirectory}
-                    activePersonId=${activePersonId}
-                    deviceMode=${deviceMode}
-                    people=${safePeople}
-                    invitations=${invitations}
-                    authMode=${passwordAvailable ? "password" : authMode}
-                    syncLabel=${status}
-                    dataMessage=${dataMessage}
-                    emailMessage=${emailMessage}
-                    passwordMessage=${passwordMessage}
-                    accountMessage=${accountMessage}
-                    appTimeMode=${appTimeMode}
-                    simulatedDateTime=${simulatedDateTime}
-                    currentAppDateLabel=${currentAppDateLabel}
-                    linkedAccountChoices=${linkedAccountChoices}
-                    linkedAccountLabels=${linkedAccountLabels}
-                    importText=${importText}
-                    showImport=${showImport}
-                    onCreateFamily=${(name) => runFamilyAction(() => handleCreateFamily(name))}
-                    onCreateFamilyWizard=${(payload) => runFamilyAction(() => handleCreateHouseholdOnboarding(payload))}
-                    onJoinFamily=${(code) => runFamilyAction(() => handleJoinFamily(code))}
-                    onSwitchFamily=${(familyId) => runFamilyAction(() => handleSwitchFamily(familyId))}
-                    onRenameFamily=${(name) => runFamilyAction(() => renameFamily(currentFamilyId, name))}
-                    isPremium=${isPremium}
-                    onSetPremiumOverride=${(value) => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, value))}
-                    onAddPerson=${(person) => runFamilyAction(() => handleAddPerson(person))}
-                    onUpdatePerson=${(personId, updates) => runFamilyAction(() => handleUpdatePerson(personId, updates))}
-                    onUpdateMemberRole=${(uid, role) => runFamilyAction(() => handleUpdateMemberRole(uid, role))}
-                    onDeletePerson=${(personId) => runFamilyAction(() => handleDeletePerson(personId))}
-                    onMovePerson=${(personId, direction) => runFamilyAction(() => handleMovePerson(personId, direction))}
-                    onChangeEmail=${handleChangeEmail}
-                    onChangePassword=${handleChangePassword}
-                    onLeaveFamily=${() => runFamilyAction(() => handleLeaveFamily())}
-                    onDeleteFamily=${() => runFamilyAction(() => handleDeleteFamily())}
-                    onDeleteFamilyById=${(familyId) => runFamilyAction(() => handleDeleteFamilyById(familyId))}
-                    onDeleteAccount=${(currentPassword) => runFamilyAction(async () => {
-                      await handleDeleteAccount(currentPassword);
-                      setAuthEntryPage("login");
-                    })}
-                    onChangeActivePerson=${handleSetActivePerson}
-                    onChangeDeviceMode=${handleSetDeviceMode}
-                    onCreateInvitation=${(personId, email) => runFamilyAction(() => handleCreateInvitation(personId, email))}
-                    onToggleImport=${() => setShowImport((value) => !value)}
-                    onUseRealDate=${handleSetRealDateMode}
-                    onUseSimulatedDate=${handleSetSimulatedDateMode}
-                    onChangeSimulatedDate=${handleChangeSimulatedDate}
-                    onChangeSimulatedTime=${handleChangeSimulatedTime}
-                    onShiftSimulatedDate=${handleShiftSimulatedDate}
-                    onResetSimulatedDate=${handleResetSimulatedDateToToday}
-                    onImportTextChange=${setImportText}
-                    onImportData=${handleManualImport}
-                    onExportData=${handleExportData}
-                    onClearHistory=${handleClearHistory}
-                    onResetPlanner=${handleResetPlanner}
-                    autoOpenAddPersonSignal=${settingsAutoOpenAddPersonSignal}
-                    onConsumeAutoOpenAddPersonSignal=${() => setSettingsAutoOpenAddPersonSignal(0)}
-                    taskNotifications=${state.taskNotifications}
-                    onUpdateTaskNotifications=${handleUpdateTaskNotifications}
-                    pushToken=${pushToken}
-                    pushSyncing=${pushSyncing}
-                    pushError=${pushError}
-                    onRequestPushPermission=${requestPushPermission}
-                    settingsPage=${settingsSubPage}
-                    onSettingsPageChange=${setSettingsSubPage}
-                    supportPage=${settingsSupportPage}
-                    onSupportPageChange=${setSettingsSupportPage}
-                    busy=${busy}
-                    onLogout=${() => {
-                      setAuthEntryPage("welcome");
-                      return signOutUser();
-                    }}
-                  />
-                </div>
-          </div>
-  ${/* Modals — absolute-positioned within the shell */null}
-          ${selectedProfile ? html`
-            <${ProfileModal}
-              profile=${selectedProfile}
-              canEdit=${canEditSelectedProfile}
-              draft=${profileDraft}
-              onDraftChange=${setProfileDraft}
-              onClose=${() => setProfilePersonId("")}
-              onSave=${() => runFamilyAction(() => handleSaveProfileCard())}
-            />
-          ` : null}
-        ${notifPopup ? html`
-          <${NotificationModal}
-            notification=${notifPopup}
-            onClose=${() => setNotifPopup(null)}
-            onNavigate=${handleNotifPopupNavigate}
-          />
+      <${IonPage} className="mrd-ion-page mrd-settings-page">
+        ${plannerUnlocked ? html`
+          <${IonHeader} className="mrd-ion-header">
+            <${IonToolbar} className="mrd-ion-toolbar">
+              <${IonButtons} slot="start">
+                <${IonBackButton} defaultHref=${lastPlannerPathRef.current || HOME_PATH} text="" className="mrd-ion-back" aria-label="Retour" />
+              <//>
+              <${IonTitle} className="mrd-ion-title">Réglages<//>
+            <//>
+          <//>
         ` : null}
-
-        ${!notifPopup && activeStaleTask ? html`
-          <${StaleTaskModal}
-            task=${activeStaleTask}
-            alert=${activeStaleTaskAlert}
-            onClose=${handleDismissStaleTaskAlert}
-            onMoveToDaily=${() => handleMoveStaleTaskToPeriod("daily")}
-            onMoveToWeekly=${() => handleMoveStaleTaskToPeriod("weekly")}
-          />
-        ` : null}
-
-        ${toast?.text
-          ? html`
-              <div className="app-toast-wrap">
-                <div className="app-toast">
-                  <span>${toast.text}</span>
-                  ${toast.action?.label
-                    ? html`<button className="app-toast-action" onClick=${toast.action.onClick}>${toast.action.label}</button>`
-                    : null}
-                </div>
-              </div>
-            `
-          : null}
-
-        ${postOnboardingState === "notify" ? html`
-          <${NotifPromptModal}
-            dismissCount=${getNotifPromptDismissCount()}
-            onActivate=${async () => {
-              markNotifPromptGranted();
-              // 1. Dialog OS seul (rapide) — la modale se ferme dès la réponse.
-              try { await requestNotificationPermission(); } catch (_) {}
-              setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
-              // 2. Enregistrement du token push (peut prendre plusieurs secondes
-              //    en natif : APNs) — en arrière-plan, sans bloquer la modale.
-              requestPushPermission().catch(() => {});
-            }}
-            onLater=${() => {
-              markNotifPromptDismissed();
-              setPostOnboardingState(postOnboardingInviteCodes.length ? "invite-codes" : null);
+        <${IonContent} className="cnt cnt--settings">
+          ${renderPageBanners()}
+<${SettingsView}
+            isOnboarding=${!plannerUnlocked}
+            currentFamily=${currentFamily}
+            families=${safeFamilies}
+            currentRole=${currentRole}
+            userProfile=${userProfile}
+            linkedPerson=${linkedPerson}
+            memberDirectory=${memberDirectory}
+            activePersonId=${activePersonId}
+            deviceMode=${deviceMode}
+            people=${safePeople}
+            invitations=${invitations}
+            authMode=${passwordAvailable ? "password" : authMode}
+            syncLabel=${status}
+            dataMessage=${dataMessage}
+            emailMessage=${emailMessage}
+            passwordMessage=${passwordMessage}
+            accountMessage=${accountMessage}
+            appTimeMode=${appTimeMode}
+            simulatedDateTime=${simulatedDateTime}
+            currentAppDateLabel=${currentAppDateLabel}
+            linkedAccountChoices=${linkedAccountChoices}
+            linkedAccountLabels=${linkedAccountLabels}
+            importText=${importText}
+            showImport=${showImport}
+            onCreateFamily=${(name) => runFamilyAction(() => handleCreateFamily(name))}
+            onCreateFamilyWizard=${(payload) => runFamilyAction(() => handleCreateHouseholdOnboarding(payload))}
+            onJoinFamily=${(code) => runFamilyAction(() => handleJoinFamily(code))}
+            onSwitchFamily=${(familyId) => runFamilyAction(() => handleSwitchFamily(familyId))}
+            onRenameFamily=${(name) => runFamilyAction(() => renameFamily(currentFamilyId, name))}
+            isPremium=${isPremium}
+            onSetPremiumOverride=${(value) => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, value))}
+            onAddPerson=${(person) => runFamilyAction(() => handleAddPerson(person))}
+            onUpdatePerson=${(personId, updates) => runFamilyAction(() => handleUpdatePerson(personId, updates))}
+            onUpdateMemberRole=${(uid, role) => runFamilyAction(() => handleUpdateMemberRole(uid, role))}
+            onDeletePerson=${(personId) => runFamilyAction(() => handleDeletePerson(personId))}
+            onMovePerson=${(personId, direction) => runFamilyAction(() => handleMovePerson(personId, direction))}
+            onChangeEmail=${handleChangeEmail}
+            onChangePassword=${handleChangePassword}
+            onLeaveFamily=${() => runFamilyAction(() => handleLeaveFamily())}
+            onDeleteFamily=${() => runFamilyAction(() => handleDeleteFamily())}
+            onDeleteFamilyById=${(familyId) => runFamilyAction(() => handleDeleteFamilyById(familyId))}
+            onDeleteAccount=${(currentPassword) => runFamilyAction(async () => {
+              await handleDeleteAccount(currentPassword);
+              setAuthEntryPage("login");
+            })}
+            onChangeActivePerson=${handleSetActivePerson}
+            onChangeDeviceMode=${handleSetDeviceMode}
+            onCreateInvitation=${(personId, email) => runFamilyAction(() => handleCreateInvitation(personId, email))}
+            onToggleImport=${() => setShowImport((value) => !value)}
+            onUseRealDate=${handleSetRealDateMode}
+            onUseSimulatedDate=${handleSetSimulatedDateMode}
+            onChangeSimulatedDate=${handleChangeSimulatedDate}
+            onChangeSimulatedTime=${handleChangeSimulatedTime}
+            onShiftSimulatedDate=${handleShiftSimulatedDate}
+            onResetSimulatedDate=${handleResetSimulatedDateToToday}
+            onImportTextChange=${setImportText}
+            onImportData=${handleManualImport}
+            onExportData=${handleExportData}
+            onClearHistory=${handleClearHistory}
+            onResetPlanner=${handleResetPlanner}
+            autoOpenAddPersonSignal=${settingsAutoOpenAddPersonSignal}
+            onConsumeAutoOpenAddPersonSignal=${() => setSettingsAutoOpenAddPersonSignal(0)}
+            taskNotifications=${state.taskNotifications}
+            onUpdateTaskNotifications=${handleUpdateTaskNotifications}
+            pushToken=${pushToken}
+            pushSyncing=${pushSyncing}
+            pushError=${pushError}
+            onRequestPushPermission=${requestPushPermission}
+            settingsPage=${settingsSubPage}
+            onSettingsPageChange=${setSettingsSubPage}
+            supportPage=${settingsSupportPage}
+            onSupportPageChange=${setSettingsSupportPage}
+            busy=${busy}
+            onLogout=${() => {
+              setAuthEntryPage("welcome");
+              return signOutUser();
             }}
           />
-        ` : null}
-
-        ${postOnboardingState === "invite-codes" && postOnboardingInviteCodes.length ? html`
-          <${InviteCodesModal}
-            inviteCodes=${postOnboardingInviteCodes}
-            onClose=${() => { setPostOnboardingState(null); setPostOnboardingInviteCodes([]); }}
-          />
-        ` : null}
-
-        ${plannerUnlocked && showHouseholdWelcomeModal ? html`
-          <${HouseholdWelcomeModal}
-            onClose=${() => setShowHouseholdWelcomeModal(false)}
-            onAddMembers=${() => {
-              setShowHouseholdWelcomeModal(false);
-              setShowSettings(true);
-              setSettingsAutoOpenAddPersonSignal((value) => value + 1);
-            }}
-          />
-        ` : null}
-        </div>
-
-        <${FeedbackWidget} user=${user} currentPage=${activeTab || ""} />
-      </div>
+        <//>
+      <//>
     `;
   }
 

@@ -33,6 +33,20 @@ export const SECONDARY_SCREENS = ["notes", "inventory", "recipes", "history", "i
 
 export const SETTINGS_PATH = "/settings";
 export const HOME_PATH = "/home";
+export const AUTH_PATH = "/auth";
+
+/**
+ * Sections des réglages — les valeurs que `SettingsView` attend dans sa prop
+ * `settingsPage`. « main » est le sommaire et correspond à `/settings` tout
+ * court, pas à `/settings/main`.
+ */
+export const SETTINGS_SECTIONS = [
+  "profile", "households", "household", "notifications",
+  "appearance", "account", "privacy", "help", "about",
+];
+
+/** Sous-pages de support, sous `/settings/support/:page`. */
+export const SUPPORT_PAGES = ["contact", "bug", "feature", "privacy", "terms"];
 
 /** Chemin de chaque écran simple (hors Tâches, qui a un paramètre). */
 const SIMPLE_PATHS = {
@@ -47,10 +61,18 @@ const SIMPLE_PATHS = {
   inbox: "/inbox",
 };
 
-/** Tous les chemins déclarés dans le routeur, dans l'ordre de déclaration. */
+/**
+ * Tous les chemins déclarés dans le routeur.
+ *
+ * L'ordre compte pour les réglages : `/settings/support/:page` doit précéder
+ * `/settings/:section`, sinon « support » serait pris pour une section.
+ */
 export const ROUTE_PATHS = [
   ...Object.values(SIMPLE_PATHS),
   "/tasks/:period",
+  `${SETTINGS_PATH}/support/:page`,
+  `${SETTINGS_PATH}/:section`,
+  SETTINGS_PATH,
 ];
 
 /**
@@ -114,4 +136,41 @@ export function bottomIdForTab(tab) {
 /** true si l'écran s'empile par-dessus l'accueil (bouton retour, pas d'onglet). */
 export function isSecondaryScreen(tab) {
   return SECONDARY_SCREENS.includes(String(tab || ""));
+}
+
+/**
+ * Chemin d'un état des réglages.
+ *
+ * @param {string} section  section des réglages, ou « main » pour le sommaire
+ * @param {string} [support] sous-page de support ; l'emporte sur `section`
+ */
+export function settingsPathFor(section, support = "") {
+  const page = String(support || "");
+  if (SUPPORT_PAGES.includes(page)) return `${SETTINGS_PATH}/support/${page}`;
+  const id = String(section || "");
+  return SETTINGS_SECTIONS.includes(id) ? `${SETTINGS_PATH}/${id}` : SETTINGS_PATH;
+}
+
+/**
+ * État des réglages porté par un chemin — l'inverse de `settingsPathFor`.
+ *
+ * Renvoie le vocabulaire que `SettingsView` attend déjà (`section: "main"` pour
+ * le sommaire, `support: ""` quand on n'est pas dans une page de support), ce
+ * qui évite de toucher aux 4 props concernées.
+ */
+export function settingsStateFromPath(pathname) {
+  const path = String(pathname || "").replace(/\/+$/, "");
+  if (!isSettingsPath(path)) return { section: "main", support: "" };
+
+  const supportMatch = path.match(new RegExp(`^${SETTINGS_PATH}/support/([^/]+)$`));
+  if (supportMatch) {
+    const page = supportMatch[1];
+    return { section: "main", support: SUPPORT_PAGES.includes(page) ? page : "" };
+  }
+
+  const sectionMatch = path.match(new RegExp(`^${SETTINGS_PATH}/([^/]+)$`));
+  if (sectionMatch && SETTINGS_SECTIONS.includes(sectionMatch[1])) {
+    return { section: sectionMatch[1], support: "" };
+  }
+  return { section: "main", support: "" };
 }

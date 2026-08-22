@@ -1,5 +1,3 @@
-import { useEffect } from "../lib.js";
-
 /**
  * Calcule les décisions de routage de l'app :
  * quel écran afficher (chargement, auth, onboarding, app principale).
@@ -31,23 +29,10 @@ export function useAppRouting({ bootLoading, user, userProfile, currentFamilyId,
   // Garde globale : onboarding actif si l'une des deux conditions ci-dessus est vraie
   const profileGuardActive = !bootLoading && (needsFamilySetup || needsLinkedProfileSetup);
 
-  // [route-debug] — log de l'écran sélectionné à chaque changement de routing.
-  // À retirer une fois le flash de boot confirmé corrigé.
-  useEffect(() => {
-    const screen =
-      bootLoading ? "loading" :
-      !user ? "auth" :
-      profileGuardActive ? "onboarding" :
-      "home";
-    console.log(
-      "[route-debug] selectedScreen=" + screen,
-      "| bootLoading=" + bootLoading,
-      "| user=" + (user ? user.uid.slice(0, 6) : "null"),
-      "| profileGuardActive=" + profileGuardActive,
-      "| needsFamilySetup=" + needsFamilySetup,
-      "| needsLinkedProfileSetup=" + needsLinkedProfileSetup,
-    );
-  }, [bootLoading, user, profileGuardActive, needsFamilySetup, needsLinkedProfileSetup]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Le log `[route-debug]` posé ici pour traquer un flash au démarrage a été
+     retiré avec la migration Ionic : l'écran affiché vient maintenant de
+     l'URL, qui est lisible directement, et ce hook ne décide plus que de la
+     garde d'onboarding. */
 
   return { needsFamilySetup, profileGuardActive };
 }

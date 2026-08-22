@@ -438,8 +438,16 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
         `[...document.querySelectorAll(".ion-page")].some((p) => p.classList.contains("can-go-back"))`),
         "la page doit être marquée can-go-back");
 
-      await evaluate(session, `document.querySelector("ion-back-button")?.shadowRoot?.querySelector("button")?.click()
-        ?? document.querySelector("ion-back-button")?.click()`);
+      /* Un seul clic, et il faut y veiller : `el?.click() ?? autre.click()`
+         clique DEUX fois, `click()` renvoyant `undefined` — donc `??` évalue
+         aussi la branche de droite. Le test remontait alors deux niveaux de
+         pile et échouait sur une URL inattendue. */
+      await evaluate(session, `(() => {
+        const btn = document.querySelector("ion-back-button");
+        const inner = btn?.shadowRoot?.querySelector("button");
+        (inner || btn)?.click();
+        return !!btn;
+      })()`);
       await sleep(900);
       await waitForPageSettled(session);
 
@@ -471,6 +479,46 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
         "le balayage depuis le bord gauche doit remonter la pile");
       assert.ok(await pollForSelectorInActivePage(session, ".mrd-home", 5_000),
         "l'accueil doit être réaffiché après le geste");
+      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
+    } finally {
+      await session.close();
+    }
+  });
+
+  /* Non-régression sur un bug de la phase 5, invisible à l'écran.
+
+     Un effet remettait à zéro l'écran des réglages quand `user` passait à
+     `null` : trois `setState` devenus trois navigations, dont deux empilaient
+     `/settings`. Et cet effet tourne aussi au démarrage, `user` valant `null`
+     avant la réponse de Firebase. Résultat : après l'onboarding, l'historique
+     contenait « / → /settings → /settings → /home », et deux retours depuis
+     n'importe quel écran ramenaient dans les réglages. Rien ne se voyait :
+     l'app s'affichait correctement, seule la pile était polluée. */
+  await t.test("[7] l'historique ne contient pas d'entrée parasite", async (st) => {
+    if (!browserHandle) {
+      st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
+      return;
+    }
+    const session = await openStubbed({ touch: true });
+    try {
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
+      assert.ok(await openQuickScreen(session, "Notes"), "« Notes » doit s'ouvrir");
+      assert.equal(await evaluate(session, "location.pathname"), "/notes");
+
+      await evaluate(session, "history.back()");
+      await sleep(900);
+      await waitForPageSettled(session);
+      assert.equal(await evaluate(session, "location.pathname"), "/home",
+        "premier retour : l'accueil");
+
+      /* Le deuxième retour doit sortir de l'app (ou ne rien faire), jamais
+         atterrir dans les réglages : rien n'a ouvert les réglages de tout le
+         parcours. */
+      await evaluate(session, "history.back()");
+      await sleep(900);
+      const after = await evaluate(session, "location.pathname");
+      assert.notEqual(after, "/settings",
+        `deuxième retour : ne doit pas ramener dans les réglages (obtenu ${after})`);
       assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
     } finally {
       await session.close();

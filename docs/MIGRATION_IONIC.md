@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 à 4 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 à 5 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -489,26 +489,92 @@ depuis l'intérieur d'une vue.
 **Leçon pour les phases suivantes** : un petit pourcentage n'est pas un feu
 vert. Le comparateur dit *où* regarder, pas *si* c'est grave.
 
-### Phase 5 — 🟠 Réglages, onboarding, paywall
+### Phase 5 — 🟠 Réglages, onboarding, paywall — ✅ TERMINÉE
 
-Les trois gardes qui court-circuitent l'app aujourd'hui.
+- [x] Réglages : `showSettings` + `settingsSubPage` + `settingsSupportPage`
+      étaient trois `useState` composant une pile à la main. Ce sont maintenant
+      trois niveaux de routes (`/settings`, `/settings/:section`,
+      `/settings/support/:page`), et la **cascade de retour codée à la main a
+      disparu** au profit d'un `IonBackButton` : chaque niveau est une entrée
+      d'historique.
+- [x] La page Réglages est un `IonPage` > `IonHeader` > `IonContent`.
+- [x] `PremiumLockScreen` reste un rendu conditionnel — ce n'est pas une
+      destination.
+- [x] `console.log("[route-debug]…")` retiré de `useAppRouting.js` : son propre
+      commentaire le disait temporaire, et l'écran affiché se lit maintenant
+      dans l'URL.
+- [x] Le gestionnaire de bouton retour Android réimplémentait la cascade. Il
+      délègue désormais à `history.back()`, sauf sur l'accueil où il sort de
+      l'app. Vérifié qu'Ionic n'intercepte pas ce bouton à notre place :
+      `ion-app` écoute l'événement DOM `backbutton`, convention Cordova que
+      Capacitor ne déclenche pas — pas de double retour. **À valider sur
+      device**, comme tout le natif (cf. `TODO_NATIF`).
 
-- [ ] Réglages : `showSettings` + `settingsSubPage` + `settingsSupportPage`
-      sont trois `useState` qui composent une pile à la main (`App.js:1330`,
-      retour en cascade). → routes imbriquées `/settings`,
-      `/settings/:section`, `/settings/support/:page` + `IonBackButton`. La
-      cascade de retour disparaît, Ionic la tient.
-- [ ] Onboarding : `profileGuardActive` (`useAppRouting.js`) → redirection de
-      route plutôt que rendu conditionnel. `OnboardingFlow` (939 l., 14 étapes
-      en 3 parcours) garde sa machine à états interne — **ne pas** la convertir
-      en routes, ce serait un chantier à part sans bénéfice.
-- [ ] Écran d'auth : route `/auth`, garde de redirection.
-- [ ] `PremiumLockScreen` : reste un rendu conditionnel dans la page concernée
-      (ce n'est pas une destination).
-- [ ] Retirer le `console.log("[route-debug]…")` de `useAppRouting.js` — le
-      commentaire dit lui-même qu'il est temporaire, et le routage change ici.
-- [ ] Vérifier `tests/e2e/profile-creation.test.js` (cible `.onboarding-shell`
-      et `.onb-footer-next`, 21+13 occurrences).
+#### Auth et onboarding : décision de ne pas les router
+
+Le plan prévoyait de remplacer leur rendu conditionnel par des redirections.
+Écarté après examen : ce sont des prises de contrôle plein écran *avant* que
+l'app existe, la redirection n'apporterait aucun gain Ionic et ajouterait un
+risque de boucle de garde. `OnboardingFlow` garde sa machine à 14 états.
+
+#### Trois structures essayées pour les réglages
+
+C'est là qu'est passé le temps de la phase.
+
+1. **Dans l'outlet des onglets, barre d'onglets masquée.** Donnait la
+   transition de page. Mais Ionic protestait à chaque navigation —
+   `[ion-tabs] Tab with id: "undefined" does not exist`, la route des réglages
+   n'ayant aucun onglet — et l'arbre d'éléments de `SettingsView` (~70 props)
+   était reconstruit **trois fois par rendu**, une par route. Sous la charge de
+   la suite e2e complète, le navigateur finissait par mourir : un sous-test
+   expirait à 240 s, puis les suivants tombaient en « fetch failed ». Le même
+   sous-test passait seul — le symptôme classique d'un problème de ressources,
+   pas de logique.
+2. **Un outlet parent** (`/settings/*` d'un côté, les onglets de l'autre) :
+   la structure canonique d'Ionic, et le bon choix sur le papier. Écartée faute
+   de pouvoir la valider — les outlets imbriqués avec react-router v6 sont
+   précisément là où se cachent les bugs, et il n'y a pas de documentation.
+3. **Retour anticipé**, la structure d'avant la phase. Retenue. On perd
+   l'animation de poussée en entrant dans les réglages ; on garde l'URL comme
+   source de vérité, les sous-pages en routes, et l'`IonBackButton` — qui
+   remonte la pile même hors outlet.
+
+#### Deux bugs que seul le passage aux routes pouvait créer
+
+**Un rendu conditionnel est réversible, une entrée d'historique non.**
+`plannerUnlocked = hasFamily && people.length > 0`, et `hasFamily` passe à vrai
+avant que les personnes n'arrivent de Firestore. J'avais remplacé le rendu du
+volet Réglages dans cette fenêtre par une redirection vers `/settings` : elle
+partait bien, mais rien ne ramenait ensuite l'utilisateur — l'app restait sur
+les réglages une fois l'onboarding terminé. Revenu à un rendu.
+
+**Un effet de remise à zéro devenu trois navigations.** Un `useEffect` sur
+`[user]` remettait l'écran des réglages à zéro à la déconnexion :
+`setShowSettings(false)`, `setSettingsSupportPage("")`,
+`setSettingsSubPage("main")`. Inoffensif tant que c'étaient des `useState` ;
+devenus des navigations, les deux derniers empilaient **deux entrées
+`/settings`** — et cet effet tourne aussi au démarrage, `user` valant `null`
+avant la réponse de Firebase. L'historique après onboarding était
+`/ → /settings → /settings → /home`, et deux retours depuis n'importe quel
+écran ramenaient dans les réglages. **Rien ne se voyait à l'écran** : l'app
+s'affichait correctement, seule la pile était polluée. Trouvé en instrumentant
+`pushState` / `replaceState`, et verrouillé par un test (`navigation` [7]).
+
+La remise à zéro ne touche plus à l'URL qu'au terme d'une vraie déconnexion,
+distinguée du démarrage par un `wasSignedInRef` : au boot, toucher à l'URL
+détruirait un lien profond avant même que l'utilisateur soit connu.
+
+#### Deux sélecteurs périmés, silencieux
+
+- `document.querySelector(".mrd-screen .cnt")` dans `SettingsView` et
+  `SettingsSupportPage` : les deux sélecteurs ont disparu avec `ion-content`,
+  et le retour en haut de page ne faisait plus rien — un `querySelector` qui ne
+  trouve rien ne lève pas. Remplacé par `src/utils/scroll.js`, qui passe par
+  l'API `scrollToTop` d'`ion-content` et cible la page **visible** (la page
+  quittée reste montée).
+- Sur écran large, `max-width: 820px; margin: auto` sur `.cnt` rétrécissait
+  l'`ion-content` sans le recentrer : les réglages se retrouvaient collés à
+  gauche. La contrainte porte maintenant sur `::part(scroll)`.
 
 ### Phase 6 — 🟡 Bureau : `IonSplitPane`
 
