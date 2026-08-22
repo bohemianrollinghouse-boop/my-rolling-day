@@ -1,5 +1,5 @@
 import { DEFAULT_MEMBER_COLOR } from "./constants.js";
-import { BottomNav, QUICK_MENU_ITEMS, SidebarNav } from "./components/nav/BottomNav.js";
+import { BottomNav, QUICK_MENU_ITEMS } from "./components/nav/BottomNav.js";
 import { InboxView } from "./components/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget.js";
 import { HomeView } from "./components/home/HomeView.js";
@@ -1764,21 +1764,6 @@ function AppShell() {
     <div className="mrd-outer">
       <div className="mrd-shell">
 
-${/* Nav bureau — barre latérale sur écrans larges, remplace la barre du bas */null}
-        ${plannerUnlocked && !showSettings ? html`
-          <${SidebarNav}
-            activeTab=${activeTab}
-            onChange=${handleBottomNavChange}
-            overdueTaskCount=${stats.overdueTaskCount}
-            isPremium=${isPremium}
-          />
-        ` : null}
-
-        ${/* Onglets Ionic. `IonRouterOutlet` doit rester un enfant DIRECT
-             d'`IonTabs` (sinon Ionic lève « IonTabs must contain an
-             IonRouterOutlet »). La barre d'onglets, elle, passe par le
-             contexte : l'envelopper dans `BottomNav` ne pose pas de
-             problème. */null}
         <${IonTabs} className="mrd-tabs-host">
           <${IonRouterOutlet}>
             <${IonRoute} path="/home" element=${screenPage("home")} />

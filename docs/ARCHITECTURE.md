@@ -211,14 +211,60 @@ il n'y a plus rien à aligner. Ne pas réintroduire de `?v=` dans les imports.
 - Firebase Admin SDK (Cloud Functions uniquement, pas dans le frontend)
 - Node test runner pour les tests locaux (`node:test`)
 
+## Surfaces livrées
+
+**iOS et Android uniquement** (Capacitor, `webDir: "dist"`). Décision produit du
+22 août 2026 : il n'y a **pas de version ordinateur** au programme, et le rendu
+bureau (barre latérale de 240 px sur `@media (min-width: 900px)`) a été supprimé
+en phase 6 de la migration Ionic.
+
+Ce n'est pas la même chose que « pas de web » : `dist/` reste servi par Firebase
+Hosting, parce que deux choses en dépendent — la redirection d'authentification
+Google (`__/auth/*`, cf. `netlify.toml`) et la page autonome de réinitialisation
+de mot de passe (`site/reset-password.html`). Ouverte dans une fenêtre large,
+l'app s'affiche comme sur téléphone, sur toute la largeur.
+
+Les media queries restantes (600 / 640 / 720 px) ne sont pas du bureau : un
+téléphone en paysage fait 844 px de large et les atteint.
+
 ## Routage
 
-**Aucun router.** L'écran affiché est dérivé de `useState` dans `App.js` :
-`activeTab`, `showSettings`, `settingsSubPage`, `settingsSupportPage`. Les
-décisions de haut niveau (chargement / auth / onboarding / app) sont dans
-`src/hooks/useAppRouting.js`.
+**`@ionic/react-router` au-dessus de `react-router-dom` 6.** L'URL est la source
+de vérité de l'écran affiché — plus aucun `useState` pour ça.
 
-→ Ce point change avec la migration Ionic : voir `docs/MIGRATION_IONIC.md`.
+`src/routes.js` est la **seule** traduction entre l'URL et le vocabulaire
+historique du code (`pathForTab`, `tabFromPath`, `bottomIdForTab`,
+`settingsPathFor`, `settingsStateFromPath`). Module pur, testé sans navigateur
+(`tests/unit/routes.test.js`).
+
+| Chemin | Écran |
+|---|---|
+| `/home` | Accueil |
+| `/tasks/:period` | Tâches — `daily`, `weekly`, `monthly`, `mine`. **Une seule route** : changer de période change un segment, pas de page. |
+| `/agenda`, `/meals` | Onglets |
+| `/lists`, `/notes`, `/inventory`, `/recipes`, `/history`, `/inbox` | Écrans secondaires, empilés par-dessus l'accueil |
+| `/settings`, `/settings/:section`, `/settings/support/:page` | Réglages, 3 niveaux |
+| `*` | Redirige sur `/home` |
+
+Dans `App.js`, `activeTab` et `setActiveTab` **gardent leur nom et leur
+vocabulaire** (« daily », pas « tasks ») : seules leurs définitions ont changé.
+C'est ce qui a permis de ne pas toucher les ~50 endroits qui les utilisent.
+
+Deux pièges à connaître avant de toucher à la navigation :
+
+- **Ne jamais faire `navigate()` en direct** — passer par `go()`, qui n'empile
+  pas deux fois la même destination. Plusieurs endroits enchaînent deux
+  changements d'état visant la même URL, et sans ce garde le bouton retour
+  semble ne rien faire au premier appui.
+- **Un `setState` transformé en navigation n'est plus réversible.** Un effet de
+  remise à zéro sur `[user]` empilait deux entrées `/settings` au démarrage,
+  sans que rien ne se voie à l'écran. Voir `tests/e2e/navigation.test.js` [7].
+
+Les gardes de haut niveau (chargement / auth / onboarding) restent des rendus
+conditionnels dans `AppShell` et **non** des routes : ce sont des prises de
+contrôle plein écran avant que l'app existe.
+
+Détail complet et historique des décisions : `docs/MIGRATION_IONIC.md`.
 
 ## Tests
 

@@ -1,6 +1,6 @@
 # MIGRATION IONIC — plan de chantier
 
-Audit du 21 août 2026. Statut : **Phases 0 à 5 terminées.** Branche `feat/ionic`.
+Audit du 21 août 2026. Statut : **Phases 0 à 6 terminées.** Branche `feat/ionic`.
 
 Décisions tranchées avec Steve le 21 août : router adopté (D2 option B), et
 consigne explicite de pousser Ionic aussi loin que possible — « le moins de
@@ -576,13 +576,60 @@ détruirait un lien profond avant même que l'utilisateur soit connu.
   l'`ion-content` sans le recentrer : les réglages se retrouvaient collés à
   gauche. La contrainte porte maintenant sur `::part(scroll)`.
 
-### Phase 6 — 🟡 Bureau : `IonSplitPane`
+### Phase 6 — 🟡 Bureau : **supprimé** au lieu de migré — ✅ TERMINÉE
 
-- [ ] `SidebarNav` + le `@media (min-width: 900px)` de `styles.css:274-320`
-      → `IonSplitPane` + `IonMenu` + `IonList`.
-- [ ] Le recentrage du contenu à `max-width: 820px` reste du CSS maison.
-- [ ] Vérifier qu'`IonSplitPane` masque bien la `ion-tab-bar` en large, sans
-      le `display: none` manuel actuel.
+**Changement de périmètre, décidé avec Steve le 22 août 2026 en cours de
+phase.** Le plan prévoyait de migrer la barre latérale bureau vers
+`IonSplitPane` + `IonMenu`. L'app cible iOS et Android sur les stores, et il n'y
+a pas de version ordinateur au programme : le rendu bureau est donc **retiré**,
+pas migré.
+
+À noter, parce que la question s'est posée : ce rendu bureau **existait avant la
+migration** (`SidebarNav` et le `@media (min-width: 900px)` sont dans
+`f85db32`). Je ne l'ai pas créé, et la variante de capture `desktop-light`
+n'était là que pour ne pas le casser — ce qu'elle a effectivement évité en
+phase 2, où `IonTabs` l'avait recouvert.
+
+- [x] `SidebarNav` et `SIDEBAR_TABS` supprimés de `BottomNav.js` (−77 lignes).
+- [x] Le bloc `@media (min-width: 900px)` (−67 lignes) et le
+      `@media (min-width: 960px)` (grille de repas à 3 colonnes) supprimés.
+- [x] `.mrd-shell > .mrd-tabs-host` supprimée : elle n'existait que pour
+      empêcher `IonTabs` de recouvrir la barre latérale.
+- [x] Le centrage de `#root` / `.mrd-outer` supprimé : il posait une coque
+      étroite au milieu d'un grand écran.
+- [x] Variante de capture `desktop-light` (1280×900) remplacée par
+      **`mobile-xl-light` (430×932)** — iPhone 16 Pro Max, Pixel 9 Pro XL. Le
+      haut de la gamme réellement visée, et là où les mises en page serrées se
+      détendent. Sa référence pré-Ionic a été régénérée depuis le commit de la
+      phase 0, dans un worktree git, pour avoir une vraie baseline.
+
+**Ce qui n'est pas supprimé** : le web. `dist/` reste servi par Firebase
+Hosting, parce que deux choses en dépendent — la redirection d'authentification
+Google (`__/auth/*`) et la page autonome de réinitialisation de mot de passe
+(`site/reset-password.html`). Ouverte dans une fenêtre large, l'app s'affiche
+comme sur téléphone, sur toute la largeur.
+
+Les media queries à 600 / 640 / 720 px sont conservées : ce n'est pas du bureau,
+un téléphone en paysage fait 844 px de large et les atteint.
+
+Résultat : **28/28 captures mobiles IDENTIQUE** entre les phases 5 et 6 — la
+suppression n'a rien touché aux largeurs téléphone, ce qui est exactement ce
+qu'on attend en retirant une media query haute.
+
+#### Une erreur de manipulation, et ce qu'elle a appris
+
+Premier essai de suppression : j'ai découpé le CSS entre deux marqueurs de
+texte, `s[s.index(marqueurA):s.index(marqueurB)]`, sans vérifier que A précédait
+bien B et que la tranche était close. **348 lignes ont été supprimées au lieu de
+67** — les blocs SHELL, HOME SCREEN, BACK HEADER et SCREEN HEADER avec. Les
+accolades restaient équilibrées (des règles entières avaient disparu), donc
+aucun contrôle syntaxique ne l'a vu ; le build est passé.
+
+Ce sont les **captures d'écran** qui l'ont montré, immédiatement et sans
+ambiguïté : l'accueil rendu en texte brut, sans cartes ni sérif. Annulé par
+`git checkout`, refait en remplacements de texte exacts avec, pour chaque
+tranche, une vérification que les accolades s'équilibrent, qu'elle ne contient
+qu'un seul `@media` et aucun en-tête de section.
 
 ### Phase 7 — 🟠 Overlays : `IonModal`
 

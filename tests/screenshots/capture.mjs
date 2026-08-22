@@ -51,10 +51,22 @@ const SCREENS = [
   { id: "settings",      label: "Reglages",             nav: { gear: true },                          ready: ".mrd-set-page, .cnt" },
 ];
 
+/**
+ * Variantes capturees.
+ *
+ * `desktop-light` (1280x900) a ete retiree en phase 6 : le rendu bureau a ete
+ * supprime sur decision produit, l app ciblant iOS et Android. Elle est
+ * remplacee par un grand telephone — c est la haut de la gamme reellement
+ * visee, et c est la que les mises en page serrees se detendent (grilles a
+ * deux colonnes, en-tetes, barre segmentee).
+ *
+ * 390x844  = iPhone 14 / 15 / 16, Pixel 7 — le format le plus courant.
+ * 430x932  = iPhone 16 Pro Max, Pixel 9 Pro XL.
+ */
 const VARIANTS = [
-  { id: "mobile-light",  width: 390,  height: 844, mobile: true,  theme: "light" },
-  { id: "mobile-dark",   width: 390,  height: 844, mobile: true,  theme: "dark"  },
-  { id: "desktop-light", width: 1280, height: 900, mobile: false, theme: "light" },
+  { id: "mobile-light",  width: 390, height: 844, mobile: true, theme: "light" },
+  { id: "mobile-dark",   width: 390, height: 844, mobile: true, theme: "dark"  },
+  { id: "mobile-xl-light", width: 430, height: 932, mobile: true, theme: "light" },
 ];
 
 /* ── Primitives CDP ──────────────────────────────────────────────────────── */

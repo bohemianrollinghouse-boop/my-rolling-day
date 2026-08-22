@@ -284,8 +284,10 @@
 html, body { height: 100%; width: 100%; max-width: 100%; overflow: hidden; background: var(--mrd-bg); font-family: "DM Sans", sans-serif; color: var(--mrd-fg); accent-color: var(--mrd-a); }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 input[type="search"] { -webkit-appearance: none; appearance: none; }
-#root { height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; }
-.mrd-outer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--mrd-bg); }
+/* Plus de centrage (`align-items` / `justify-content`) : il posait une coque
+   etroite au milieu d un grand ecran, ce qui n a plus d objet. */
+#root { height: 100%; width: 100%; }
+.mrd-outer { width: 100%; height: 100%; background: var(--mrd-bg); }
 .mrd-shell { width: 100%; height: 100%; padding-top: env(safe-area-inset-top, 0px); background: var(--mrd-bg); border-radius: 0; overflow: hidden; position: relative; display: flex; flex-direction: column; }
 .mrd-statusbar { height: 44px; background: var(--mrd-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--mrd-fg); }
 .mrd-statusbar-icons { display: flex; gap: 5px; align-items: center; }
@@ -362,92 +364,33 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
   background: var(--mrd-bg);
 }
 
-/* `IonTabs` ne rend pas seulement `<ion-tabs>` : il s enveloppe dans un
-   `<div class="ion-page">` (son PageManager), pose en `position: absolute;
-   inset: 0` sur toute la largeur. Sur ecran large ce conteneur recouvrait
-   entierement la barre laterale — elle etait bien rendue, a la bonne taille,
-   simplement cachee dessous. Diagnostic a l inspection du DOM, pas visible
-   dans le CSS.
+/* Note : une regle `.mrd-shell > .mrd-tabs-host` vivait ici. `IonTabs` ne rend
+   pas seulement `<ion-tabs>` : il s enveloppe dans un `<div class="ion-page">`
+   pose en `position: absolute; inset: 0` sur toute la largeur, ce qui
+   recouvrait entierement la barre laterale bureau — elle etait rendue, a la
+   bonne taille, aux bonnes coordonnees, simplement cachee dessous. La regle la
+   remettait dans le flux pour qu elles partagent la ligne.
 
-   On le remet donc dans le flux pour qu il partage la ligne avec la barre
-   laterale. Le selecteur passe par `--class` d IonTabs plutot que par
-   `.ion-page` : cette classe sert AUSSI aux pages de l outlet, qui doivent
-   rester absolues. `position: relative` est indispensable — `ion-tabs` et
-   `ion-router-outlet` sont absolus et ont besoin d un ancetre positionne. */
-.mrd-shell > .mrd-tabs-host {
-  position: relative;
-  inset: auto;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-}
-/* ─── SIDEBAR NAV + LAYOUT BUREAU (écrans larges) ───────────
-   En dessous de 900px : layout mobile inchangé (barre du bas).
-   À partir de 900px : barre latérale à la place de la barre du bas,
-   contenu recentré à une largeur de lecture confortable. */
-.mrd-sidebar { display: none; }
-@media (min-width: 900px) {
-  .mrd-shell { flex-direction: row; }
-  .mrd-ion-tabbar { display: none; }
+   La barre laterale ayant ete supprimee en phase 6, ce conteneur peut reprendre
+   son comportement d origine : remplir la coque. */
+/* ─── PAS DE RENDU BUREAU ─────────────────────────────────────
+   Un bloc `@media (min-width: 900px)` vivait ici : il remplaçait la barre du
+   bas par une barre latérale de 240 px (`.mrd-sidebar`), recentrait le contenu
+   sur 820 px et masquait la barre d'onglets. Retiré en phase 6 sur décision
+   produit — l'app cible iOS et Android sur les stores, il n'y a pas de version
+   ordinateur au programme.
 
-  .mrd-sidebar {
-    display: flex;
-    flex-direction: column;
-    width: 240px;
-    flex-shrink: 0;
-    height: 100%;
-    background: var(--mrd-surfGlass);
-    border-right: 1px solid var(--mrd-border);
-    padding: 18px 12px;
-    gap: 2px;
-    overflow-y: auto;
-  }
-  .mrd-sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; }
-  .mrd-sidebar-brand-name { font-family: var(--mrd-serif); font-weight: 600; font-size: 17px; color: var(--mrd-fg); letter-spacing: -0.01em; }
-  .mrd-sidebar-list { display: flex; flex-direction: column; gap: 2px; }
-  .mrd-sidebar-btn { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: none; border-radius: 12px; background: none; cursor: pointer; text-align: left; font-family: "DM Sans", sans-serif; transition: background .12s; }
-  .mrd-sidebar-btn:hover { background: var(--mrd-surf2); }
-  .mrd-sidebar-btn.on { background: var(--mrd-aLt); }
-  .mrd-sidebar-btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; font-size: 16px; flex-shrink: 0; }
-  .mrd-sidebar-btn-label { font-size: 14px; font-weight: 600; color: var(--mrd-fg2); }
-  .mrd-sidebar-btn.on .mrd-sidebar-btn-label { color: var(--mrd-a); }
-  .mrd-sidebar-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--mrd-danger); color: var(--mrd-white); font-size: 10px; font-weight: 700; line-height: 18px; text-align: center; }
-  .mrd-sidebar-sep { height: 1px; background: var(--mrd-borderSoft); margin: 10px 8px; }
-  /* Contenu recentré à une largeur de lecture confortable dans l'espace
-     restant.
+   Ce n'est pas la même chose que « pas de web » : le build reste servi par
+   Firebase Hosting, parce que la redirection d'authentification Google et la
+   page autonome de réinitialisation de mot de passe en dépendent. Ouverte dans
+   une fenêtre large, l'app s'affiche comme sur téléphone, sur toute la largeur.
 
-     `.cnt` porte maintenant un `ion-content`, dont la boîte occupe toute la
-     page : `max-width` + `margin: auto` posés sur lui rétrécissaient le
-     conteneur sans le recentrer, et les réglages se retrouvaient collés à
-     gauche sur écran large. On contraint donc son conteneur de défilement
-     interne, qu'Ionic expose via `::part(scroll)`. */
-  ion-content.cnt::part(scroll) {
-    max-width: 820px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .mrd-set-page,
-  .mrd-home {
-    max-width: 820px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  /* Pas de recentrage de l'en-tête sur la colonne de lecture : il reste au
-     bord, comme le faisait `.mrd-back-hdr` avec son `align-self: stretch`.
-     (Tentative retirée : la règle était écrite ici mais perdait contre celle
-     du bloc « EN-TETES IONIC », de même spécificité et plus bas dans le
-     fichier — elle n'a jamais rien fait.) */
-  /* Les en-têtes suivent la même boîte que le contenu qu'ils titrent. Avec des
-     marges auto ils se réduisaient à leur contenu et flottaient au milieu de
-     l'écran, décalés de la colonne qu'ils annoncent. */
-  .mrd-screen-hdr,
-  .mrd-back-hdr {
-    align-self: stretch;
-  }
-}
-html[data-theme="dark"] .mrd-sidebar { background: var(--mrd-bg); border-color: var(--mrd-border); }
-html[data-theme="dark"] .mrd-sidebar-btn:hover { background: var(--mrd-surf); }
-html[data-theme="dark"] .mrd-sidebar-btn-label { color: var(--mrd-fg2); }
+   Les media queries conservées (600 / 640 / 720 px) ne sont pas du bureau : un
+   téléphone en paysage fait 844 px de large et les atteint.
+
+   Si une version ordinateur revient, la voie est `ion-split-pane` + `ion-menu`
+   plutôt qu'une barre latérale maison — voir `docs/MIGRATION_IONIC.md`.
+   ───────────────────────────────────────────────────────────── */
 /* ─── HOME SCREEN ─────────────────────────────────────────── */
 /* Le defilement vient d `ion-content` depuis la phase 3 : deux conteneurs
    de defilement imbriques cassent l elan iOS et les gestes Ionic. */
@@ -653,9 +596,6 @@ html[data-theme="dark"] .mrd-sidebar-btn-label { color: var(--mrd-fg2); }
   font-size: 11px;
   color: var(--mrd-fg3);
   margin-top: 4px;
-}
-@media (min-width: 960px) {
-  .mrd-home .mrd-meal-grid { grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 }
 .mrd-event-card { display: flex; align-items: center; gap: 10px; background: var(--mrd-surf); border-radius: var(--mrd-r); padding: 10px 12px; border: 1px solid var(--mrd-borderSoft); margin-bottom: 6px; }
 .mrd-event-card.today { background: var(--mrd-aLt); border-color: var(--mrd-aMd); }
