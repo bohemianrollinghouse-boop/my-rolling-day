@@ -2,6 +2,98 @@
 
 ---
 
+## [2026-08-23] — Piles par onglet, zones sûres, audit natif iOS, icônes régénérées
+
+Quatre signalements à l'usage sur device, plus un audit natif demandé. Les trois premiers avaient une cause commune : **rien dans l'outillage de test ne pouvait les voir**.
+
+### Les onglets s'empilaient au lieu d'avoir une pile chacun
+
+Symptôme : passer d'un onglet à l'autre empilait des pages, alors que COBA donne une pile de navigation par onglet.
+
+La cause était une erreur de raisonnement de ma part, en phase 2 de la migration Ionic, documentée noir sur blanc dans `BottomNav.js` : j'avais retiré le `href` des boutons au motif qu'il ramènerait toujours l'onglet Tâches à sa racine et ferait perdre la période en cours. C'est faux, et le code d'Ionic le dit :
+
+- `IonTabBar.getDerivedStateFromProps` réécrit le `currentHref` de l'onglet actif avec le chemin courant à chaque rendu ;
+- `changeTab()` restaure ensuite la dernière route de l'onglet via `locationHistory.getCurrentRouteInfoForTab()`.
+
+Ionic mémorise donc la période tout seul. Mon `onClick` réimplémentait en moins bien un comportement natif — et le prix était lourd : `IonTabBar` construit sa table d'onglets **depuis les `href`** de ses boutons. Sans eux, aucune route n'est rattachée à un onglet, `changeTab()` n'est jamais appelé, et les dix routes s'empilent dans une pile unique.
+
+| Fichier | Changement |
+|---|---|
+| `src/app/routes.js` | **`TAB_ROOTS`** : la racine de chaque onglet, valeur de son `href`. `/tasks` et non `/tasks/daily` — `matchesTab()` fait une comparaison de préfixe, et le préfixe doit couvrir les quatre périodes sinon l'onglet ne s'allume pas sur `/tasks/weekly`. Route `/tasks` ajoutée à `ROUTE_PATHS` : sans elle le premier clic tombait sur le repli « * » et repartait sur l'accueil. |
+| `src/app/components/nav/BottomNav.js` | `href=${TAB_ROOTS[id]}` sur les quatre onglets. « Plus » reste sans `href` : `handleChangeTab` sort sur `if (!path) return`, aucune navigation, et `onClick` ouvre la feuille d'actions. Prop `onChange` supprimée. |
+| `src/app/App.js` | Route `/tasks`. `handleBottomNavChange` supprimé : il ne faisait que rouvrir la dernière période, ce qu'Ionic fait nativement. |
+
+Mesuré après correction : revenir sur Tâches rouvre `/tasks/weekly` ; le nombre de `.ion-page` montées se stabilise à 5 et **n'augmente plus** (il croissait de 1 à chaque navigation) ; re-taper l'onglet actif le ramène à sa racine et fait retomber la pile à 4 — `resetTab`, comportement iOS standard. Verrouillé par `navigation.test.js [8]`, qui compte les pages de l'outlet plutôt que `history.length` (Ionic se sert de l'historique du navigateur comme journal : il croît dans les deux cas, il ne distingue rien).
+
+### Deux défauts de zones sûres, et pourquoi 57 captures IDENTIQUE ne prouvaient rien
+
+**Chrome headless n'expose aucun inset.** `env(safe-area-inset-*)` valait 0 partout, donc la garde visuelle de la migration ne pouvait rien voir — l'app ne tourne jamais dans ces conditions sur un téléphone. C'est le trou d'outillage, pas un oubli de relecture.
+
+`Emulation.setSafeAreaInsetsOverride` (CDP) permet de forcer de vrais insets. D'où **`tests/screenshots/safe-area.mjs`** : iPhone 15 simulé (393×852, insets 59/34), et **mesure de la géométrie** plutôt que comparaison de pixels — où commence le premier élément peint, quelle hauteur utile reste aux boutons. Les aides d'onboarding de `capture.mjs` sont réutilisées plutôt que recopiées (le fichier est devenu importable, avec une garde d'exécution directe).
+
+| Défaut | Cause | Avant → après |
+|---|---|---|
+| Barre d'onglets écrasée, boutons sur l'indicateur d'accueil | Ionic pose la safe area en `padding-bottom` sur le `:host` de `ion-tab-bar`. Le reset `* { padding: 0 }` de `styles.css` matche l'élément hôte — et **un style d'auteur sur l'hôte bat `:host`**, quelle que soit la spécificité (l'arbre extérieur l'emporte). L'ancienne barre maison posait `env(safe-area-inset-bottom, 6px)` à la main pour exactement cette raison ; la migration a supprimé le garde-fou en croyant qu'Ionic le remplaçait. | hauteur 51 → **87** px · `padding-bottom` 0 → **34** px · utile 51 → **53** px |
+| Accueil et Repas collés à l'heure du téléphone | `renderPageHeader` renvoie `null` pour accueil, listes, repas premium et recettes. Les pages **à** en-tête reçoivent l'inset via le `padding-top` qu'Ionic met sur `ion-header` ; celles sans en-tête n'avaient rien. Correctif sur la **page** (`.mrd-ion-page:not(:has(> ion-header))`) et non sur `--padding-top` d'`ion-content`, que la règle `:has(.mrd-home)` écrase avec une spécificité supérieure. | premier élément à 0 → **59** px |
+
+À noter : `.mrd-shell` porte bien `padding-top: env(safe-area-inset-top)`, mais il ne protège pas ces écrans — les `.ion-page` de l'outlet sont en `position: absolute` et ne se calent pas sur sa boîte de padding. Il protège en revanche tout ce qui est hors outlet et dans le flux normal (réglages, connexion, onboarding), ce qui explique pourquoi ces écrans n'ont jamais eu le problème.
+
+### Audit natif iOS
+
+Détail complet dans `docs/TODO_NATIF.md`. Un défaut bloquant, le reste conforme.
+
+**🔴 Les push iOS ne pouvaient pas fonctionner.** `AppDelegate.swift` était resté le gabarit Capacitor d'origine. `@capacitor/push-notifications` n'écoute pas iOS directement : son `load()` observe `capacitorDidRegisterForRemoteNotifications` sur le NotificationCenter, et c'est à l'AppDelegate de poster cette notification depuis `didRegisterForRemoteNotificationsWithDeviceToken`. Sans ce relais la chaîne casse en silence — `register()` part, iOS répond, personne ne transmet, l'événement `registration` n'arrive jamais (`messaging.js:73`), aucun token FCM n'est stocké. Vérifié dans `PushNotificationsPlugin.swift` (observateur ligne 40, rejet ligne 126) et dans le README du plugin, pas déduit. Les deux méthodes ont été ajoutées ; **reste à valider sur iPhone physique**, seul moyen de voir arriver un token.
+
+Conforme par ailleurs : entitlement `aps-environment`, schéma d'URL Google cohérent avec `iosClientId`, les quatre descriptions d'usage (dont micro et reconnaissance vocale qu'exige `speech-recognition`), Podfile aligné sur les 12 plugins, localisation `fr`. `UIBackgroundModes` **non requis** : les Cloud Functions envoient une charge `notification`, affichée par APNs sans réveiller l'app.
+
+Deux points cosmétiques laissés en l'état volontairement : `UIRequiredDeviceCapabilities: armv7` (valeur du gabarit, obsolète mais sans effet — la changer avant une release toucherait au filtrage d'appareils pour rien) et les orientations paysage déclarées sans écran dessiné pour, qui est une décision produit.
+
+J'ai aussi retiré deux items de la liste « vérifié comme déjà correct » de `TODO_NATIF` : « safe areas » n'avait jamais pu être vérifié, et « AppDelegate » était vrai pour `open url` tout en masquant l'absence du relais APNs.
+
+### Le `href` a découvert un couplage, et deux trous d'hébergement
+
+Ajouter le `href` a cassé un sous-test des réglages, et la cause vaut d'être connue : **une fois les onglets rattachés à des routes, le routeur d'Ionic acquiert un contexte d'onglet** et, sur un `popstate` vers un chemin que son outlet ne connaît pas, il normalise l'URL vers la racine. Isolé par bisection (`href=${undefined}` → 5/5, `href` → 4/5) et par instrumentation de `pushState`/`replaceState`.
+
+Seul le sous-test qui posait le chemin avec `pushState` + un `popstate` **synthétique** en souffrait ; la navigation réelle passe. Cette technique contourne le routeur au lieu de le piloter — c'était déjà noté comme peu fiable pendant la migration — et elle simule un état inatteignable : en WebView il n'y a pas de barre d'adresse, et le retour matériel ne revisite que des entrées enregistrées.
+
+`settingsStateFromPath` n'avait **aucune** couverture unitaire : ce test e2e était sa seule garde. L'invariant est donc descendu au niveau unitaire, où il est pur et fiable — section inconnue, sections déclarées dans les deux sens, pages de support, barre oblique finale, chemins hors réglages. Le sous-test e2e est remplacé par une note qui explique le déplacement plutôt que par un silence.
+
+En cherchant à rendre le deep link testable, deux vrais défauts sont sortis :
+
+| Fichier | Défaut |
+|---|---|
+| `netlify.toml` | **Aucun repli SPA.** Depuis que la migration donne une URL à chaque écran, un rechargement ou un lien partagé sur `/tasks/weekly` renvoyait la page d'erreur de Netlify. `firebase.json` avait déjà l'équivalent (`rewrites` `**` → `/index.html`). Règle ajoutée **après** les proxys `/__/auth/*` : Netlify applique la première qui matche, et un `/*` placé avant avalerait le callback d'authentification Firebase. |
+| `firebase.json` | **Clé `emulators` en double.** En JSON la dernière gagne, et la seconde n'avait pas `hosting: 5002` — le port était silencieusement perdu. Doublon supprimé, bloc complet conservé. |
+| `tests/helpers/static-server.js` | Renvoyait 404 sur tout chemin sans fichier : aucun test ne pouvait charger un deep link, et le 404 se lit comme une page blanche impossible à distinguer d'un bug de rendu. Repli SPA ajouté. Les requêtes visant clairement un fichier (avec extension) gardent leur 404 — sinon un `.js` manquant se déguiserait en erreur de syntaxe. |
+
+À noter : le chargement à froid d'un deep link reste non testé, les bouchons Firebase étant en mémoire sans persistance — un rechargement repart sur l'onboarding. C'est la limite du banc, pas de l'app.
+
+### Un angle mort de la garde visuelle, et une affirmation à corriger
+
+En vérifiant l'impact visuel des correctifs, deux captures divergeaient. Aucune n'était une régression :
+
+- `meals` : décalage **uniforme** de −2 px CSS, mesuré par corrélation avec `shift.mjs` — exactement les 2 px gagnés par la barre d'onglets. L'écran est dense en filets et lignes de texte, donc un décalage uniforme allume 11 % des blocs sans que rien ne bouge dans la mise en page.
+- `modal-task-create` : 0 px de décalage mais 6 à 10 % d'écart. En regardant, la cause est le comportement voulu — re-taper l'onglet actif le ramène à sa racine, donc « Aujourd'hui » au lieu de « Mes tâches ».
+
+Mais en regardant cette capture j'ai vu autre chose : **elle ne montrait pas de modale**. Ni dans le jeu d'avant, ni en phase 8, ni en phase 7 où je l'avais ajoutée. Deux défauts se cachaient l'un derrière l'autre :
+
+1. Dans `gotoScreen`, la branche `tab` **n'appelait pas** `openOverlay`, alors que la branche `quick` juste au-dessus le fait. Le FAB n'était donc jamais cliqué. Simple omission.
+2. Le sélecteur `ready` acceptait `ion-modal` tout seul. `MrdModal` garde son `IonModal` monté en permanence et bascule `isOpen` : l'hôte est dans le DOM **même modale fermée**. La vérification était donc toujours vraie.
+
+C'est le second qui a masqué le premier pendant trois phases. Les cinq sélecteurs de modale avaient ce repli, et `dismissModal` aussi — il croyait une modale ouverte en permanence et appelait `dismiss()` sur le premier `ion-modal` du document, pas sur celui affiché. Tout est resserré, avec la raison écrite au-dessus de la table des écrans.
+
+**Cela corrige une affirmation de ma clôture de migration** : j'y écrivais que les cinq captures de modale garantissaient la conversion des overlays. Pour `modal-task-create`, c'était faux — elle photographiait l'écran des tâches. Après correction, la comparaison donne 54 `IDENTIQUE` et exactement les 3 captures `modal-task-create` modifiées : la modale « Nouvelle tâche » y apparaît enfin.
+
+### Icônes
+
+L'image demandée était **déjà** l'icône des deux plateformes. Le seul écart réel était l'échelle : le motif occupait 59,6 % de l'icône sur iOS, 68 % sur l'icône héritée Android, et 46 % de la zone visible de l'icône adaptative — visiblement plus petit sur un écran d'accueil Android.
+
+J'avais d'abord surestimé cet écart (« un quart de ce qu'il faudrait ») en regardant le canevas adaptatif complet, marge de masquage comprise. Mesures faites : 132 px de motif là où la parité avec iOS en demande ~172.
+
+`scripts/generate-app-icons.mjs` (`npm run icons`) régénère les trois jeux depuis la source unique avec une règle de proportion explicite — le canevas adaptatif vaut 108 dp mais le lanceur n'en montre que les 72 dp centraux, c'est cette zone visible qui sert de référence, pas le canevas. Une source, une règle, plus de dérive à la main.
+
+---
+
 ## [2026-08-23] — Refactor de structure : arborescence inspirée de COBA, config Capacitor en TypeScript
 
 Demande : rapprocher l'organisation du projet de celle de COBA (`/ionic/COBA/app`), « que ce soit au niveau de l'organisation des dossiers, des modules, mais aussi de la configuration de base de Capacitor et d'Ionic ».

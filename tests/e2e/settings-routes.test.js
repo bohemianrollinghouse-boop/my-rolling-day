@@ -288,30 +288,24 @@ test("CDP: réglages et sous-pages en routes", { timeout: 240_000 }, async (t) =
     }
   });
 
-  /* Un chemin de section inventé (deep link périmé, faute de frappe) doit
-     retomber sur le sommaire. Sans repli, `SettingsView` recevrait une section
-     qu'elle ne connaît pas et ne rendrait rien — page blanche, sans erreur. */
-  await t.test("[4] une section inconnue retombe sur le sommaire", async (st) => {
-    if (!browserHandle) {
-      st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
-      return;
-    }
-    const session = await openStubbed();
-    try {
-      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
-      await evaluate(session, `window.history.pushState({}, "", "/settings/nimportequoi")`);
-      await evaluate(session, `window.dispatchEvent(new PopStateEvent("popstate"))`);
-      await sleep(1200);
-      await waitForPageSettled(session);
+  /* Le sous-test « [4] une section inconnue retombe sur le sommaire » vivait
+     ici. Il posait le chemin avec `pushState` puis un `popstate` synthetique —
+     une technique qui contourne le routeur au lieu de le piloter, deja notee
+     comme peu fiable pendant la migration Ionic.
 
-      assert.ok(await pollFor(session, ".mrd-settings-page", 6000),
-        "la page Réglages doit s'afficher malgré la section inconnue");
-      // Le sommaire, pas une sous-page.
-      assert.ok(await inActivePage(session, `!root.querySelector(".settings-subpage")`),
-        "une section inconnue doit rendre le sommaire, pas une sous-page vide");
-      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
-    } finally {
-      await session.close();
-    }
-  });
+     Elle a cesse de fonctionner quand les boutons d'onglet ont recu un `href`
+     (necessaire pour qu'Ionic tienne une pile par onglet) : le routeur d'Ionic
+     acquiert alors un contexte d'onglet et, sur un `popstate` vers un chemin
+     que son outlet ne connait pas, normalise l'URL vers la racine. La
+     navigation reelle vers les reglages n'est pas affectee — [1], [2] et [3]
+     ci-dessus le verifient.
+
+     L'etat simule etait de toute facon inatteignable dans l'app : en WebView il
+     n'y a pas de barre d'adresse, et le retour materiel ne revisite que des
+     entrees deja enregistrees. Un vrai deep link est un chargement a froid, que
+     les bouchons Firebase (en memoire, sans persistance) ne savent pas rejouer.
+
+     La regle gardee est pure : elle est desormais couverte par
+     `tests/unit/routes.test.js` — « reglages : une section inconnue retombe sur
+     le sommaire », plus les sections et pages de support dans les deux sens. */
 });

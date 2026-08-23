@@ -10,6 +10,19 @@
   status = 200
   force = true
 
+# Repli SPA — doit rester APRES les proxys `/__/` ci-dessus : Netlify applique
+# la premiere regle qui matche, et un `/*` place avant avalerait le callback
+# d authentification Firebase.
+#
+# Sans cette regle, tout chemin autre que `/` renvoie 404 : depuis la migration
+# Ionic chaque ecran a son URL (`/tasks/weekly`, `/settings/profile`), donc un
+# rechargement ou un lien partage tombait sur la page d erreur de Netlify.
+# `firebase.json` avait deja l equivalent (`rewrites` `**` -> `/index.html`).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 [[headers]]
   for = "/"
   [headers.values]

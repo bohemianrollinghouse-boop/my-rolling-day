@@ -77,6 +77,66 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
 
 ## ✅ Fait
 
+### 23 août 2026 — audit natif iOS + zones sûres
+
+Audit demandé sur `ios/` (AppDelegate, Info.plist, Podfile, entitlements) au
+regard des 12 plugins installés.
+
+#### 🔴 Push iOS impossible — relais APNs absent de l'AppDelegate
+
+`ios/App/App/AppDelegate.swift` était resté le **gabarit Capacitor d'origine**.
+Or `@capacitor/push-notifications` n'écoute pas iOS directement : son
+`load()` observe `capacitorDidRegisterForRemoteNotifications` sur le
+NotificationCenter, et c'est à l'AppDelegate de poster cette notification depuis
+`didRegisterForRemoteNotificationsWithDeviceToken`. Sans ce relais, la chaîne
+casse en silence : `register()` part bien, iOS répond bien, mais personne ne
+transmet — l'événement `registration` n'est jamais émis (`messaging.js:73`),
+aucun token FCM n'est stocké, et les appels concernés échouent sur
+« event capacitorDidRegisterForRemoteNotifications not called ».
+
+Vérifié dans le code du plugin (`PushNotificationsPlugin.swift:40` pour
+l'observateur, `:126` pour le rejet) et dans son README, pas déduit. Android
+n'était pas concerné : son token vient du SDK Firebase, pas d'APNs.
+
+Les deux méthodes ont été ajoutées. **À valider sur iPhone physique** : c'est le
+seul moyen de confirmer qu'un token arrive (pas de push sur simulateur).
+
+#### Le reste de l'audit iOS : conforme
+
+| Point | État |
+|---|---|
+| `App.entitlements` | `aps-environment: development` — correct pour le dev. À passer en `production` pour la soumission (ou laisser Xcode le gérer via la capability). |
+| `CFBundleURLTypes` | Schéma inversé du client iOS présent et **cohérent** avec `iosClientId` de `capacitor.config.ts`. |
+| Descriptions d'usage | Caméra, micro, reconnaissance vocale, photothèque : les quatre présentes et rédigées en français. Le micro et la reconnaissance vocale sont bien ceux qu'exige `@capacitor-community/speech-recognition`. |
+| `UIBackgroundModes` | **Non requis** : les Cloud Functions envoient une charge `notification` (alerte), affichée par APNs sans réveiller l'app. `remote-notification` ne servirait qu'à des pushs silencieux. |
+| `Podfile` / `Podfile.lock` | Les 12 plugins déclarés, versions alignées sur `package.json`. `platform :ios, '13.0'` cohérent avec `IPHONEOS_DEPLOYMENT_TARGET`. |
+| `CFBundleLocalizations` | `fr` déclaré — les menus système restent en français. |
+| `ios/App/App/capacitor.config.json` | Copie générée par `cap sync`, à jour. Régénérée depuis `capacitor.config.ts` désormais. |
+
+Deux points cosmétiques laissés en l'état, volontairement : `UIRequiredDeviceCapabilities`
+vaut `armv7` (valeur du gabarit Capacitor, obsolète depuis iOS 11 mais sans
+effet néfaste — la modifier juste avant une release toucherait au filtrage
+d'appareils de l'App Store pour rien), et les orientations paysage sont
+déclarées alors qu'aucun écran n'est dessiné pour le paysage. Ce second point
+est une décision produit : à trancher, pas à supposer.
+
+#### 🔴 Trois défauts de zones sûres, invisibles en test
+
+Signalés à l'usage sur device. Tous les trois échappaient à la garde visuelle
+pour la même raison : **Chrome headless n'a aucun inset**, donc
+`env(safe-area-inset-*)` valait 0 et les 57 captures étaient toutes justes.
+
+`Emulation.setSafeAreaInsetsOverride` (CDP) permet de forcer de vrais insets.
+D'où `tests/screenshots/safe-area.mjs`, qui simule un iPhone 15 (393×852,
+insets 59/34) et **mesure la géométrie** au lieu de comparer des pixels.
+
+| Défaut | Cause | Mesure avant → après |
+|---|---|---|
+| Barre d'onglets écrasée en bas, boutons sur l'indicateur d'accueil | Ionic pose la safe area via `padding-bottom` sur le `:host` de `ion-tab-bar`, mais le reset `* { padding: 0 }` de `styles.css` matche l'élément hôte — et **un style d'auteur sur l'hôte bat `:host`**, quelle que soit la spécificité. L'ancienne barre maison posait ce padding à la main pour cette raison ; la migration a retiré le garde-fou en croyant qu'Ionic le remplaçait. | hauteur 51 → **87** px, `padding-bottom` 0 → **34** px, hauteur utile 51 → **53** px |
+| Accueil et Repas collés à l'heure du téléphone | `renderPageHeader` renvoie `null` pour accueil / listes / repas premium / recettes. Les pages **à** en-tête reçoivent l'inset via le `padding-top` qu'Ionic met sur `ion-header` ; celles sans en-tête n'avaient rien. | premier élément à 0 → **59** px |
+| — | `.mrd-shell` porte bien `padding-top: env(safe-area-inset-top)`, mais il ne protège pas ces écrans : les `.ion-page` de l'outlet sont en `position: absolute` et ne se calent pas sur sa boîte de padding. Il protège en revanche les écrans hors outlet (réglages, connexion, onboarding), qui sont dans le flux normal. | — |
+
+
 ### 8 août 2026 — chantier natif complet
 
 - **SHA-1 debug déclarée dans Firebase** (via CLI) + `google-services.json`
@@ -151,11 +211,19 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
 
 ### Vérifié comme déjà correct
 
-Safe areas · `viewport-fit=cover` · `resolveFirebaseAuthDomain()` (fallback
-`localhost` → domaine Firebase) · service worker sous détection de
-fonctionnalité · pas de `window.open`/`_blank` · `alert/confirm/prompt` natifs
-via Capacitor iOS · versions cohérentes (Capacitor 6.2.1, GoogleSignIn 6.2.4) ·
-`AppDelegate` forwarde `open url` (callback OAuth) · `MainActivity` standard ·
-Firestore `persistentLocalCache()` (hors ligne OK) · photo de recette
-compressée (plafond 80 Ko) · rattrapage `visibilitychange` · `100vh` sans
-risque en natif · `.mrd-statusbar` = CSS mort.
+`viewport-fit=cover` · `resolveFirebaseAuthDomain()` (fallback `localhost` →
+domaine Firebase) · service worker sous détection de fonctionnalité · pas de
+`window.open`/`_blank` · `alert/confirm/prompt` natifs via Capacitor iOS ·
+versions cohérentes (Capacitor 6.2.1, GoogleSignIn 6.2.4) · `AppDelegate`
+forwarde `open url` (callback OAuth) · `MainActivity` standard · Firestore
+`persistentLocalCache()` (hors ligne OK) · photo de recette compressée (plafond
+80 Ko) · rattrapage `visibilitychange` · `100vh` sans risque en natif ·
+`.mrd-statusbar` = CSS mort.
+
+> **Deux items retirés de cette liste le 23 août 2026.** « Safe areas » y
+> figurait sans avoir pu être vérifié : Chrome headless n'expose **aucun** inset,
+> donc ni les tests e2e ni les 57 captures ne pouvaient voir quoi que ce soit.
+> Trois défauts étaient en réalité actifs (voir la section du 23 août).
+> « `AppDelegate` » était vrai pour `open url` mais masquait l'absence du relais
+> d'inscription APNs, alors que la même liste mentionnait push-notifications
+> comme installé.

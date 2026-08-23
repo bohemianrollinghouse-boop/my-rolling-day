@@ -17,6 +17,7 @@
     "build:android:fast": "npm run build && npx cap copy android && npx cap open android",
     "device:ios": "npm run build && npx cap run ios --external",
     "device:android": "npm run build && npx cap run android --external",
+    "icons": "node ./scripts/generate-app-icons.mjs",
     "releases": "node ./scripts/bump-version.mjs",
     "prepare:releases": "node ./scripts/prepare-ios-release.mjs && node ./scripts/prepare-android-release.mjs",
     "prepare:ios:release": "node ./scripts/prepare-ios-release.mjs",

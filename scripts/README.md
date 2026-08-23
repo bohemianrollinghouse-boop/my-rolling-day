@@ -12,6 +12,7 @@ sauf `googleapis` pour `upload:android`.
 | `npm run dev` | Serveur Vite |
 | `npm run build` | Build prod dans `dist/` (déclenche `prebuild`) |
 | `npm run prebuild` | Génère `src/assets/build-info.json` (version, build, date, commit) |
+| `npm run icons` | Régénère les icônes iOS et Android depuis `src/assets/brand/icon-512.png` (requiert ImageMagick) |
 | `npm run preview` | Sert le `dist/` buildé |
 | `npm run cap:sync` | Build + `cap sync` (iOS + Android) |
 

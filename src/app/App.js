@@ -546,17 +546,6 @@ function AppShell() {
     setToast(nextToast);
   }
 
-  function handleBottomNavChange(tab) {
-    // Pas besoin de quitter les réglages explicitement : naviguer vers un
-    // onglet change l'URL, donc `showSettings` (qui en est dérivé) retombe
-    // à faux tout seul.
-    if (tab === "tasks") {
-      setActiveTab(lastTaskTab || "daily");
-      return;
-    }
-    setActiveTab(tab);
-  }
-
   // ── Navigation depuis la popup de notification ─────────────────────────────
   function handleNotifPopupNavigate(notif) {
     const { eventId, taskId, notifType, tab } = notif || {};
@@ -1756,6 +1745,12 @@ function AppShell() {
      entrante le temps de l'animation. */
   const taskPeriodForPage = TASK_PERIODS.includes(activeTab) ? activeTab : (lastTaskTab || "daily");
 
+  /* `BottomNav` n'a plus de prop `onChange` : ses boutons portent un `href`,
+     donc c'est Ionic qui navigue — c'est la condition pour qu'il tienne une
+     pile de navigation par onglet. `handleBottomNavChange` ne faisait que
+     rouvrir la dernière période de Tâches, ce qu'Ionic fait nativement via
+     `locationHistory.getCurrentRouteInfoForTab()`. */
+
   /* Repli : « / » au premier lancement, et tout chemin inconnu (deep link
      périmé). Sans lui l'outlet ne rend rien — écran blanc, sans erreur. */
   const homeRedirect = html`<${Navigate} to=${HOME_PATH} replace />`;
@@ -1775,13 +1770,13 @@ function AppShell() {
             <${IonRoute} path="/recipes" element=${screenPage("recipes")} />
             <${IonRoute} path="/history" element=${screenPage("history")} />
             <${IonRoute} path="/inbox" element=${screenPage("inbox")} />
+            <${IonRoute} path="/tasks" element=${screenPage(taskPeriodForPage)} />
             <${IonRoute} path="/tasks/:period" element=${screenPage(taskPeriodForPage)} />
             <${IonRoute} path="*" element=${homeRedirect} />
           <//>
 
           <${BottomNav}
             activeTab=${activeTab}
-            onChange=${handleBottomNavChange}
             onOpenQuickMenu=${() => setQuickMenuOpen(true)}
             overdueTaskCount=${stats.overdueTaskCount}
             isPremium=${isPremium}

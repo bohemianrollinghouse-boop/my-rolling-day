@@ -28,6 +28,31 @@ phase 7 : sans eux la garde visuelle aurait été aveugle sur la conversion des
   `mobile-xl-light` (430×932). Sa référence pré-Ionic a été régénérée depuis le
   commit de la phase 0, dans un worktree git.
 
+## Zones sûres — `safe-area.mjs`
+
+```bash
+node tests/screenshots/safe-area.mjs           # tableau de mesures
+node tests/screenshots/safe-area.mjs --shots   # + captures dans safe-area/
+```
+
+**À lire avant de faire confiance aux 57 captures ci-dessus.** Chrome headless
+n'expose **aucun** inset : `env(safe-area-inset-*)` vaut 0, donc toute la garde
+visuelle est aveugle aux marges système. Trois défauts de zone sûre ont traversé
+la migration Ionic avec 57/57 `IDENTIQUE` — barre d'onglets écrasée sur
+l'indicateur d'accueil, accueil et repas collés à l'heure du téléphone.
+
+`Emulation.setSafeAreaInsetsOverride` (CDP) force de vrais insets. Ce banc
+simule un iPhone 15 (393×852, insets 59/34) et **mesure la géométrie** plutôt
+que de comparer des pixels : où commence le premier élément peint, quelle
+hauteur utile reste aux boutons de la barre. Deux seuils :
+
+- `hContenu >= 59` — le contenu commence sous l'encoche ;
+- `utile >= 48` — les boutons gardent une cible tactile correcte.
+
+Le parcours d'onboarding est importé de `capture.mjs` plutôt que recopié : ce
+fichier exporte ses aides et ne lance ses captures que s'il est exécuté
+directement.
+
 ## Ce que ça vaut, et ce que ça ne vaut pas
 
 Le but annoncé n'est **pas** le pixel perfect : c'est de repérer une grosse

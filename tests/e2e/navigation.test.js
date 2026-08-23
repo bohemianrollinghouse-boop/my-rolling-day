@@ -219,7 +219,11 @@ async function reachHomePage(session) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, async (t) => {
+/* 330 s et non 240 : chacun des huit sous-tests rejoue l'onboarding complet
+   dans sa propre session (~20 s), et l'ajout du huitieme faisait deborder le
+   budget — le symptome etant un « did not finish before its parent » sur le
+   dernier, pas une assertion en echec. */
+test("CDP: navigation entre onglets — aucun crash", { timeout: 330_000 }, async (t) => {
   let serverHandle;
   let browserHandle;
   let browserLaunchError = null;
@@ -299,8 +303,13 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
       return;
     }
 
+    /* `/tasks` et non `/tasks/daily` : depuis que les boutons portent un
+       `href` (condition pour qu'Ionic tienne une pile par onglet), un onglet
+       ouvre **sa racine**. La période reste « Aujourd'hui » — `tabFromPath`
+       fait retomber `/tasks` sur `DEFAULT_TASK_PERIOD` — et la barre segmentée
+       pousse ensuite `/tasks/weekly` & co. */
     const TABS = [
-      { navLabel: "Tâches", path: "/tasks/daily", charSelector: ".mrd-screen-hdr-title", charText: "Tâches" },
+      { navLabel: "Tâches", path: "/tasks", charSelector: ".mrd-screen-hdr-title", charText: "Tâches" },
       { navLabel: "Agenda", path: "/agenda",      charSelector: ".mrd-screen-hdr-title", charText: "Agenda" },
       { navLabel: "Repas",  path: "/meals",       charSelector: ".mrd-screen-hdr-title", charText: "Repas" },
       { navLabel: "Accueil", path: "/home",       charSelector: ".mrd-home",             charText: null },
@@ -534,6 +543,82 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
       const after = await evaluate(session, "location.pathname");
       assert.notEqual(after, "/settings",
         `deuxième retour : ne doit pas ramener dans les réglages (obtenu ${after})`);
+      assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
+    } finally {
+      await session.close();
+    }
+  });
+  /* Une pile de navigation par onglet — la raison d'etre du `href` sur les
+     boutons de `BottomNav`.
+
+     Sans `href`, `IonTabBar` ne peut rattacher aucune route a un onglet :
+     `changeTab()` n'est jamais appele et les dix routes s'empilent dans **une
+     seule** pile, une entree de plus a chaque passage d'un onglet a l'autre.
+     Le test mesure les deux consequences observables :
+
+       1. la memoire de l'onglet — revenir sur Taches rouvre la periode
+          quittee, pas la racine ;
+       2. la pile bornee — apres avoir visite les quatre onglets, en changer
+          encore ne monte plus de nouvelle page.
+
+     On compte les `.ion-page` de l'outlet plutot que `history.length` : Ionic
+     se sert de l'historique du navigateur comme journal, il croit dans les deux
+     cas. C'est la pile de vues qui distingue les deux comportements. */
+  await t.test("[8] chaque onglet a sa propre pile de navigation", async (st) => {
+    if (!browserHandle) {
+      st.skip(browserLaunchError?.message ?? "Navigateur headless indisponible");
+      return;
+    }
+    const session = await openStubbed();
+    const pageCount = () => evaluate(session,
+      `document.querySelectorAll("ion-router-outlet > .ion-page").length`);
+    try {
+      assert.ok(await reachHomePage(session), "Prérequis : ion-tab-bar visible");
+
+      assert.ok(await clickTab(session, "Tâches"), "onglet Tâches introuvable");
+      await waitForPageSettled(session);
+      await sleep(300);
+
+      // Sous-page dans l'onglet Tâches : la barre segmentée pousse la période.
+      const pushedPeriod = await evaluate(session, `(() => {
+        const b = [...document.querySelectorAll("ion-segment-button")]
+          .find((x) => (x.textContent || "").includes("Semaine"));
+        if (!b) return false;
+        b.click();
+        return true;
+      })()`);
+      assert.ok(pushedPeriod, "le segment « Semaine » doit exister");
+      await waitForPageSettled(session);
+      await sleep(400);
+      assert.equal(await evaluate(session, "location.pathname"), "/tasks/weekly");
+
+      for (const label of ["Agenda", "Repas"]) {
+        assert.ok(await clickTab(session, label), `onglet ${label} introuvable`);
+        await waitForPageSettled(session);
+        await sleep(300);
+      }
+
+      // 1. mémoire de l'onglet
+      assert.ok(await clickTab(session, "Tâches"), "retour sur Tâches");
+      await waitForPageSettled(session);
+      await sleep(400);
+      assert.equal(await evaluate(session, "location.pathname"), "/tasks/weekly",
+        "revenir sur Tâches doit rouvrir la période quittée, pas la racine");
+
+      /* 2. pile bornée : les quatre onglets sont montés, on n'en ajoute plus.
+         Deux allers-retours suffisent — le défaut faisait croître le compte de 1
+         à *chaque* navigation, donc il se voit au premier tour. La boucle était
+         plus longue et faisait dépasser le budget de 240 s du test parent. */
+      const before = await pageCount();
+      for (const label of ["Accueil", "Tâches"]) {
+        assert.ok(await clickTab(session, label), `onglet ${label} introuvable`);
+        await waitForPageSettled(session);
+        await sleep(250);
+      }
+      const after = await pageCount();
+      assert.equal(after, before,
+        `changer d'onglet ne doit plus monter de page (${before} → ${after}) : `
+        + "si ce compte augmente, les onglets se sont remis à empiler");
       assert.equal(await evaluate(session, "window.__APP_BOOT_STATE__"), "react-mounted");
     } finally {
       await session.close();

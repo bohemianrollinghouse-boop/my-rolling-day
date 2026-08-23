@@ -13,11 +13,16 @@ import {
   ROUTE_PATHS,
   SECONDARY_SCREENS,
   SETTINGS_PATH,
+  SETTINGS_SECTIONS,
+  SUPPORT_PAGES,
+  TAB_ROOTS,
   TASK_PERIODS,
   bottomIdForTab,
   isSecondaryScreen,
   isSettingsPath,
   pathForTab,
+  settingsPathFor,
+  settingsStateFromPath,
   tabFromPath,
 } from "../../src/app/routes.js";
 
@@ -112,11 +117,83 @@ test("routes : chaque écran a une route déclarée dans le routeur", () => {
   assert.ok(ROUTE_PATHS.includes("/tasks/:period"), "route paramétrée des tâches absente");
 });
 
-/* Une seule route pour les 4 périodes : passer de « Aujourd'hui » à
-   « Semaine » change un segment, pas de page. Quatre routes distinctes
-   déclencheraient une animation de transition entre deux onglets segmentés,
-   ce qui n'est pas le geste. */
-test("routes : les 4 périodes partagent une seule route", () => {
+/* Une seule route **paramétrée** pour les 4 périodes : passer de
+   « Aujourd'hui » à « Semaine » change un segment, pas de page. Quatre routes
+   distinctes déclencheraient une animation de transition entre deux onglets
+   segmentés, ce qui n'est pas le geste.
+
+   S'y ajoute `/tasks` tout court, la racine de l'onglet : c'est la valeur du
+   `href` du bouton, indispensable pour qu'Ionic tienne une pile par onglet
+   (`matchesTab()` compare par préfixe, et le préfixe doit couvrir les quatre
+   périodes). Sans route déclarée, ce chemin tomberait sur le repli « * ». */
+test("routes : les 4 périodes partagent une seule route paramétrée", () => {
   const taskRoutes = ROUTE_PATHS.filter((path) => path.startsWith("/tasks"));
-  assert.equal(taskRoutes.length, 1, `attendu 1 route pour les tâches, trouvé ${taskRoutes.join(", ")}`);
+  const parameterised = taskRoutes.filter((path) => path.includes(":"));
+  assert.deepEqual(parameterised, ["/tasks/:period"],
+    `attendu une seule route paramétrée, trouvé ${parameterised.join(", ") || "aucune"}`);
+  assert.ok(taskRoutes.includes(TAB_ROOTS.tasks),
+    `la racine de l'onglet (${TAB_ROOTS.tasks}) doit être une route déclarée`);
+  assert.equal(taskRoutes.length, 2,
+    `attendu la racine + la route paramétrée, trouvé ${taskRoutes.join(", ")}`);
+});
+
+/* Les `href` de la barre d'onglets doivent être des préfixes du chemin réel de
+   leur écran, sinon `matchesTab()` échoue et l'onglet ne s'allume pas. C'est le
+   piège qui avait fait retirer les `href` en phase 2 de la migration. */
+test("routes : chaque racine d'onglet préfixe le chemin de son écran", () => {
+  for (const [tab, root] of Object.entries(TAB_ROOTS)) {
+    const real = pathForTab(tab);
+    assert.ok(real === root || real.startsWith(`${root}/`),
+      `onglet ${tab} : ${real} n'est pas couvert par la racine ${root}`);
+  }
+});
+
+/* Repli des réglages sur le sommaire.
+
+   Ce que ces cas protègent : `SettingsView` reçoit une section qu'elle ne
+   connaît pas et ne rend rien — page blanche, sans erreur. Un deep link périmé
+   ou une faute de frappe suffit.
+
+   L'invariant était gardé par un test e2e qui posait le chemin avec
+   `pushState` + un `popstate` synthétique. Cette technique contourne le routeur
+   au lieu de le piloter (déjà noté comme peu fiable pendant la migration) et
+   elle simule un état inatteignable dans l'app : en WebView il n'y a pas de
+   barre d'adresse, et le retour matériel ne revisite que des entrées déjà
+   enregistrées. La règle est pure : elle se teste mieux ici. */
+test("réglages : une section inconnue retombe sur le sommaire", () => {
+  for (const path of ["/settings/nimportequoi", "/settings/PROFILE", "/settings/x/y"]) {
+    assert.deepEqual(settingsStateFromPath(path), { section: "main", support: "" },
+      `${path} doit retomber sur le sommaire`);
+  }
+});
+
+test("réglages : chaque section déclarée est reconnue dans les deux sens", () => {
+  for (const section of SETTINGS_SECTIONS) {
+    const path = settingsPathFor(section);
+    assert.equal(path, `${SETTINGS_PATH}/${section}`);
+    assert.deepEqual(settingsStateFromPath(path), { section, support: "" });
+  }
+});
+
+test("réglages : les pages de support sont reconnues, les autres non", () => {
+  for (const page of SUPPORT_PAGES) {
+    const path = settingsPathFor("", page);
+    assert.equal(path, `${SETTINGS_PATH}/support/${page}`);
+    assert.deepEqual(settingsStateFromPath(path), { section: "main", support: page });
+  }
+  assert.deepEqual(settingsStateFromPath(`${SETTINGS_PATH}/support/inventee`),
+    { section: "main", support: "" },
+    "une page de support inconnue ne doit pas être propagée telle quelle");
+});
+
+test("réglages : le sommaire, avec ou sans barre oblique finale", () => {
+  for (const path of [SETTINGS_PATH, `${SETTINGS_PATH}/`]) {
+    assert.deepEqual(settingsStateFromPath(path), { section: "main", support: "" });
+  }
+});
+
+test("réglages : un chemin hors réglages ne renvoie jamais de section", () => {
+  for (const path of ["/home", "/tasks/weekly", "", null, undefined]) {
+    assert.deepEqual(settingsStateFromPath(path), { section: "main", support: "" });
+  }
 });

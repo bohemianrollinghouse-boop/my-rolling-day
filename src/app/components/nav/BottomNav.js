@@ -14,7 +14,7 @@
 import { html } from "../../lib.js";
 import { IonBadge, IonLabel, IonTabBar, IonTabButton } from "@ionic/react";
 import { isPremiumTab } from "../../utils/premium.js";
-import { QUICK_SCREENS, bottomIdForTab } from "../../routes.js";
+import { QUICK_SCREENS, TAB_ROOTS, bottomIdForTab } from "../../routes.js";
 import { IcoCal, IcoCheck, IcoFork, IcoHome, IcoPlus } from "./NavIcons.js";
 
 /** Libellé et emoji des écrans du menu « Plus », dans l'ordre d'affichage. */
@@ -45,31 +45,42 @@ if (QUICK_MENU_ITEMS.length !== QUICK_SCREENS.length
 /**
  * Barre d'onglets du bas.
  *
- * Deux choix à expliquer, parce qu'ils s'écartent de l'exemple canonique
- * d'Ionic :
+ * **Les boutons portent un `href`, et c'est essentiel.** Ils naviguaient par
+ * `onClick` jusqu'ici, sur la foi d'un raisonnement faux : on croyait qu'un
+ * `href` ramènerait toujours l'onglet Tâches à sa racine et ferait perdre la
+ * période en cours. En réalité `IonTabBar.getDerivedStateFromProps` réécrit le
+ * `currentHref` de l'onglet actif avec le chemin courant, et `changeTab()`
+ * restaure ensuite la dernière route de l'onglet via
+ * `locationHistory.getCurrentRouteInfoForTab()` — Ionic mémorise donc la
+ * période tout seul.
  *
- * 1. `selectedTab` est passé explicitement au lieu d'être déduit par Ionic. La
- *    route des tâches est paramétrée (`/tasks/:period`) : Ionic ne peut pas
- *    savoir seul que `/tasks/weekly` allume l'onglet « Tâches ».
+ * Le prix de l'erreur était lourd : sans `href`, `IonTabBar` ne peut rattacher
+ * aucune route à un onglet, `changeTab()` n'est jamais appelé, et les dix
+ * routes s'empilent dans **une seule** pile. Chaque passage d'un onglet à
+ * l'autre ajoutait une entrée, au lieu de basculer entre quatre piles
+ * indépendantes comme le fait Ionic (et comme le fait COBA).
  *
- * 2. Les boutons ne portent **pas** de `href` — la navigation passe par
- *    `onClick`. Avec un `href`, Ionic navigue lui-même vers la racine de
- *    l'onglet, ce qui ferait perdre la période en cours : revenir sur
- *    « Tâches » doit rouvrir la dernière période consultée, pas repartir sur
- *    « Aujourd'hui » (c'est ce que fait `handleBottomNavChange` dans App.js).
+ * `selectedTab` reste passé explicitement : la route des tâches est paramétrée
+ * (`/tasks/:period`) et le libellé de l'onglet actif suit `activeTab`, que
+ * `App.js` dérive du chemin.
  *
  * Les icônes sont posées directement, sans `IonIcon` : ce composant attend une
  * prop `icon` / `src` pointant sur un jeu d'icônes, pas un SVG en enfant.
  *
  * @param {string} activeTab       écran courant, vocabulaire `activeTab`
- * @param {(tab: string) => void} onChange
  * @param {() => void} onOpenQuickMenu  ouvre la feuille d'actions « Plus »
  */
-export function BottomNav({ activeTab, onChange, onOpenQuickMenu, overdueTaskCount = 0, isPremium = false }) {
+export function BottomNav({ activeTab, onOpenQuickMenu, overdueTaskCount = 0, isPremium = false }) {
   const selected = bottomIdForTab(activeTab);
 
   return html`
     <${IonTabBar} slot="bottom" selectedTab=${selected} className="mrd-ion-tabbar">
+      ${/* « Plus » est le seul bouton sans `href` : Ionic appelle bien
+             `changeTab("quick", undefined)`, mais `handleChangeTab` sort
+             immédiatement sur `if (!path) return`. Aucune navigation, et
+             `onClick` ouvre la feuille d'actions.
+             (Ce commentaire vit hors du template : une interpolation en
+             position d'attribut est lue par htm comme un objet de props.) */""}
       ${NAV_TABS.map(({ id, label, Icon }) => {
         const isOn = selected === id;
         const badge = id === "tasks" && overdueTaskCount > 0 ? overdueTaskCount : 0;
@@ -80,9 +91,10 @@ export function BottomNav({ activeTab, onChange, onOpenQuickMenu, overdueTaskCou
           <${IonTabButton}
             key=${id}
             tab=${id}
+            href=${TAB_ROOTS[id]}
             selected=${isOn}
             aria-label=${badge ? `${label} — ${badge} en retard` : label}
-            onClick=${() => (isQuick ? onOpenQuickMenu() : onChange(id))}
+            onClick=${isQuick ? () => onOpenQuickMenu() : undefined}
           >
             <span className="mrd-tab-icon" aria-hidden="true"><${Icon} active=${isOn} /></span>
             <${IonLabel}>${label}<//>

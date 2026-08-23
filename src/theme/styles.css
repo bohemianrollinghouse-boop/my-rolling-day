@@ -304,6 +304,31 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
    on passe donc par `--background` & co plutot que par des regles sur
    `ion-tab-bar`, qui perdraient contre son shadow DOM.
    Les couleurs viennent de `theme/ionic-bridge.css`. */
+/* Safe area basse — a restaurer a la main, et voici pourquoi.
+
+   Ionic la pose via `padding-bottom: var(--ion-safe-area-bottom, 0)` dans le
+   `:host` du shadow DOM de `ion-tab-bar`. Mais le reset `*` plus haut dans ce
+   fichier (`* { margin: 0; padding: 0 }`) matche `ion-tab-bar`, qui est un
+   element ordinaire du light DOM — et **un style d auteur pose sur l element
+   hote gagne contre `:host`**, quelle que soit la specificite (l arbre
+   exterieur l emporte). Le padding d Ionic est donc mort-ne.
+
+   L ancienne barre maison portait deja `padding-bottom:
+   env(safe-area-inset-bottom, 6px)` pour exactement cette raison ; la
+   migration Ionic a supprime ce garde-fou en croyant qu Ionic le remplacait.
+   Resultat sur device : barre de 51px collee au bas de l ecran, boutons
+   dessines par-dessus l indicateur d accueil.
+
+   Invisible en test : Chrome headless n a aucun inset, donc les 57 captures de
+   `tests/screenshots` etaient toutes justes. C est ce qui a motive
+   `tests/screenshots/safe-area.mjs`, qui force de vrais insets par CDP.
+
+   `height` : Ionic donne 50px, l ancienne barre offrait ~52px de contenu
+   (4px de padding haut + 48px de bouton). On reprend cette geometrie. */
+ion-tab-bar.mrd-ion-tabbar {
+  height: 52px;
+  padding-bottom: var(--ion-safe-area-bottom, 6px);
+}
 .mrd-ion-tabbar {
   --background: var(--mrd-surfGlass);
   --color: var(--mrd-fg3);
@@ -2322,6 +2347,26 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 }
 .mrd-ion-page:has(.mrd-ion-toolbar-segment) ion-content.cnt {
   --padding-top: 0;
+}
+
+/* Safe area haute des pages **sans** `ion-header`.
+
+   Les pages a en-tete l obtiennent gratuitement : Ionic pose
+   `padding-top: var(--ion-safe-area-top)` sur `ion-header`. Celles qui rendent
+   `null` dans `renderPageHeader` (accueil, listes, repas en premium, recettes)
+   n avaient rien du tout : leur contenu demarrait a y=0, sous l heure et la
+   batterie du telephone.
+
+   Le padding va sur la **page** et non sur `--padding-top` d `ion-content` :
+   la regle `ion-content.cnt:has(.mrd-home)` plus bas remet les paddings a 0
+   avec une specificite superieure, et se battre avec elle donnerait un
+   resultat different selon l ecran. Ici une seule regle couvre tous les cas.
+
+   `.mrd-shell` porte bien `padding-top: env(safe-area-inset-top)`, mais il ne
+   protege pas ces pages : `ion-router-outlet` et ses `.ion-page` sont en
+   `position: absolute` et ne se calent pas sur sa boite de padding. */
+.mrd-ion-page:not(:has(> ion-header)) {
+  padding-top: var(--ion-safe-area-top, 0px);
 }
 
 /* L accueil pose ses propres marges (`.mrd-home-hdr`, les sections) : avant la

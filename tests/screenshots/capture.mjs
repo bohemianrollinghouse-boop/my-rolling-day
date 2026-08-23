@@ -17,6 +17,7 @@
 
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { launchBrowser, openPageSession } from "../helpers/cdp-browser.js";
 import { startStaticServer } from "../helpers/static-server.js";
@@ -34,6 +35,11 @@ const DEBUG_PORT = 9230; // distinct des suites e2e (9222-9225)
  * existe, parce que naviguer par URL est infiniment plus stable qu une
  * cascade de clics.
  */
+/* Attention aux selecteurs `ready` : ne jamais y mettre `ion-modal` tout seul.
+   `MrdModal` rend son `IonModal` en permanence et bascule `isOpen`, donc l hote
+   est dans le DOM meme modale fermee — un `ready` qui l accepte est toujours
+   vrai et ne verifie rien. Viser le contenu de la modale (ou
+   `ion-modal.show-modal`). */
 const SCREENS = [
   { id: "home",          label: "Accueil",              nav: { tab: "Accueil" },                      ready: ".mrd-home" },
   { id: "tasks-daily",   label: "Taches — jour",        nav: { tab: "Tâches" },                       ready: ".task-card, .task-empty-state" },
@@ -56,24 +62,24 @@ const SCREENS = [
      montrait. `open` decrit le clic qui ouvre la modale, une fois l ecran
      atteint. */
   { id: "modal-task-create", label: "Modale — nouvelle tache", nav: { tab: "Tâches" },
-    open: { selector: ".mrd-fab, ion-fab-button" }, ready: ".task-modal-redesign, ion-modal" },
+    open: { selector: ".mrd-fab, ion-fab-button" }, ready: ".task-modal-redesign input, .task-modal-redesign" },
   /* Attention : les notes du jeu d essai appartiennent a l utilisateur, et une
      note qu on possede s edite EN LIGNE (`startInlineEdit`) au lieu d ouvrir la
      modale. Cette capture montre donc l edition en ligne. La modale de note ne
      s ouvre que pour une note d un autre membre, cas non couvert. */
   { id: "modal-note",        label: "Note — edition en ligne", nav: { quick: "Notes" },
-    open: { text: ["Code du portail"], selector: ".ncard" }, ready: ".note-inline-editing, .note-modal-card, ion-modal" },
+    open: { text: ["Code du portail"], selector: ".ncard" }, ready: ".note-inline-editing, .note-modal-card" },
   { id: "modal-inventory",   label: "Modale — article",        nav: { quick: "Inventaire" },
-    open: { selector: ".mrd-fab, ion-fab-button" }, ready: ".modal-card, ion-modal" },
+    open: { selector: ".mrd-fab, ion-fab-button" }, ready: ".modal-card" },
   /* La carte de recette n est pas cliquable en entier : elle porte un bouton
      « Ouvrir ». Le premier selecteur essaye la carte, faute de quoi on clique
      le bouton par son libelle. */
   { id: "modal-recipe",      label: "Fiche recette",           nav: { quick: "Recettes" },
     open: { text: ["Ouvrir"], selector: "button" },
-    ready: ".recipes-page--sheet, .mrd-recipe-view-sheet, .recipe-sheet, ion-modal" },
+    ready: ".recipes-page--sheet, .mrd-recipe-view-sheet, .recipe-sheet" },
   { id: "modal-list",        label: "Detail de liste",         nav: { quick: "Listes" },
     open: { text: ["Liste de courses"], selector: ".lists-page-list-card" },
-    ready: ".ldv-item, .ldv-head, ion-modal" },
+    ready: ".ldv-item, .ldv-head" },
 ];
 
 /**
@@ -96,16 +102,16 @@ const VARIANTS = [
 
 /* ── Primitives CDP ──────────────────────────────────────────────────────── */
 
-async function evaluate(session, expression) {
+export async function evaluate(session, expression) {
   const { result } = await session.send("Runtime.evaluate", {
     expression, returnByValue: true, awaitPromise: true,
   });
   return result?.value;
 }
 
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+export function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-async function waitFor(session, selector, timeoutMs = 12_000) {
+export async function waitFor(session, selector, timeoutMs = 12_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const found = await evaluate(session, `!!document.querySelector(${JSON.stringify(selector)})`);
@@ -163,7 +169,7 @@ async function clickByText(session, selector, text) {
  * assertions e2e — avec une pile de pages, une requete non scopee n a plus de
  * sens.
  */
-async function clickSelector(session, selector) {
+export async function clickSelector(session, selector) {
   return evaluate(session, `(() => {
     ${DEEP_QUERY_HELPER}
     const page = [...document.querySelectorAll(".ion-page")]
@@ -195,7 +201,7 @@ async function clickSelector(session, selector) {
    Note : ne jamais mettre de backtick dans un commentaire place DANS un
    template literal — il termine la chaine. C est exactement l erreur commise
    en ecrivant ce commentaire la premiere fois. */
-async function waitForPageSettled(session, timeoutMs = 8000) {
+export async function waitForPageSettled(session, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const settled = await evaluate(session, `(() => {
@@ -213,7 +219,7 @@ async function waitForPageSettled(session, timeoutMs = 8000) {
 
 /* ── Onboarding : atteindre la page d accueil ─────────────────────────────── */
 
-async function setInputValue(session, selector, value) {
+export async function setInputValue(session, selector, value) {
   await evaluate(session, `(() => {
     const el = document.querySelector(${JSON.stringify(selector)});
     if (!el) return false;
@@ -224,7 +230,7 @@ async function setInputValue(session, selector, value) {
   })()`);
 }
 
-async function waitNextEnabled(session, timeoutMs = 4000) {
+export async function waitNextEnabled(session, timeoutMs = 4000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const disabled = await evaluate(session, `document.querySelector(".onb-footer-next")?.disabled ?? null`);
@@ -235,7 +241,7 @@ async function waitNextEnabled(session, timeoutMs = 4000) {
 }
 
 /** Reproduit le parcours CREATE de l onboarding (cf. tests/e2e/navigation.test.js). */
-async function reachHome(session) {
+export async function reachHome(session) {
   if (!await waitFor(session, ".onboarding-shell", 20_000)) {
     // Deja passe (session reutilisee) ou ecran different.
     return waitFor(session, ".mrd-bnav, ion-tab-bar", 10_000);
@@ -263,7 +269,7 @@ async function reachHome(session) {
 }
 
 /** Ferme les modales post-onboarding (notifications, bienvenue) s il y en a. */
-async function dismissPostOnboarding(session) {
+export async function dismissPostOnboarding(session) {
   for (let i = 0; i < 4; i++) {
     const closed = await evaluate(session, `(() => {
       const later = [...document.querySelectorAll("button")].find((b) => {
@@ -289,24 +295,30 @@ async function dismissPostOnboarding(session) {
  * le selecteur Ionic, puis le selecteur maison. Sans quoi la baseline serait
  * perdue a la premiere phase et il n y aurait plus rien a comparer.
  */
-const TAB_SELECTORS = ["ion-tab-button", ".mrd-bnav-btn"];
+export const TAB_SELECTORS = ["ion-tab-button", ".mrd-bnav-btn"];
 const QUICK_ITEM_SELECTORS = [".action-sheet-button", "ion-action-sheet button", ".mrd-bnav-quick-item"];
 const SUBTAB_SELECTORS = ["ion-segment-button", ".mrd-subtab-btn"];
 
 /** Clique le premier selecteur de la liste qui trouve le libelle demande. */
-async function clickAny(session, selectors, text) {
+export async function clickAny(session, selectors, text) {
   for (const selector of selectors) {
     if (await clickByText(session, selector, text) === true) return true;
   }
   return false;
 }
 
-/** Ferme une modale restee ouverte — sinon l ecran suivant est capture dessous. */
+/** Ferme une modale restee ouverte — sinon l ecran suivant est capture dessous.
+
+    `ion-modal.show-modal` et non `ion-modal` : `MrdModal` garde son `IonModal`
+    monte et bascule `isOpen`, donc l hote est present en permanence. La version
+    precedente croyait donc toujours qu une modale etait ouverte, et appelait
+    `dismiss()` sur le premier `ion-modal` du document — pas forcement celui qui
+    etait affiche. */
 async function dismissModal(session) {
-  const open = await evaluate(session, `!!document.querySelector("ion-modal, .modal-backdrop, .note-modal-backdrop, .recipes-page--sheet")`);
+  const open = await evaluate(session, `!!document.querySelector("ion-modal.show-modal, .modal-backdrop, .note-modal-backdrop, .recipes-page--sheet")`);
   if (!open) return;
   await evaluate(session, `(() => {
-    const m = document.querySelector("ion-modal");
+    const m = document.querySelector("ion-modal.show-modal");
     if (m?.dismiss) { m.dismiss(); return; }
     // Overlays maison : cliquer le fond, ou le bouton de fermeture.
     const closer = document.querySelector(".mrd-mclose, .note-modal-close, .delbtn, .mrd-back-btn");
@@ -408,7 +420,14 @@ async function gotoScreen(session, screen) {
       await clickAny(session, SUBTAB_SELECTORS, sub);
       await sleep(400);
     }
-    return ok === true;
+    if (ok !== true) return false;
+    /* Cet appel manquait, et la branche `quick` juste au-dessus l avait : la
+       seule capture concernee (`modal-task-create`) declarait bien son
+       `open`, mais le FAB n etait jamais clique. Elle photographiait donc
+       l ecran des taches sans modale depuis la phase 7 — sans jamais etre
+       signalee en echec, parce que son selecteur `ready` acceptait
+       `ion-modal`, present dans le DOM meme modale fermee. */
+    return openOverlay(session, screen.open);
   }
   return false;
 }
@@ -528,7 +547,15 @@ async function main() {
   if (failures.length) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+/* Ce module est aussi importe par `safe-area.mjs`, qui reutilise le parcours
+   d onboarding ci-dessus. Sans cette garde, un simple `import` declencherait
+   les 57 captures. */
+const runDirectly = process.argv[1]
+  && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+
+if (runDirectly) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

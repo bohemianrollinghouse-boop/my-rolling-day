@@ -332,3 +332,9 @@ ajouté un fichier de test, vérifier que le compteur `# tests` a bougé.
 dépendance, ou si un fichier apparaît à la racine de `src/app/`.
 
 Garde anti-régression visuelle : `tests/screenshots/` (voir son README).
+
+⚠️ Chrome headless n'expose **aucun** inset de zone sûre : les captures sont
+aveugles aux marges système, et trois défauts de ce type ont traversé la
+migration Ionic avec 57/57 `IDENTIQUE`. Toute question de marge haute ou basse
+se vérifie avec `tests/screenshots/safe-area.mjs`, qui force de vrais insets par
+CDP et mesure la géométrie.

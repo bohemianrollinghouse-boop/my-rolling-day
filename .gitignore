@@ -51,3 +51,7 @@ android/.idea/
 
 # Firebase CLI local cache
 .firebase/
+
+# Fichiers de metadonnees Finder (macOS) — le projet se developpe sur Mac
+# et Windows, ceux-ci n ont rien a faire dans le depot.
+.DS_Store

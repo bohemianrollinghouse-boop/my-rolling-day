@@ -48,6 +48,25 @@ export const SETTINGS_SECTIONS = [
 /** Sous-pages de support, sous `/settings/support/:page`. */
 export const SUPPORT_PAGES = ["contact", "bug", "feature", "privacy", "terms"];
 
+/**
+ * Racine de chaque onglet de la barre du bas — la valeur de son `href`.
+ *
+ * Ionic tient **une pile de navigation par onglet**, mais seulement s'il peut
+ * rattacher une route à un onglet : `IonTabBar` construit sa table depuis les
+ * `href` de ses boutons, et `matchesTab()` fait une comparaison de préfixe.
+ * D'où `/tasks` et non `/tasks/daily` : le préfixe doit couvrir les quatre
+ * périodes, sinon l'onglet Tâches ne s'allume pas sur `/tasks/weekly`.
+ *
+ * « quick » n'y figure pas : ce bouton ouvre une feuille d'actions, il ne
+ * navigue pas.
+ */
+export const TAB_ROOTS = {
+  home: HOME_PATH,
+  tasks: "/tasks",
+  agenda: "/agenda",
+  meals: "/meals",
+};
+
 /** Chemin de chaque écran simple (hors Tâches, qui a un paramètre). */
 const SIMPLE_PATHS = {
   home: HOME_PATH,
@@ -69,6 +88,10 @@ const SIMPLE_PATHS = {
  */
 export const ROUTE_PATHS = [
   ...Object.values(SIMPLE_PATHS),
+  // `/tasks` tout court est la racine de l'onglet (cf. TAB_ROOTS) : sans cette
+  // route, le premier clic sur Tâches tombe sur le repli « * » et repart sur
+  // l'accueil.
+  "/tasks",
   "/tasks/:period",
   `${SETTINGS_PATH}/support/:page`,
   `${SETTINGS_PATH}/:section`,
