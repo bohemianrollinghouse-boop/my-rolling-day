@@ -202,7 +202,7 @@ un triplet `.ts/.html/.scss` ; ici une page est un seul `.js`.
 
 | Fichier | Lignes | Rôle |
 |---|---|---|
-| `src/app/App.js` | 1890 | Orchestrateur. Routes Ionic, arbre de décision de boot, état planner, glue repas↔inventaire↔listes, toasts, modales globales, simulation temporelle, bouton retour Android. |
+| `src/app/App.js` | 1526 | Orchestrateur. Routes Ionic, arbre de décision de boot, câblage des hooks, 6 fonctions de rendu, toasts, modales globales, bouton retour Android. **Dégraissé le 23 août 2026** (1890 → 1526) : la logique métier est partie dans des hooks, voir §4 `hooks/`. |
 | `src/app/routes.js` | 199 | Seule traduction URL ↔ vocabulaire historique du code. Module pur. |
 | `src/app/lib.js` | 11 | Exporte `React`, `createRoot`, `useEffect`, `useMemo`, `useRef`, `useState`, `html`. |
 | `src/main.js` | 64 | `setupIonicReact({mode:'ios'})`, overlay d'erreur fatale hors de `#root`, montage. |
@@ -280,6 +280,11 @@ fichiers de l'app importent toujours depuis `providers/client.js`.
 | `usePushMessaging.js` | 174 | Enregistrement du token FCM, messages au premier plan. |
 | `useMeals.js` | 164 | `handleUpdateMeal`, `handleToggleCook`, CRUD recette, `handleToggleRecipeFavorite`, `handleLoadDemoRecipes`. |
 | `useAgenda.js` | 136 | Blocs d'agenda + événements récurrents. |
+| `useMealCooking.js` | 241 | **Cuisson d'un créneau + déduction de stock.** Extrait d'`App.js` le 23 août 2026. `computeMealCookState` et `deductionToastMessage` sont **purs et exportés** — c'est tout l'intérêt de l'extraction, ils sont testés par `tests/unit/meal-cooking.test.js` (16 tests, un par règle produit). |
+| `usePlannerData.js` | 101 | Import / export / remise à zéro du planner (section « Données » des réglages). Passe par `checkReset`, jamais à côté. |
+| `useInbox.js` | 92 | Pense-bête : capture + dispatch vers tâche / agenda / note. Reçoit les créateurs des autres hooks en paramètres plutôt que de les appeler — voir le commentaire du fichier. |
+| `useAppTime.js` | 92 | Simulation temporelle. Porte `appTimeVersion`, le compteur qui sert de signal de rafraîchissement aux `useMemo` qui lisent la date. |
+| `useNotes.js` | 46 | Notes : création, suppression, modification. Le filtrage par visibilité reste au rendu, il dépend de la personne active. |
 | `useAppRouting.js` | ~60 | Gardes de routage dérivées de l'état d'auth. |
 | `usePlannerSync.js` | 65 | Synchro Firestore du planner. Rend `{ state, setState, status, plannerError }`. |
 | `useStaleTaskAlerts.js` | ~30 | Alertes « tâche non faite ». |
@@ -901,6 +906,7 @@ normal, c'est un journal historique, ne le réécris pas.**
 | 2026-08-23 | agent (analyse initiale) | Création. Analyse complète du projet à `4300b3e` sur `feat/ionic` : arborescence, 90 fichiers `src/`, modèle de données, routage, boot, règles produit, notifications, thème. Suite de tests lancée et vérifiée : 213 pass / 0 fail / 0 skipped. Relevé les écarts de `docs/PROJECT_MAP.md`, `docs/DEV_NOTES.md`, `README.md` et `docs/AGENT.md` (§11). Identifié `components/Header.js` comme fichier mort, en plus de `FamilyPanel.js`. |
 | 2026-08-23 | agent | Suppression de `docs/AGENT.md`, `docs/PROJECT_MAP.md` et `docs/DEV_NOTES.md` (demande de Steve). Contenu exact replié ici avant suppression : sections de réglages (§6), mise à l'échelle par portions et réutilisation de la carte tâche côté calendrier (§8). Deux affirmations de `DEV_NOTES` vérifiées **fausses** et écartées, documentées en §11 pour éviter qu'on les ressuscite. `README.md` garde deux renvois vers l'ancien `AGENT.md` (l. 25 et 251) — Steve s'en occupe. |
 | 2026-08-23 | agent | `README.md` réécrit (254 → 163 l.). Corrigés : chemins Windows d'une machine précédente, lancement `npx serve`/`python -m http.server` (faux — l'app a besoin de Vite), `.claude/launch.json` inexistant, bloc PowerShell `run-tests.ps1`, et **trois commandes de test avec un flag invalide** (`--test-isolation=none` → `node: bad option` ; le vrai est `--experimental-test-isolation=none`). Supprimée la section « Cache busting » qui contredisait le même fichier 175 lignes plus haut. L'inventaire des fichiers a été retiré du README plutôt que corrigé : le dupliquer ici est ce qui l'avait périmé. |
+| 2026-08-23 | agent | **`App.js` dégraissé : 1890 → 1526 l. (−19 %), 28 → 7 handlers métier.** 5 hooks créés (`useMealCooking` 241 l., `usePlannerData` 101, `useInbox` 92, `useAppTime` 92, `useNotes` 46) ; condiments rapatriés dans `useMeals`, `handleReorderStorageLocations` dans `useLists`. `computeMealCookState` et `deductionToastMessage` sont désormais purs et exportés, donc testables : **16 tests ajoutés** (`tests/unit/meal-cooking.test.js`), un par règle produit de §8 — suite passée de 213 à **229 pass / 0 fail / 0 skipped**. Non extraits volontairement : `handleSetActivePerson` / `handleSetDeviceMode`, voir §15. Sections §4, §14, §15, §16 mises à jour. |
 
 ---
 
@@ -974,7 +980,7 @@ forcer un JDK, le déclarer dans `~/.gradle/gradle.properties`, **jamais** dans
 npm test          # unitaires + e2e
 ```
 
-État au 23 août 2026, vérifié : **213 pass · 0 fail · 0 skipped**, en 7 min 42 s
+État au 23 août 2026, vérifié : **229 pass · 0 fail · 0 skipped**, en 7 min 39 s
 (la lenteur est normale : chaque suite e2e refait un build Vite et pilote un
 Chrome headless). Les `0 skipped` sont la partie importante — voir les trois
 pièges ci-dessous.
@@ -987,9 +993,9 @@ remplacé par les bouchons de `tests/fixtures/firebase-stubs/` (substitution par
 ### Suites
 
 **Unitaires** (`tests/unit/`, agrégées par `tests/unit.test.js`) :
-`product-utils`, `recipe-stock`, `stock-merge`, `meal-fill`, `date-utils`,
-`state`, `firebase-config`, `families`, `multi-family-source`, `design-tokens`,
-`routes`, `structure`.
+`product-utils`, `recipe-stock`, `stock-merge`, `meal-fill`, **`meal-cooking`**,
+`date-utils`, `state`, `firebase-config`, `families`, `multi-family-source`,
+`design-tokens`, `routes`, `structure`.
 
 **E2E** (`tests/e2e/`, agrégées par `tests/e2e.test.js`) : `app.smoke`,
 `auth.standalone`, `profile-creation`, `navigation`, `tasks`, `ionic-theme`,
@@ -1056,7 +1062,8 @@ dépôt.
 | Fichier | Pourquoi |
 |---|---|
 | `hooks/useLists.js` (662 l.) | **Le plus risqué.** Liste de courses, liaison inventaire optionnelle, bascule d'achat, toast d'annulation, règles de fusion, envoi inventaire → courses. Endroit facile pour une régression de doublon, de quantité ou de course. |
-| `App.js` (1890 l.) | Très gros orchestrateur. Contient encore de la logique inter-modules qui devrait vivre dans des hooks : conversions quantité/unité, `computeMealCookState`, glue repas↔inventaire, gestion localStorage. Vérifier les dépendances avant tout gros changement. |
+| `App.js` (1526 l.) | Orchestrateur. **Dégraissé le 23 août 2026** : 364 lignes et 21 handlers métier partis dans 5 hooks. Ce qui reste est de la coque — 6 fonctions de rendu et le câblage. Il subsiste 7 handlers, dont 4 volontairement : `handleNotifPopupNavigate` (navigation pure), `handleDismissStaleTaskAlert` / `handleMoveStaleTaskToPeriod` (adaptateurs de 2 lignes entre `useStaleTaskAlerts` et `useTasks`), `handleClearHistory` (3 lignes, aucun hook d'accueil naturel — en créer un pour ça serait pire). |
+| `App.js` — `handleSetActivePerson` / `handleSetDeviceMode` | **Non extraits, délibérément.** Leurs effets de bootstrap (l. ~445-495) dépendent de `linkedPerson`, `appPeopleRaw` et `currentFamilyId`, qui arrivent de façon asynchrone depuis `useAuth` ; `activePersonId` est par ailleurs lu à ~15 endroits du rendu. Les déplacer veut dire déplacer ces effets, sans aucune couverture de test dessus. À faire avec un filet, pas au passage. |
 | `pages/meals/MealsView.js` (878 l.) | Liaison repas/inventaire, popup des manquants, états `Prep`/`OK`, faisabilité à l'échelle de la semaine. |
 | `pages/recipes/RecipesView.js` (1186 l.) | Création/édition de recette, ingrédients structurés, condiments, saisonnalité, badges, import URL. L'UI a changé plusieurs fois — **ne pas réintroduire l'ancienne logique de condiments**. |
 | `pages/tasks/TasksView.js` (1434 l.) | Glisser-déposer et modale de tâche très custom : appui long, carte fantôme, repère d'insertion, déclencheurs ouvrir/créer. Facile à casser. |
@@ -1111,6 +1118,10 @@ pas changé.
 - **Code-splitting par route.** Le bundle est passé de 1 505 kB à **2 524 kB**
   (gzip 380 → 605) avec la migration. Le routeur rend enfin le découpage
   naturel : c'est le point de dette le plus net que laisse la migration.
+- **Finir de dégraisser `App.js`.** Fait en grande partie le 23 août 2026
+  (1890 → 1526 l., 21 handlers déplacés). Restent `handleSetActivePerson` et
+  `handleSetDeviceMode`, laissés exprès : voir §15 pour la raison. Le préalable
+  est une couverture de test sur leurs effets de bootstrap.
 - **Notifications programmées à la création** de l'événement
   (`LocalNotifications.schedule({ at: date })`) pour qu'elles sonnent app fermée.
   Refactor plus lourd : annulation/reprogrammation à chaque édition.
@@ -1172,7 +1183,7 @@ pas changé.
    liste → inventaire · inventaire → à racheter · tâche → calendrier ·
    invitation → foyer → profil lié.
 6. **Lance `npm test`** (compte ~8 min) et vérifie que `skipped` est à 0 et que
-   `# tests` a bougé si tu as ajouté un fichier de test. Référence : 213 pass.
+   `# tests` a bougé si tu as ajouté un fichier de test. Référence : 229 pass.
 7. **Pour une question de marge haute ou basse**, lance
    `tests/screenshots/safe-area.mjs` — les captures ordinaires sont aveugles.
 8. **Mets ce fichier à jour** (§0) et consigne dans `docs/PROJECT_LOG.md`.

@@ -653,10 +653,22 @@ export function useLists(state, updateState, showToast) {
     });
   }
 
+  /* Ordre d'affichage des emplacements de rangement. Les emplacements absents
+     de `orderedIds` sont conservés à la fin plutôt que supprimés : un
+     réordonnancement partiel ne doit pas faire disparaître un rangement. */
+  function handleReorderStorageLocations(orderedIds) {
+    updateState((previous) => {
+      const locations = Array.isArray(previous.storageLocations) ? previous.storageLocations : [];
+      const reordered = orderedIds.map((id) => locations.find((entry) => entry.id === id)).filter(Boolean);
+      const missing = locations.filter((entry) => !orderedIds.includes(entry.id));
+      return { ...previous, storageLocations: [...reordered, ...missing] };
+    });
+  }
+
   return {
     handleCreateList, handleDeleteList, handleUpdateList, handleMoveList,
     handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList, handleClearCheckedItems, handleCheckAllItems,
     handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping, handleReorderInventoryItems,
-    handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation,
+    handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation, handleReorderStorageLocations,
   };
 }

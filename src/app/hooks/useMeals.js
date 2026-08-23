@@ -160,5 +160,40 @@ export function useMeals(updateState) {
     });
   }
 
-  return { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleToggleRecipeFavorite, handleDeleteRecipe, handleLoadDemoRecipes };
+  /* ── Condiments personnalisés ──────────────────────────────────────────
+     Le catalogue de base est statique (`config/condiments.js`) ; ces deux
+     fonctions gèrent ce que l'utilisateur y ajoute. Elles vivaient dans
+     `App.js` sans raison : un condiment est du domaine recette. */
+
+  function handleAddCustomCondiment(name) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return;
+    updateState((previous) => {
+      const existing = Array.isArray(previous.customCondiments) ? previous.customCondiments : [];
+      if (existing.includes(trimmed)) return previous;
+      return { ...previous, customCondiments: [...existing, trimmed] };
+    });
+  }
+
+  /* Supprimer un condiment personnalisé le retire aussi des recettes qui s'en
+     servaient : sans ça, elles gardaient une référence à un condiment qui
+     n'existe plus, affichée comme un libellé brut. */
+  function handleDeleteCustomCondiment(name) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return;
+    updateState((previous) => ({
+      ...previous,
+      customCondiments: (Array.isArray(previous.customCondiments) ? previous.customCondiments : []).filter((entry) => entry !== trimmed),
+      recipes: (Array.isArray(previous.recipes) ? previous.recipes : []).map((recipe) => ({
+        ...recipe,
+        condiments: (Array.isArray(recipe.condiments) ? recipe.condiments : []).filter((entry) => entry !== trimmed),
+      })),
+    }));
+  }
+
+  return {
+    handleUpdateMeal, handleToggleCook,
+    handleAddRecipe, handleUpdateRecipe, handleToggleRecipeFavorite, handleDeleteRecipe, handleLoadDemoRecipes,
+    handleAddCustomCondiment, handleDeleteCustomCondiment,
+  };
 }

@@ -16,7 +16,6 @@ import { SettingsView } from "./pages/settings/SettingsView.js";
 import { TasksView } from "./pages/tasks/TasksView.js";
 import { SegmentedTabs } from "./components/SegmentedTabs.js";
 import { ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal, NotificationModal, StaleTaskModal } from "./modals/AppModals.js";
-import { createDefaultState } from "./config/defaultState.js";
 import {
   canChangePassword,
   getCurrentAuthMode,
@@ -30,24 +29,16 @@ import {
 } from "./providers/client.js";
 import { PremiumLockScreen } from "./pages/premium/PremiumLockScreen.js";
 import { html, useEffect, useMemo, useRef, useState } from "./lib.js";
-import { collectKnownProducts, formatQuantityUnit } from "./utils/productUtils.js";
-import { productMatchKey, toBaseQuantity, fromBaseQuantity } from "./utils/units.js";
+import { collectKnownProducts } from "./utils/productUtils.js";
 import { readStoredActivePerson, storeActivePerson, readDeviceMode, storeDeviceMode } from "./utils/personStorage.js";
 import {
-  formatDateTimeInputValue,
   formatHeaderDate,
   getCurrentAppDate,
-  getCurrentAppTimeMode,
-  getSimulatedAppDateValue,
   localDateKey,
   pad2,
-  resetSimulatedAppDateToNow,
-  setCurrentAppTimeMode,
-  setSimulatedAppDateValue,
-  shiftSimulatedAppDate,
 } from "./utils/date.js";
-import { checkReset, createMealShell } from "./utils/state.js";
-import { parseImportedState, shouldShowNotifPrompt, markNotifPromptGranted, markNotifPromptDismissed, getNotifPromptDismissCount } from "./utils/storage.js";
+import { checkReset } from "./utils/state.js";
+import { shouldShowNotifPrompt, markNotifPromptGranted, markNotifPromptDismissed, getNotifPromptDismissCount } from "./utils/storage.js";
 import { Capacitor } from "@capacitor/core";
 import { initNotifications, requestNotificationPermission } from "./plugins/notifications.js";
 import { applyTheme, readStoredTheme } from "./utils/theme.js";
@@ -61,6 +52,11 @@ import { useAgenda } from "./hooks/useAgenda.js";
 import { useTaskNotifications } from "./hooks/useTaskNotifications.js";
 import { useStaleTaskAlerts } from "./hooks/useStaleTaskAlerts.js";
 import { useAppRouting } from "./hooks/useAppRouting.js";
+import { useNotes } from "./hooks/useNotes.js";
+import { useInbox } from "./hooks/useInbox.js";
+import { useAppTime } from "./hooks/useAppTime.js";
+import { usePlannerData } from "./hooks/usePlannerData.js";
+import { useMealCooking } from "./hooks/useMealCooking.js";
 import {
   IonActionSheet,
   IonApp,
@@ -233,6 +229,13 @@ function AppShell() {
      et le vocabulaire des props de `SettingsView` sont conservés (`"main"` pour
      le sommaire, `""` pour « pas dans une page de support »), donc la vue n'a
      pas été touchée. */
+  const {
+    appTimeMode, simulatedDateTime, appTimeVersion,
+    handleSetRealDateMode, handleSetSimulatedDateMode,
+    handleChangeSimulatedDate, handleChangeSimulatedTime,
+    handleShiftSimulatedDate, handleResetSimulatedDateToToday,
+  } = useAppTime();
+
   const { section: settingsSubPage, support: settingsSupportPage } =
     settingsStateFromPath(location.pathname);
 
@@ -246,9 +249,6 @@ function AppShell() {
 
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [dataMessage, setDataMessage] = useState("");
-  const [importText, setImportText] = useState("");
-  const [showImport, setShowImport] = useState(false);
   const [taskFabTrigger, setTaskFabTrigger] = useState(0);
   const [lastTaskTab, setLastTaskTab] = useState("daily");
   const [inventoryOrganiserMode, setInventoryOrganiserMode] = useState(
@@ -272,9 +272,6 @@ function AppShell() {
   const isPremium = Boolean(currentFamily?.premiumOverride);
   const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
   const handleActivatePremium = () => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
-  const [appTimeMode, setAppTimeModeState] = useState(() => getCurrentAppTimeMode());
-  const [simulatedDateTime, setSimulatedDateTimeState] = useState(() => getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate()));
-  const [appTimeVersion, setAppTimeVersion] = useState(0);
 
   // Guard : ouvre le setup à la connexion si l'user n'a pas encore de foyer.
   // Une fois activé, seul onDone() le ferme (évite la fermeture prématurée quand Firebase répond).
@@ -595,49 +592,44 @@ function AppShell() {
       taskNotifications: { ...(prev.taskNotifications || {}), ...updates },
     }));
   }
-  const { handleUpdateMeal, handleToggleCook, handleAddRecipe, handleUpdateRecipe, handleToggleRecipeFavorite, handleDeleteRecipe, handleLoadDemoRecipes } = useMeals(updateState);
+  const {
+    handleUpdateMeal, handleToggleCook,
+    handleAddRecipe, handleUpdateRecipe, handleToggleRecipeFavorite, handleDeleteRecipe, handleLoadDemoRecipes,
+    handleAddCustomCondiment, handleDeleteCustomCondiment,
+  } = useMeals(updateState);
 
-  function handleAddCustomCondiment(name) {
-    const trimmed = String(name || "").trim();
-    if (!trimmed) return;
-    updateState((previous) => {
-      const existing = Array.isArray(previous.customCondiments) ? previous.customCondiments : [];
-      if (existing.includes(trimmed)) return previous;
-      return { ...previous, customCondiments: [...existing, trimmed] };
-    });
-  }
-
-  function handleDeleteCustomCondiment(name) {
-    const trimmed = String(name || "").trim();
-    if (!trimmed) return;
-    updateState((previous) => ({
-      ...previous,
-      customCondiments: (Array.isArray(previous.customCondiments) ? previous.customCondiments : []).filter((entry) => entry !== trimmed),
-      recipes: (Array.isArray(previous.recipes) ? previous.recipes : []).map((recipe) => ({
-        ...recipe,
-        condiments: (Array.isArray(recipe.condiments) ? recipe.condiments : []).filter((entry) => entry !== trimmed),
-      })),
-    }));
-  }
   const {
     handleCreateList, handleDeleteList, handleUpdateList, handleMoveList,
     handleAddListItem, handleUpdateListItem, handleToggleListItem, handleDeleteListItem, handleClearShoppingList, handleClearCheckedItems, handleCheckAllItems,
     handleAddInventoryItem, handleUpdateInventoryItem, handleDeleteInventoryItem, handleClearFinishedInventory, handleClearAllInventory, handleSendInventoryToShopping, handleReorderInventoryItems,
-    handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation,
+    handleAddStorageLocation, handleRenameStorageLocation, handleDeleteStorageLocation, handleSetItemLocation, handleReorderStorageLocations,
   } = useLists(state, updateState, showToast);
   const {
     handleAddAgenda, handleUpdateAgenda, handleDeleteAgenda,
     handleAddRecurring, handleUpdateRecurring, handleDeleteRecurring,
   } = useAgenda(state, updateState);
 
-  function handleReorderStorageLocations(orderedIds) {
-    updateState((previous) => {
-      const locs = Array.isArray(previous.storageLocations) ? previous.storageLocations : [];
-      const reordered = orderedIds.map((id) => locs.find((l) => l.id === id)).filter(Boolean);
-      const missing = locs.filter((l) => !orderedIds.includes(l.id));
-      return { ...previous, storageLocations: [...reordered, ...missing] };
-    });
-  }
+  const { handleAddNote, handleDeleteNote, handleUpdateNote } = useNotes(updateState, activePersonId);
+
+  const {
+    handleAddInboxItem, handleDeleteInboxItem,
+    handleDispatchToTask, handleDispatchToAgenda, handleDispatchToNote,
+  } = useInbox({
+    updateState, activePersonId, showToast,
+    handleAddTask, handleAddAgenda, handleAddRecurring, handleAddNote,
+  });
+
+  const { handleToggleCookWithInventory, handleToggleMealsInventoryLink } = useMealCooking({
+    state,
+    updateState,
+    showToast,
+    dismissToast: () => setToast(null),
+  });
+
+  const {
+    dataMessage, setDataMessage, importText, setImportText, showImport, setShowImport,
+    handleManualImport, handleExportData, handleResetPlanner,
+  } = usePlannerData({ state, setState, familyName: currentFamily?.name || "" });
 
   function handleSetActivePerson(personId) {
     const nextId = appPeopleRaw.some((person) => person.id === personId) ? personId : "";
@@ -680,364 +672,8 @@ function AppShell() {
     showToast("✓ Profil mis à jour");
   }
 
-  function handleAddNote(text, visibility = "household", sharedWith = []) {
-    if (!text.trim()) return;
-    const now = getCurrentAppDate();
-    const date = `${localDateKey(now)} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-    updateState((previous) => ({
-      ...previous,
-      notes: [{
-        id: `note-${Date.now()}`,
-        text: text.trim(),
-        date,
-        createdBy: activePersonId,
-        visibility,
-        sharedWith: Array.isArray(sharedWith) ? sharedWith : [],
-      }, ...previous.notes],
-    }));
-  }
-
-  function handleDeleteNote(noteId) {
-    updateState((previous) => ({
-      ...previous,
-      notes: previous.notes.filter((note) => note.id !== noteId),
-    }));
-  }
-
-  function handleUpdateNote(noteId, updates) {
-    updateState((previous) => ({
-      ...previous,
-      notes: previous.notes.map((note) => note.id === noteId ? { ...note, ...updates } : note),
-    }));
-  }
-
-  /* ── Inbox ─────────────────────────────────────────────── */
-  function handleAddInboxItem(text, hint) {
-    const trimmed = String(text || "").trim();
-    if (!trimmed) return;
-    const now = getCurrentAppDate();
-    const createdAt = `${localDateKey(now)} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-    updateState((previous) => ({
-      ...previous,
-      inbox: [
-        {
-          id: `inbox-${Date.now()}`,
-          text: trimmed,
-          hint: hint || null,
-          createdAt,
-          createdBy: activePersonId,
-        },
-        ...(Array.isArray(previous.inbox) ? previous.inbox : []),
-      ],
-    }));
-  }
-
-  function handleDeleteInboxItem(itemId) {
-    updateState((previous) => ({
-      ...previous,
-      inbox: (Array.isArray(previous.inbox) ? previous.inbox : []).filter((item) => item.id !== itemId),
-    }));
-  }
-
-  function handleDispatchToTask(inboxItem, payload) {
-    const period = payload.displayPeriod === "deadline" ? "daily" : (payload.displayPeriod || "daily");
-    handleAddTask(period, payload);
-    handleDeleteInboxItem(inboxItem.id);
-    showToast("✓ Tâche créée depuis l'inbox");
-  }
-
-  function handleDispatchToAgenda(inboxItem, payload) {
-    if (payload.repeatWeekly) {
-      const weekday = new Date(`${payload.dateKey}T00:00`).getDay();
-      handleAddRecurring({ ...payload, weekday });
-    } else {
-      handleAddAgenda(payload);
-    }
-    handleDeleteInboxItem(inboxItem.id);
-    showToast("✓ Ajouté à l'agenda");
-  }
-
-  function handleDispatchToNote(inboxItem, payload) {
-    handleAddNote(payload.text, payload.visibility, payload.sharedWith);
-    handleDeleteInboxItem(inboxItem.id);
-    showToast("✓ Note créée depuis l'inbox");
-  }
-
   function handleClearHistory() {
     updateState((previous) => ({ ...previous, history: [] }));
-  }
-
-  function handleManualImport() {
-    try {
-      setDataMessage("");
-      const imported = checkReset(parseImportedState(importText), getCurrentAppDate()).state;
-      setState(imported);
-      setDataMessage("Import manuel termine.");
-      setShowImport(false);
-      setImportText("");
-    } catch (error) {
-      setDataMessage(error.message || "Import impossible.");
-    }
-  }
-
-  async function handleExportData() {
-    const payload = JSON.stringify(state, null, 2);
-    const fileName = `my-rolling-day-${currentFamily?.name || "foyer"}.json`;
-
-    // Natif : <a download> ne fait rien en WKWebView → fichier + feuille de partage
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([
-          import("@capacitor/filesystem"),
-          import("@capacitor/share"),
-        ]);
-        const written = await Filesystem.writeFile({
-          path: fileName,
-          data: payload,
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8,
-        });
-        await Share.share({ title: fileName, files: [written.uri] });
-        setDataMessage("Export partagé.");
-      } catch (error) {
-        // L'utilisateur a fermé la feuille de partage → pas une erreur
-        if (String(error?.message || "").toLowerCase().includes("cancel")) return;
-        setDataMessage(error.message || "Export impossible.");
-      }
-      return;
-    }
-
-    try {
-      const blob = new Blob([payload], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      link.click();
-      URL.revokeObjectURL(url);
-      setDataMessage("Export lance.");
-    } catch (error) {
-      setDataMessage(error.message || "Export impossible.");
-    }
-  }
-
-  function handleResetPlanner() {
-    setState(checkReset(createDefaultState(), getCurrentAppDate()).state);
-    setDataMessage("Planner reinitialise.");
-  }
-
-  function syncAppTimeControls() {
-    setAppTimeModeState(getCurrentAppTimeMode());
-    setSimulatedDateTimeState(getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate()));
-    setAppTimeVersion((value) => value + 1);
-  }
-
-  function handleSetRealDateMode() {
-    setCurrentAppTimeMode("real");
-    syncAppTimeControls();
-  }
-
-  function handleSetSimulatedDateMode() {
-    if (!getSimulatedAppDateValue()) {
-      resetSimulatedAppDateToNow();
-    }
-    setCurrentAppTimeMode("simulated");
-    syncAppTimeControls();
-  }
-
-  function handleChangeSimulatedDate(dateValue) {
-    const currentValue = getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate());
-    const currentTime = currentValue.slice(11, 16) || "09:00";
-    setSimulatedAppDateValue(`${dateValue}T${currentTime}`);
-    setCurrentAppTimeMode("simulated");
-    syncAppTimeControls();
-  }
-
-  function handleChangeSimulatedTime(timeValue) {
-    const currentValue = getSimulatedAppDateValue() || formatDateTimeInputValue(getCurrentAppDate());
-    const currentDatePart = currentValue.slice(0, 10) || localDateKey(getCurrentAppDate());
-    setSimulatedAppDateValue(`${currentDatePart}T${timeValue}`);
-    setCurrentAppTimeMode("simulated");
-    syncAppTimeControls();
-  }
-
-  function handleShiftSimulatedDate(days) {
-    setCurrentAppTimeMode("simulated");
-    shiftSimulatedAppDate(days);
-    syncAppTimeControls();
-  }
-
-  function handleResetSimulatedDateToToday() {
-    setCurrentAppTimeMode("simulated");
-    resetSimulatedAppDateToNow();
-    syncAppTimeControls();
-  }
-
-  function handleToggleMealsInventoryLink(enabled) {
-    updateState((previous) => ({
-      ...previous,
-      linkMealsToInventory: Boolean(enabled),
-    }));
-  }
-
-  function computeMealCookState(previous, day, slot, weekKey, subSlot) {
-    const wk = weekKey || "";
-    const sub = subSlot || "main";
-    // Même logique que matchMeal dans useMeals : les repas sans weekKey matchent toujours
-    const matchFn = (meal) => {
-      if (meal.day !== day) return false;
-      const mwk = meal.weekKey || "";
-      return mwk === wk || (mwk === "" && wk !== "");
-    };
-    const existing = previous.meals.find(matchFn);
-    const baseMeals = existing
-      ? [...previous.meals]
-      : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
-
-    const targetMeal = baseMeals.find(matchFn);
-    if (!targetMeal) return null;
-
-    let cookedKey, recipeKey;
-    if (sub === "starter") {
-      cookedKey = slot === "lunch" ? "lunchStarterCooked" : "dinnerStarterCooked";
-      recipeKey = slot === "lunch" ? "lunchStarterRecipeId" : "dinnerStarterRecipeId";
-    } else if (sub === "dessert") {
-      cookedKey = slot === "lunch" ? "lunchDessertCooked" : "dinnerDessertCooked";
-      recipeKey = slot === "lunch" ? "lunchDessertRecipeId" : "dinnerDessertRecipeId";
-    } else {
-      cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
-      recipeKey = slot === "lunch" ? "lunchRecipeId" : "dinnerRecipeId";
-    }
-
-    const nextCooked = !targetMeal[cookedKey];
-    const recipeId = targetMeal[recipeKey];
-    let nextInventory = previous.inventory;
-    let deductedAny = false;
-    /* Produits que le stock connaissait mais n'a pas couverts jusqu'au bout.
-       Sans ça, la déduction ramenait l'article à zéro en annonçant « bien
-       déduits » : le manque disparaissait sans que personne ne le voie. Les
-       produits totalement absents de l'inventaire n'entrent pas ici — c'est le
-       rôle de la comparaison recette / courses, pas de la cuisson. */
-    const shortfalls = [];
-
-    if (Boolean(previous.linkMealsToInventory) && nextCooked && recipeId) {
-      const recipe = (previous.recipes || []).find((entry) => entry.id === recipeId);
-      const recipeIngredients = Array.isArray(recipe?.ingredients) ? recipe.ingredients.filter((item) => item?.name) : [];
-
-      nextInventory = [...previous.inventory];
-      recipeIngredients.forEach((ingredient) => {
-        const ingredientKey = productMatchKey(ingredient.name);
-        const ingredientBase = toBaseQuantity(ingredient.quantity, ingredient.unit);
-        if (!ingredientKey || !ingredientBase) return;
-
-        let remainingToDeduct = ingredientBase.value;
-        let productWasInStock = false;
-        nextInventory = nextInventory.map((item) => {
-          if (productMatchKey(item.name) !== ingredientKey) return item;
-          if (item.stockState !== "empty") productWasInStock = true;
-          if (remainingToDeduct <= 0) return item;
-          const itemBase = toBaseQuantity(item.quantity, item.unit);
-          if (!itemBase || itemBase.kind !== ingredientBase.kind || itemBase.value <= 0) return item;
-
-          const consumed = Math.min(itemBase.value, remainingToDeduct);
-          if (consumed > 0) deductedAny = true;
-          remainingToDeduct -= consumed;
-          const nextQtyBase = itemBase.value - consumed;
-
-          return {
-            ...item,
-            quantity: nextQtyBase > 0 ? fromBaseQuantity(nextQtyBase, item.unit || ingredient.unit) : "0",
-            stockState: nextQtyBase > 0 ? "in_stock" : "empty",
-            needsRestock: nextQtyBase <= 0,
-          };
-        });
-
-        if (productWasInStock && remainingToDeduct > 0) {
-          shortfalls.push({
-            name: ingredient.name,
-            quantity: fromBaseQuantity(remainingToDeduct, ingredient.unit),
-            unit: ingredient.unit || "",
-          });
-        }
-      });
-    }
-
-    return {
-      meals: baseMeals.map((meal) => (matchFn(meal) ? { ...meal, weekKey: wk, [cookedKey]: nextCooked } : meal)),
-      inventory: nextInventory,
-      nextCooked,
-      recipeId,
-      deductedAny,
-      shortfalls,
-    };
-  }
-
-  function handleToggleCookWithInventory(day, slot, weekKey, subSlot) {
-    const wk = weekKey || "";
-    const sub = subSlot || "main";
-    const beforeInventory = state.inventory;
-    const computed = computeMealCookState(state, day, slot, wk, sub);
-    if (!computed) return;
-
-    updateState((previous) => {
-      const recomputed = computeMealCookState(previous, day, slot, wk, sub);
-      return recomputed
-        ? { ...previous, meals: recomputed.meals, inventory: recomputed.inventory }
-        : previous;
-    });
-
-    if (Boolean(state.linkMealsToInventory) && computed.nextCooked && computed.recipeId) {
-      function undoCook() {
-        updateState((previous) => {
-          const matchFn = (meal) => { if (meal.day !== day) return false; const mwk = meal.weekKey || ""; return mwk === wk || (mwk === "" && wk !== ""); };
-          const existing = previous.meals.find(matchFn);
-          const baseMeals = existing
-            ? [...previous.meals]
-            : [...previous.meals, createMealShell(day, previous.meals.length, wk)];
-          let cookedKey;
-          if (sub === "starter") {
-            cookedKey = slot === "lunch" ? "lunchStarterCooked" : "dinnerStarterCooked";
-          } else if (sub === "dessert") {
-            cookedKey = slot === "lunch" ? "lunchDessertCooked" : "dinnerDessertCooked";
-          } else {
-            cookedKey = slot === "lunch" ? "lunchCooked" : "dinnerCooked";
-          }
-          return {
-            ...previous,
-            meals: baseMeals.map((meal) => (matchFn(meal) ? { ...meal, [cookedKey]: false } : meal)),
-            inventory: beforeInventory,
-          };
-        });
-        setToast(null);
-      }
-
-      if (computed.shortfalls.length) {
-        // Le stock n'a pas suivi : on nomme ce qui a manqué plutôt que d'annoncer
-        // une déduction complète. L'annulation reste offerte, c'est souvent la
-        // bonne réponse quand on découvre qu'il n'y en avait pas assez.
-        const named = computed.shortfalls
-          .slice(0, 2)
-          .map((item) => {
-            const amount = formatQuantityUnit(item.quantity, item.unit);
-            return amount ? `${item.name} (${amount})` : item.name;
-          })
-          .join(", ");
-        const extra = computed.shortfalls.length - 2;
-        showToast(
-          `Stock trop juste : il manquait ${named}${extra > 0 ? ` et ${extra} autre${extra > 1 ? "s" : ""}` : ""}`,
-          { label: "Annuler", onClick: undoCook },
-          5000,
-        );
-      } else if (computed.deductedAny) {
-        showToast(
-          "Les ingrédients ont bien été déduits de votre inventaire",
-          { label: "Annuler", onClick: undoCook },
-          3000,
-        );
-      } else {
-        showToast("Aucun ingrédient de cette recette n'a été trouvé dans l'inventaire", null, 3000);
-      }
-    }
   }
 
 

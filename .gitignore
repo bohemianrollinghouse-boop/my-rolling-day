@@ -6,6 +6,13 @@ node_modules/
 .env.ios
 .env.android
 
+# Cle d'API Notion. ATTENTION : le motif `.env` ci-dessus ne matche QUE le
+# fichier nomme exactement `.env` — il ne couvre pas `.notion.env`. Ce depot
+# est public, donc ce motif explicite est la seule chose qui empeche la cle
+# de partir en clair. Ne pas le retirer.
+.notion.env
+*.notion.env
+
 # Fonctions Python (import de recettes)
 functions-py/.env
 functions-py/venv/
@@ -46,8 +53,9 @@ android/app/src/main/assets/capacitor.plugins.json
 ios/App/Pods/
 ios/.xcode.env.local
 
-# Android Studio project files (machine-specific)
+# Android Studio / IntelliJ project files (machine-specific)
 android/.idea/
+.idea/
 
 # Firebase CLI local cache
 .firebase/
