@@ -2,6 +2,82 @@
 
 ---
 
+## [2026-08-23] — Refactor de structure : arborescence inspirée de COBA, config Capacitor en TypeScript
+
+Demande : rapprocher l'organisation du projet de celle de COBA (`/ionic/COBA/app`), « que ce soit au niveau de l'organisation des dossiers, des modules, mais aussi de la configuration de base de Capacitor et d'Ionic ».
+
+COBA est un projet **Angular**. Sa structure est donc une convention à adapter, pas à copier : son dossier-par-page existe parce qu'Angular impose un triplet `.ts/.html/.scss`, alors qu'ici une page est un seul `.js`. Le dossier ne se justifie que quand l'écran a plusieurs fichiers — `pages/recipes/` en a cinq, `pages/home/` un seul. La **séparation en couches**, elle, est reprise telle quelle.
+
+### Ce qui a bougé
+
+78 fichiers déplacés, 107 spécifieurs d'import réécrits (plus 19 au second passage, voir plus bas).
+
+| Avant | Après | Pourquoi |
+|---|---|---|
+| `src/components/<feature>/XxxView.js` | `src/app/pages/<ecran>/` | Une destination de route par dossier. `src/components/` mélangeait écrans, sous-composants et modales. |
+| `src/components/{Header,common/SegmentedTabs,family/FamilyPanel,feedback/FeedbackWidget,nav/*}` | `src/app/components/` | Briques réutilisables qui ne sont pas des écrans. |
+| `src/components/{modals/AppModals,settings/SettingsModals}` | `src/app/modals/` | Équivalent du `modals/` de COBA. |
+| `src/firebase/*` | `src/app/providers/` | Accès aux données. COBA : `providers/*.service.ts`. |
+| `src/utils/statusBar.js`, `src/utils/notify.js` | `src/app/plugins/{statusBar,notifications}.js` | Enveloppes de plugins natifs. COBA : `plugins/`. |
+| `src/constants.js`, `src/data/*` | `src/app/config/` | Constantes de domaine et données statiques. |
+| `src/hooks/*`, `src/utils/*` | `src/app/{hooks,utils}/` | Inchangé sur le fond. `hooks/` n'a pas d'équivalent COBA : Angular passe par l'injection de dépendances. |
+| `src/styles.css` | `src/theme/styles.css` | À côté de `ionic-bridge.css`. COBA : `theme/`. |
+| config Firebase dans `constants.js` | `src/environments/environment.js` | C'est de l'environnement, pas une constante. |
+
+La méthode compte ici : plutôt que des `sed` sur les chaînes d'import, chaque spécifieur relatif a été **résolu** vers un chemin absolu depuis l'ancien dossier du fichier, passé par la table de déplacement, puis recalculé en relatif depuis la nouvelle position — avec échec bruyant sur toute cible non résolue. Zéro cible perdue.
+
+### Deux erreurs de classement, rattrapées par le graphe de dépendances
+
+Après le premier passage, j'ai mesuré les arêtes entre couches. Deux remontaient :
+
+- `components/FeedbackWidget.js` → `modals/MrdModal.js`
+- `modals/SettingsModals.js` → `pages/settings/SettingsUI.js`
+
+Les deux venaient d'un mauvais classement de ma part, pas d'un vrai couplage. `MrdModal` est l'**enveloppe** `ion-modal`, importée par 16 fichiers de toutes les couches : c'est une primitive d'interface, pas une modale — elle rejoint `components/`. `SettingsUI` exporte des briques présentationnelles (`SectionCard`, `SettingsRow`, `SettingsSwitch`, `ColorGrid`, `LegalTextPage`…) consommées à la fois par les pages réglages et par `SettingsModals` : c'est un composant, pas une page — il rejoint `components/settings/`. Après quoi le graphe est entièrement stratifié.
+
+### Configuration
+
+| Fichier | Changement |
+|---|---|
+| `capacitor.config.ts` | Remplace `capacitor.config.json`, comme COBA. Contenu résolu vérifié identique champ pour champ via `npx cap config --json`. Le format permet enfin de **commenter** les huit clés de plugin : pourquoi `forceCodeForRefreshToken` (sans lui la session Google expire en une heure), pourquoi trois `clientId` distincts, à quoi `backgroundColor` doit rester aligné. |
+| `typescript` (devDependency) | Requis par la CLI Capacitor pour lire le `.ts`. **Épinglé en 5.x** : `npm i -D typescript` installe aujourd'hui la 7.0.2, dont le paquet natif n'expose plus l'API JS du compilateur (`transpileModule`, `ModuleKind`) — la CLI Capacitor 6 échoue alors sur `Cannot read properties of undefined (reading 'CommonJS')`. |
+| `tsconfig.json` | Ne couvre que `capacitor.config.ts`, pour que `import type { CapacitorConfig }` se résolve dans l'éditeur. `allowJs` volontairement absent : aucun des fichiers `.js` ne doit passer au vérificateur de types. |
+| `ionic.config.json` | Marqueur de projet Ionic (`type: react-vite`, intégration Capacitor). Était absent. |
+| `.editorconfig` | Repris de COBA, plus les exceptions Xcode (`pbxproj`, `plist` : jamais reformater) et Gradle. |
+| `vite.config.js` | `build.target` explicite. Valeurs identiques à la cible `modules` par défaut de Vite 5 : le bundle émis est **inchangé**, elles sont écrites pour être visibles. |
+
+### Deux écarts assumés par rapport à COBA
+
+- **Pas de `.browserslistrc`** : Vite ne le lit pas (c'est un mécanisme Angular/PostCSS). Le fichier serait inerte. Le plancher navigateur est déclaré dans `vite.config.js`, qui a un effet réel.
+- **Pas de `.npmrc`** : COBA a besoin de `legacy-peer-deps=true` pour ses plages de pairs Angular/Ionic. Ici l'installation passe sans, et le drapeau masquerait justement le conflit de pair sur `react-router-dom`, épinglé en 6.30.6 exprès (la v7 est incompatible avec `@ionic/react-router` 9).
+- **Pas de jumeau `environment.prod.js`** : Angular substitue les environnements via `fileReplacements`, Vite n'a pas ce mécanisme. Un `.prod.js` ne serait jamais chargé. `environment.js` lit `import.meta.env`, et le point d'extension pour une vraie substitution est `resolve.alias` — exactement ce que fait déjà `tests/helpers/e2e-build.js` pour les bouchons Firebase.
+
+### Un écart préexistant, rendu visible
+
+`ios/App` a `IPHONEOS_DEPLOYMENT_TARGET = 13.0`, alors que la cible de build suppose Safari 14. Les WebView iOS 13.0 à 13.3 n'ont ni `??=` ni les champs de classe. Ce n'est pas introduit ici — c'était déjà le cas avec la cible par défaut de Vite —, mais c'était invisible. Le corriger veut dire soit monter la cible Xcode à 14.0, soit descendre à `safari13` et re-vérifier le bundle. Décision de release, laissée ouverte, commentée dans `vite.config.js`.
+
+### Un test qui ne tournait pas
+
+`tests/unit/routes.test.js`, écrit en phase 5 de la migration Ionic, n'était importé par **aucun agrégateur** : ses 12 tests n'ont jamais tourné sous `npm test`. Câblé dans `tests/unit.test.js`, vert.
+
+Ajout de `tests/unit/structure.test.js` : la contrepartie exécutable de la nouvelle arborescence. Un dossier bien nommé ne se défend pas tout seul — il suffit d'un import qui remonte pour que `utils/` dépende d'un écran. Le test lit les imports relatifs réels et vérifie que les dépendances ne remontent jamais d'une couche, que `config/` reste une feuille sans dépendance, et que la racine de `src/app/` ne contient que `App.js`, `routes.js`, `lib.js`.
+
+Deux attentes de `design-tokens.test.js` ont dû suivre : elles comparaient le
+chemin du fichier propriétaire de `BADGE_PALETTE` et du repli `#8B7355` à
+`"constants.js"`, devenu `"app/config/constants.js"`. L'invariant testé
+(« définie à un seul endroit ») n'a pas bougé, seule l'étiquette du chemin.
+
+Bilan : **unitaires 87/87** (71 avant : +12 de `routes.test.js` enfin câblé,
++4 de `structure.test.js`), e2e inchangés, 0 skipped.
+
+Garde visuelle : **57/57 `IDENTIQUE`**, 0,0 % de blocs différents contre la
+référence de la phase 8, états de modale compris. C'est le résultat attendu d'un
+refactor purement structurel, et ça valide en particulier le déplacement de
+`styles.css` vers `theme/` — ses `url()` de polices et de logo sont passés de
+`./assets/` à `../assets/`.
+
+---
+
 ## [2026-08-14] — Stock : conversion des unités à la fusion, sous-stock annoncé, faisabilité à l'échelle de la semaine
 
 Question de l'utilisateur : « si j'ajoute une deuxième fois des nouilles instantanées, j'en ai bien deux en stock ? Mais si je les cuisine une fois, il ne m'en restera pas assez pour la deuxième — est-ce que ça me le notifie ? ». Réponse : deux en stock oui, notification non. Trois trous distincts, corrigés ensemble.
@@ -12,8 +88,8 @@ Question de l'utilisateur : « si j'ajoute une deuxième fois des nouilles insta
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/units.js` | **`addStockQuantities(target, addition)`** : somme exprimée dans l'unité de `target`. `mergeable: false` quand les deux unités ne mesurent pas la même chose (masse vs volume, « sachet » vs « boîte ») — l'appelant garde alors deux lignes plutôt qu'un total faux. `hasQuantity: false` pour « un peu de persil » des deux côtés. Une quantité absente vaut 1 (rajouter « nouilles » à « nouilles » fait 2, comportement d'origine conservé) ; une **unité** absente emprunte celle d'en face, sinon « 2 paquets » + « 1 » aurait coupé la ligne en deux. |
-| `src/hooks/useLists.js` | `inventoryEntriesCanMerge` et `mergeInventoryEntry` passent par `addStockQuantities`. Même correction sur la liste de courses (`listItemsCanMerge`, `mergeListItem`) — c'est le même défaut, et la liste alimente l'inventaire à l'achat. `upsertMergedListItems` ne replie que les lignes mutuellement compatibles (la compatibilité n'est pas transitive : une ligne sans unité s'accorde avec « riz 500 g » comme avec « riz 2 l »). Helpers locaux `readQuantityValue` / `formatQuantityValue` supprimés, devenus morts. `inventoryEntriesCanMerge` renvoie un vrai booléen (elle renvoyait `""`). |
+| `src/app/utils/units.js` | **`addStockQuantities(target, addition)`** : somme exprimée dans l'unité de `target`. `mergeable: false` quand les deux unités ne mesurent pas la même chose (masse vs volume, « sachet » vs « boîte ») — l'appelant garde alors deux lignes plutôt qu'un total faux. `hasQuantity: false` pour « un peu de persil » des deux côtés. Une quantité absente vaut 1 (rajouter « nouilles » à « nouilles » fait 2, comportement d'origine conservé) ; une **unité** absente emprunte celle d'en face, sinon « 2 paquets » + « 1 » aurait coupé la ligne en deux. |
+| `src/app/hooks/useLists.js` | `inventoryEntriesCanMerge` et `mergeInventoryEntry` passent par `addStockQuantities`. Même correction sur la liste de courses (`listItemsCanMerge`, `mergeListItem`) — c'est le même défaut, et la liste alimente l'inventaire à l'achat. `upsertMergedListItems` ne replie que les lignes mutuellement compatibles (la compatibilité n'est pas transitive : une ligne sans unité s'accorde avec « riz 500 g » comme avec « riz 2 l »). Helpers locaux `readQuantityValue` / `formatQuantityValue` supprimés, devenus morts. `inventoryEntriesCanMerge` renvoie un vrai booléen (elle renvoyait `""`). |
 
 ### 2. La cuisson encaissait le sous-stock en silence
 
@@ -21,7 +97,7 @@ Question de l'utilisateur : « si j'ajoute une deuxième fois des nouilles insta
 
 | Fichier | Changement |
 |---|---|
-| `src/App.js` | `computeMealCookState` renvoie `shortfalls` : les produits que le stock **connaissait** mais n'a pas couverts jusqu'au bout. Les produits totalement absents n'y entrent pas — c'est le rôle de la comparaison recette / courses, pas de la cuisson. Le toast devient « Stock trop juste : il manquait sel (20 g), riz (100 g) », avec l'annulation conservée (souvent la bonne réponse quand on découvre le manque) et 5 s au lieu de 3. |
+| `src/app/App.js` | `computeMealCookState` renvoie `shortfalls` : les produits que le stock **connaissait** mais n'a pas couverts jusqu'au bout. Les produits totalement absents n'y entrent pas — c'est le rôle de la comparaison recette / courses, pas de la cuisson. Le toast devient « Stock trop juste : il manquait sel (20 g), riz (100 g) », avec l'annulation conservée (souvent la bonne réponse quand on découvre le manque) et 5 s au lieu de 3. |
 
 ### 3. La faisabilité se calculait recette par recette, jamais à l'échelle de la semaine
 
@@ -29,9 +105,9 @@ Question de l'utilisateur : « si j'ajoute une deuxième fois des nouilles insta
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/recipeStock.js` | **`computeWeekStock({ slots, inventory })`** : le stock devient un budget que les créneaux consomment dans l'ordre chronologique. Les créneaux **déjà cuisinés sont ignorés** (la liaison inventaire a retiré leurs ingrédients, les recompter les déduirait deux fois). Chaque créneau renvoie aussi `weekOnlyMissing` — ce qui ne manque **que** par la faute d'un repas plus tôt — et chaque manquant porte `takenBy`, les créneaux qui ont déjà puisé dans ce produit. Le rapprochement reste celui de `computeMissingIngredients` : même clé produit, mêmes conversions, même tolérance pour les ingrédients sans quantité. |
-| `src/components/meals/MealsView.js` | `buildWeekSlots(overrides)` construit les 14 créneaux (entrée + plat + dessert) ; `overrides` permet de répondre juste **au moment du choix**, sans attendre que l'état remonte. La pastille de la grille lit le calcul semaine, en **rouge** quand le manque vient d'un autre repas (la réponse n'est pas la même : décaler ou racheter, plutôt que compléter la liste), avec l'`aria-label` qui le dit. Le panneau bas gagne un bandeau « Nouilles instantanées : ton stock part déjà dans Lun midi. Il en faut une deuxième fois. ». La popup après choix d'une recette et le bilan du tirage comptent eux aussi sur la semaine — deux repas tirés qui veulent le même produit en demandent maintenant deux fois la quantité. |
-| `src/styles.css` | `.mrd-week-cell-dot.taken`, `.mrd-week-taken`, `.mrd-taken-tag` — uniquement à partir des tokens `--mrd-danger*` existants. |
+| `src/app/utils/recipeStock.js` | **`computeWeekStock({ slots, inventory })`** : le stock devient un budget que les créneaux consomment dans l'ordre chronologique. Les créneaux **déjà cuisinés sont ignorés** (la liaison inventaire a retiré leurs ingrédients, les recompter les déduirait deux fois). Chaque créneau renvoie aussi `weekOnlyMissing` — ce qui ne manque **que** par la faute d'un repas plus tôt — et chaque manquant porte `takenBy`, les créneaux qui ont déjà puisé dans ce produit. Le rapprochement reste celui de `computeMissingIngredients` : même clé produit, mêmes conversions, même tolérance pour les ingrédients sans quantité. |
+| `src/app/pages/meals/MealsView.js` | `buildWeekSlots(overrides)` construit les 14 créneaux (entrée + plat + dessert) ; `overrides` permet de répondre juste **au moment du choix**, sans attendre que l'état remonte. La pastille de la grille lit le calcul semaine, en **rouge** quand le manque vient d'un autre repas (la réponse n'est pas la même : décaler ou racheter, plutôt que compléter la liste), avec l'`aria-label` qui le dit. Le panneau bas gagne un bandeau « Nouilles instantanées : ton stock part déjà dans Lun midi. Il en faut une deuxième fois. ». La popup après choix d'une recette et le bilan du tirage comptent eux aussi sur la semaine — deux repas tirés qui veulent le même produit en demandent maintenant deux fois la quantité. |
+| `src/theme/styles.css` | `.mrd-week-cell-dot.taken`, `.mrd-week-taken`, `.mrd-taken-tag` — uniquement à partir des tokens `--mrd-danger*` existants. |
 | `tests/unit/recipe-stock.test.js` | 6 tests : le premier créneau sert et le suivant est signalé (avec `takenBy`) ; stock suffisant → les deux passent ; repas déjà cuisiné non recompté ; stock absent ≠ stock déjà pris ; budget partagé entre recettes différentes ; rôles cumulés d'un même créneau. |
 | `tests/unit/stock-merge.test.js` | **Nouveau** (10 tests) : conversion, unité conservée, refus des unités incompatibles, emprunt d'unité, quantité absente = 1, quantités non chiffrables, et les deux fonctions de `useLists`. |
 
@@ -45,22 +121,22 @@ Implémentation du handoff design `design_handoff_repas` (écrans **2a** et **5a
 
 | Fichier | Changement |
 |---|---|
-| `src/components/meals/MealsView.js` | **Réécrit.** Grille 7 lignes × (rail jour / midi / soir), barre de semaine + progression `N / 14`, pastille « Lier stock », bouton « ✨ Remplir », et **panneau bas permanent** (plus de modale) : vignette de catégorie, créneau, « Marquer cuisiné », trois lignes Entrée / Plat / Dessert, compteur de couverts (1–24), bouton Courses et lien Recette →. La feuille de remplissage occupe la même place quand elle est ouverte. |
-| `src/components/meals/RecipePicker.js` | **Nouveau** (écran 5a). Plein écran, remplace la grille le temps du choix : recherche, bouton « Affiner · N », rail de catégories en icônes (une seule rangée), panneau de filtres repliable (interrupteurs Rapide / Déjà en stock / De saison + régime + contraintes), rappel des filtres actifs en pastilles retirables, tri De saison / Temps / Stock / A → Z, état vide, pied fixe « Choisir « … » ». |
-| `src/utils/recipeFilters.js` | **Nouveau.** Saisonnalité (`recipeMonths`, `matchesAvailability`), durée (`recipeTotalMinutes`, `durationLabel`), `isQuickRecipe` (seuil **20 min**, celui du libellé du sélecteur — l'ancien code Repas utilisait 10), régime et contraintes. Ces règles étaient recopiées dans `MealsView` et `RecipesView`. |
-| `src/utils/mealFill.js` | **Nouveau.** `buildFillPlan` : filtre le vivier (régime, contraintes, rapide, saison, stock), exclut les doublons de la semaine, remplit soit les cases vides soit les 14 créneaux. Ne renvoie qu'un plan — la vue l'applique via `onUpdateMeal`, donc c'est testable. « Avec mon stock » est **relâché** plutôt que de ne rien remplir (règle du handoff). |
-| `src/components/recipes/RecipeSheet.js` | `fmtScaledQty` exportée et nouvelle prop `initialServings` : la fiche s'ouvre au nombre de couverts choisi dans le panneau, pas à celui de la recette. |
-| `src/components/recipes/CategoryIcons.js` | `CategoryIcon` accepte une prop `color` (icône blanche sur la pastille de catégorie sélectionnée). |
-| `src/styles.css` | Blocs `.mrd-week-*` et `.mpick-*`, uniquement à partir des tokens existants (aucun nouveau token). Les deux écrans occupent tout le `.cnt` via `:has()` — même mécanisme que la fiche recette. **116 règles mortes supprimées** (`.mrd-meals-*`, `.mrd-extras-*`, `.mrd-month-*`, `.meal-picker-*`, `.pick-*`) : plus aucune n'était référencée dans `src/`. |
+| `src/app/pages/meals/MealsView.js` | **Réécrit.** Grille 7 lignes × (rail jour / midi / soir), barre de semaine + progression `N / 14`, pastille « Lier stock », bouton « ✨ Remplir », et **panneau bas permanent** (plus de modale) : vignette de catégorie, créneau, « Marquer cuisiné », trois lignes Entrée / Plat / Dessert, compteur de couverts (1–24), bouton Courses et lien Recette →. La feuille de remplissage occupe la même place quand elle est ouverte. |
+| `src/app/pages/meals/RecipePicker.js` | **Nouveau** (écran 5a). Plein écran, remplace la grille le temps du choix : recherche, bouton « Affiner · N », rail de catégories en icônes (une seule rangée), panneau de filtres repliable (interrupteurs Rapide / Déjà en stock / De saison + régime + contraintes), rappel des filtres actifs en pastilles retirables, tri De saison / Temps / Stock / A → Z, état vide, pied fixe « Choisir « … » ». |
+| `src/app/utils/recipeFilters.js` | **Nouveau.** Saisonnalité (`recipeMonths`, `matchesAvailability`), durée (`recipeTotalMinutes`, `durationLabel`), `isQuickRecipe` (seuil **20 min**, celui du libellé du sélecteur — l'ancien code Repas utilisait 10), régime et contraintes. Ces règles étaient recopiées dans `MealsView` et `RecipesView`. |
+| `src/app/utils/mealFill.js` | **Nouveau.** `buildFillPlan` : filtre le vivier (régime, contraintes, rapide, saison, stock), exclut les doublons de la semaine, remplit soit les cases vides soit les 14 créneaux. Ne renvoie qu'un plan — la vue l'applique via `onUpdateMeal`, donc c'est testable. « Avec mon stock » est **relâché** plutôt que de ne rien remplir (règle du handoff). |
+| `src/app/pages/recipes/RecipeSheet.js` | `fmtScaledQty` exportée et nouvelle prop `initialServings` : la fiche s'ouvre au nombre de couverts choisi dans le panneau, pas à celui de la recette. |
+| `src/app/pages/recipes/CategoryIcons.js` | `CategoryIcon` accepte une prop `color` (icône blanche sur la pastille de catégorie sélectionnée). |
+| `src/theme/styles.css` | Blocs `.mrd-week-*` et `.mpick-*`, uniquement à partir des tokens existants (aucun nouveau token). Les deux écrans occupent tout le `.cnt` via `:has()` — même mécanisme que la fiche recette. **116 règles mortes supprimées** (`.mrd-meals-*`, `.mrd-extras-*`, `.mrd-month-*`, `.meal-picker-*`, `.pick-*`) : plus aucune n'était référencée dans `src/`. |
 | `tests/unit/meal-fill.test.js` | **Nouveau** (10 tests) : portée, doublons, filtres, préférence plats, relâchement du filtre stock, saisonnalité, seuil « rapide » et périodes manuelles. |
 
 **Suite (même jour), retour utilisateur** — « de saison » ne savait viser que le mois courant ; il fallait pouvoir choisir la saison ou le mois à la main.
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/recipeFilters.js` | `matchesPeriod(recipe, period, currentMonth)` où `period` vaut `"current"`, `"season:<id>"` ou `"month:<n>"` — reprend ce que faisait l'ancien `<select>` « Toute période » du picker, supprimé par la refonte. Plus `periodLabel` et `periodPhrase` (« au printemps » vs « en août »). |
-| `src/components/meals/RecipePicker.js` | L'interrupteur « 🍂 De saison » déplie deux rangées de pastilles quand il est actif : **Ce mois-ci / Printemps / Été / Automne / Hiver**, puis les **12 mois** (rangée qui défile). Le sous-titre suit (« Disponible au printemps »), la pastille de rappel aussi (« 🍂 janvier »), et le **tri** « De saison » classe désormais selon la période choisie et non plus selon le mois courant. |
-| `src/styles.css` | `.mpick-switch-block`, `.mpick-period`, `.mpick-months`, `.mpick-chip--sm`. Le panneau « Affiner » passe en `flex: 0 1 auto` + défilement propre et la liste garde un plancher de 96 px : déplié, le panneau se réduit lui-même au lieu d'écraser les recettes. |
+| `src/app/utils/recipeFilters.js` | `matchesPeriod(recipe, period, currentMonth)` où `period` vaut `"current"`, `"season:<id>"` ou `"month:<n>"` — reprend ce que faisait l'ancien `<select>` « Toute période » du picker, supprimé par la refonte. Plus `periodLabel` et `periodPhrase` (« au printemps » vs « en août »). |
+| `src/app/pages/meals/RecipePicker.js` | L'interrupteur « 🍂 De saison » déplie deux rangées de pastilles quand il est actif : **Ce mois-ci / Printemps / Été / Automne / Hiver**, puis les **12 mois** (rangée qui défile). Le sous-titre suit (« Disponible au printemps »), la pastille de rappel aussi (« 🍂 janvier »), et le **tri** « De saison » classe désormais selon la période choisie et non plus selon le mois courant. |
+| `src/theme/styles.css` | `.mpick-switch-block`, `.mpick-period`, `.mpick-months`, `.mpick-chip--sm`. Le panneau « Affiner » passe en `flex: 0 1 auto` + défilement propre et la liste garde un plancher de 96 px : déplié, le panneau se réduit lui-même au lieu d'écraser les recettes. |
 
 Vérifié dans le navigateur (mêmes conditions) : en août la liste sort ratatouille et sirop de menthe ; en cliquant **Printemps** les asperges (mars–mai) apparaissent et la ratatouille sort ; en cliquant **Janv** ce sont la galette des rois et la soupe à l'oignon. Panneau 439 px sans débordement, liste jamais sous 96 px, aucun scroll de page.
 
@@ -70,10 +146,10 @@ Non fait : la pastille « 🍂 De saison » de la feuille **Remplir** reste sur 
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/mealFill.js` | « Avec mon stock » **trie au lieu d'exclure** : les recettes faisables passent devant, les autres complètent la semaine. `buildFillPlan` renvoie maintenant `{ entries, stockCount, otherCount, stockAsked }`, chaque entrée portant `fromStock` — la vue peut donc dire ce qui vient du stock. Le repli silencieux disparaît : il n'y a plus de cas particulier à zéro faisable. |
-| `src/utils/recipeStock.js` | `collectUsedStockItems(recipes, inventory)` : les articles d'inventaire réellement couverts, sans doublon, avec le même `productMatchKey` que la comparaison et la déduction. |
-| `src/components/meals/MealsView.js` | Modale de bilan après le tirage : « N repas ajoutés », puis « X repas avec ce que tu as déjà : Y articles du stock » (les articles en pastilles) et « Z repas demandent des courses ». Elle n'apparaît que si « Avec mon stock » était coché. Le compteur du bouton passe par un tirage à blanc : il annonce ce qui sera réellement posé (« Remplir 0 repas », désactivé, quand toutes les recettes sont déjà placées). |
-| `src/styles.css` | `.mrd-fill-report*` — point sauge (stock) / ambre (courses), pastilles d'articles en sauge. |
+| `src/app/utils/mealFill.js` | « Avec mon stock » **trie au lieu d'exclure** : les recettes faisables passent devant, les autres complètent la semaine. `buildFillPlan` renvoie maintenant `{ entries, stockCount, otherCount, stockAsked }`, chaque entrée portant `fromStock` — la vue peut donc dire ce qui vient du stock. Le repli silencieux disparaît : il n'y a plus de cas particulier à zéro faisable. |
+| `src/app/utils/recipeStock.js` | `collectUsedStockItems(recipes, inventory)` : les articles d'inventaire réellement couverts, sans doublon, avec le même `productMatchKey` que la comparaison et la déduction. |
+| `src/app/pages/meals/MealsView.js` | Modale de bilan après le tirage : « N repas ajoutés », puis « X repas avec ce que tu as déjà : Y articles du stock » (les articles en pastilles) et « Z repas demandent des courses ». Elle n'apparaît que si « Avec mon stock » était coché. Le compteur du bouton passe par un tirage à blanc : il annonce ce qui sera réellement posé (« Remplir 0 repas », désactivé, quand toutes les recettes sont déjà placées). |
+| `src/theme/styles.css` | `.mrd-fill-report*` — point sauge (stock) / ambre (courses), pastilles d'articles en sauge. |
 | `tests/unit/meal-fill.test.js` · `recipe-stock.test.js` | 3 tests remplacent celui du repli (rien de faisable → remplit quand même et le signale ; faisables d'abord puis complément ; sans l'option, aucun classement par faisabilité) + 1 test sur les articles utilisés. |
 
 **Suite 4 (même jour)** — « une fois qu'on a ajouté à la liste de courses, il faut qu'on voie qu'on l'a déjà fait ». Rien ne distinguait « à acheter » de « déjà demandé » : le bouton Courses réclamait indéfiniment les mêmes articles.
@@ -82,10 +158,10 @@ L'état n'est **stocké nulle part** : il se lit dans la liste de courses. Il re
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/recipeStock.js` | `splitAlreadyListed(missingItems, shoppingItems)` → `{ listed, toAdd }` et `isAlreadyListed`. Rapprochement par `productMatchKey`, donc « Tomate » sur la liste couvre « Tomates » de la recette. |
-| `src/App.js` | `shoppingItems` passé à `MealsView` (la liste de courses était déjà en portée juste au-dessus). |
-| `src/components/meals/MealsView.js` | Bouton **Courses** : `Courses · N` ne compte plus que ce qui reste à demander, et passe à **« ✓ Sur la liste »** en sauge quand tout est déjà posé. Popup des manquants : les articles déjà demandés portent une étiquette « ✓ déjà demandé », partent **décochés**, un bandeau l'annonce quand ils le sont tous, et le bouton « Ajouter à la liste » disparaît s'il n'y a rien à envoyer. Bilan du tirage : le compte exclut les articles déjà listés, et quand il ne reste rien il affiche « Rien de plus à acheter : les N articles qui manquent attendent déjà dans ta liste ». |
-| `src/styles.css` | `.mrd-listed-tag`, `.mrd-week-shop.listed`. |
+| `src/app/utils/recipeStock.js` | `splitAlreadyListed(missingItems, shoppingItems)` → `{ listed, toAdd }` et `isAlreadyListed`. Rapprochement par `productMatchKey`, donc « Tomate » sur la liste couvre « Tomates » de la recette. |
+| `src/app/App.js` | `shoppingItems` passé à `MealsView` (la liste de courses était déjà en portée juste au-dessus). |
+| `src/app/pages/meals/MealsView.js` | Bouton **Courses** : `Courses · N` ne compte plus que ce qui reste à demander, et passe à **« ✓ Sur la liste »** en sauge quand tout est déjà posé. Popup des manquants : les articles déjà demandés portent une étiquette « ✓ déjà demandé », partent **décochés**, un bandeau l'annonce quand ils le sont tous, et le bouton « Ajouter à la liste » disparaît s'il n'y a rien à envoyer. Bilan du tirage : le compte exclut les articles déjà listés, et quand il ne reste rien il affiche « Rien de plus à acheter : les N articles qui manquent attendent déjà dans ta liste ». |
+| `src/theme/styles.css` | `.mrd-listed-tag`, `.mrd-week-shop.listed`. |
 | `tests/unit/recipe-stock.test.js` | Singulier/pluriel du même produit, article coché qui ne compte plus, liste vide ou absente. |
 
 `npm run test:unit` OK (51 tests), `npm run build` OK. Vérifié de bout en bout dans le bac à sable : `Courses · 1` → ajout → **✓ Sur la liste** ; réouverture de la popup → bandeau + étiquette + plus de bouton d'ajout ; tirage → « 🛒 Ajouter 3 articles » → nouveau tirage → « 🛒 Ajouter 1 article » (seul le nouveau manquant) → tirage suivant → « Rien de plus à acheter : les 4 articles qui manquent attendent déjà dans ta liste ».
@@ -94,8 +170,8 @@ L'état n'est **stocké nulle part** : il se lit dans la liste de courses. Il re
 
 | Fichier | Changement |
 |---|---|
-| `src/components/meals/MealsView.js` | Le tirage collecte les manquants de toutes les recettes posées (`computeMissingIngredients`, liaison inventaire active uniquement) et la modale gagne **« 🛒 Ajouter N articles »**, qui les passe à `onAddMissingIngredients` — le même chemin que la popup d'ingrédients manquants, donc la fusion des articles proches et l'addition des quantités restent celles de `useLists`. Quand « Avec mon stock » n'était pas coché, la modale affiche quand même la ligne « N articles manquent pour cuisiner cette semaine » suivie du bouton. |
-| `src/utils/recipeStock.js` | `countDistinctProducts` : le bouton annonce le nombre de **produits** (clé produit), pas de lignes — deux recettes qui manquent de tomates ne feront qu'une ligne de courses. |
+| `src/app/pages/meals/MealsView.js` | Le tirage collecte les manquants de toutes les recettes posées (`computeMissingIngredients`, liaison inventaire active uniquement) et la modale gagne **« 🛒 Ajouter N articles »**, qui les passe à `onAddMissingIngredients` — le même chemin que la popup d'ingrédients manquants, donc la fusion des articles proches et l'addition des quantités restent celles de `useLists`. Quand « Avec mon stock » n'était pas coché, la modale affiche quand même la ligne « N articles manquent pour cuisiner cette semaine » suivie du bouton. |
+| `src/app/utils/recipeStock.js` | `countDistinctProducts` : le bouton annonce le nombre de **produits** (clé produit), pas de lignes — deux recettes qui manquent de tomates ne feront qu'une ligne de courses. |
 | `tests/unit/recipe-stock.test.js` | Test du décompte (singulier/pluriel du même produit, entrées vides). |
 
 `npm run test:unit` OK (50 tests), `npm run build` OK. Vérifié dans le bac à sable : avec un stock de 4 articles, « Remplir » sur les cases vides pose 4 repas dont 1 puisé dans le stock, et la modale annonce « 1 repas avec ce que tu as déjà : 1 article du stock — Pommes / 3 repas demandent des courses » ; en portée « toute la semaine », 3 repas sur 10 viennent du stock (4 articles). Le bouton « 🛒 Ajouter 3 articles » envoie bien `Asperges 1 kg`, `Pâte feuilletée 2`, `Chèvre 1` puis referme la modale ; sans l'option stock, « 🛒 Ajouter 7 articles ». Compteur honnête vérifié : « Remplir 0 repas » grisé quand toutes les recettes sont déjà posées. Relu en thème sombre (pastilles sauge sur fond sombre, points sauge/ambre lisibles).
@@ -118,12 +194,12 @@ L'utilisateur demandait si l'app détectait ce qui reste en stock pour proposer 
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/recipeStock.js` | **Nouveau.** Source unique de la comparaison recettes ↔ inventaire. Reprend `computeMissingIngredients` / `computeMissingCondiments` (jusque-là locales à `MealsView`) et ajoute `computeRecipeStock` (faisable / nombre de manquants / `known` à faux pour une recette sans ingrédients structurés), `recipeStockRank`, `collectExpiringItems`, `computePriorityRecipes` et `expiryShortLabel`. |
-| `src/utils/recipeStock.js` | **Correction.** `computeMissingIngredients` comparait les unités par égalité de chaîne : l'inventaire stocke `"unité"` là où les recettes normalisent en `"unite"` (`normalizeRecipeUnit`, state.js), et 1 kg de riz ne couvrait pas 200 g. Presque tout passait donc pour manquant. Elle utilise désormais `productMatchKey` + `toBaseQuantity`/`fromBaseQuantity` (`utils/units.js`), exactement comme la déduction de stock d'`App.js` — les deux chemins ne peuvent plus diverger. |
-| `src/components/meals/MealsView.js` | Sélecteur de recette : badge `✓ Faisable` / `🛒 N manquants` sur chaque carte, bascule "🥕 Faisable avec mon stock", tri des faisables en tête (puis manquants croissants), et section "À cuisiner en priorité" listant jusqu'à 3 recettes qui consomment les DLC des 7 prochains jours. Le tout **uniquement quand la liaison inventaire est active** (règle `AGENT.md`) ; les suggestions se calculent sur la liste déjà filtrée, donc elles respectent recherche, catégorie et sous-créneau (entrée/dessert). |
-| `src/utils/date.js` | `daysUntilExpiry` remonte ici (elle était locale à `InventoryView`), sur la date applicative — donc pilotable par le simulateur de date. |
-| `src/components/inventory/InventoryView.js` | Utilise `daysUntilExpiry` de `utils/date.js` au lieu de sa copie locale. |
-| `src/styles.css` | `.pick-toggle-row`, `.pick-stock-btn`, `.pick-priority*`, `.rcard-badge--stock-ok/--stock-missing` — palette sauge (faisable) et ambre (manquants/DLC) via les tokens existants, donc thème sombre compatible. |
+| `src/app/utils/recipeStock.js` | **Nouveau.** Source unique de la comparaison recettes ↔ inventaire. Reprend `computeMissingIngredients` / `computeMissingCondiments` (jusque-là locales à `MealsView`) et ajoute `computeRecipeStock` (faisable / nombre de manquants / `known` à faux pour une recette sans ingrédients structurés), `recipeStockRank`, `collectExpiringItems`, `computePriorityRecipes` et `expiryShortLabel`. |
+| `src/app/utils/recipeStock.js` | **Correction.** `computeMissingIngredients` comparait les unités par égalité de chaîne : l'inventaire stocke `"unité"` là où les recettes normalisent en `"unite"` (`normalizeRecipeUnit`, state.js), et 1 kg de riz ne couvrait pas 200 g. Presque tout passait donc pour manquant. Elle utilise désormais `productMatchKey` + `toBaseQuantity`/`fromBaseQuantity` (`utils/units.js`), exactement comme la déduction de stock d'`App.js` — les deux chemins ne peuvent plus diverger. |
+| `src/app/pages/meals/MealsView.js` | Sélecteur de recette : badge `✓ Faisable` / `🛒 N manquants` sur chaque carte, bascule "🥕 Faisable avec mon stock", tri des faisables en tête (puis manquants croissants), et section "À cuisiner en priorité" listant jusqu'à 3 recettes qui consomment les DLC des 7 prochains jours. Le tout **uniquement quand la liaison inventaire est active** (règle `AGENT.md`) ; les suggestions se calculent sur la liste déjà filtrée, donc elles respectent recherche, catégorie et sous-créneau (entrée/dessert). |
+| `src/app/utils/date.js` | `daysUntilExpiry` remonte ici (elle était locale à `InventoryView`), sur la date applicative — donc pilotable par le simulateur de date. |
+| `src/app/pages/inventory/InventoryView.js` | Utilise `daysUntilExpiry` de `utils/date.js` au lieu de sa copie locale. |
+| `src/theme/styles.css` | `.pick-toggle-row`, `.pick-stock-btn`, `.pick-priority*`, `.rcard-badge--stock-ok/--stock-missing` — palette sauge (faisable) et ambre (manquants/DLC) via les tokens existants, donc thème sombre compatible. |
 | `tests/unit/recipe-stock.test.js` | **Nouveau** (12 tests) : faisabilité, complément de quantité, recettes non comparables, conversions d'unités (régression du bug ci-dessus), fenêtre DLC, classement anti-gaspi. |
 
 Choix : les DLC **dépassées** sont exclues des suggestions (on ne propose pas de cuisiner un produit périmé), alors que l'encart "à consommer" de l'inventaire, lui, les affiche toujours. Les condiments n'entrent pas dans la faisabilité, puisqu'ils ne sont jamais déduits du stock.
@@ -138,8 +214,8 @@ L'utilisateur voulait améliorer le design du `StaleTaskModal` (texte brut + bou
 
 | Fichier | Changement |
 |---|---|
-| `src/components/modals/AppModals.js` | `StaleTaskModal` : ajout d'un badge circulaire en tête (⏳ tâche unique semaine, 🗓️ tâche unique mois, 🔁 récurrente), d'un encart "carte tâche" reprenant l'icône + le nom de la tâche + un tag de période (Semaine/Mois), et d'un message reformulé plus court. Pour les tâches récurrentes ratées plus d'une fois, affiche désormais le nombre de cycles manqués ("— ratée 3 fois"), donnée déjà disponible (`alert.missedCount`) mais pas encore montrée. |
-| `src/styles.css` | Nouvelles classes `.stale-task-modal-icon(.is-monthly)`, `.stale-task-modal-card(-text/-name)`, `.stale-task-modal-tag(.is-monthly)`, `.stale-task-modal-message` — palette ambre (semaine/rappel) vs rouge "danger" (mois/plus urgent), toutes basées sur les variables de couleur existantes donc compatibles dark mode sans règle supplémentaire. |
+| `src/app/modals/AppModals.js` | `StaleTaskModal` : ajout d'un badge circulaire en tête (⏳ tâche unique semaine, 🗓️ tâche unique mois, 🔁 récurrente), d'un encart "carte tâche" reprenant l'icône + le nom de la tâche + un tag de période (Semaine/Mois), et d'un message reformulé plus court. Pour les tâches récurrentes ratées plus d'une fois, affiche désormais le nombre de cycles manqués ("— ratée 3 fois"), donnée déjà disponible (`alert.missedCount`) mais pas encore montrée. |
+| `src/theme/styles.css` | Nouvelles classes `.stale-task-modal-icon(.is-monthly)`, `.stale-task-modal-card(-text/-name)`, `.stale-task-modal-tag(.is-monthly)`, `.stale-task-modal-message` — palette ambre (semaine/rappel) vs rouge "danger" (mois/plus urgent), toutes basées sur les variables de couleur existantes donc compatibles dark mode sans règle supplémentaire. |
 
 `npm run build` OK (116 modules). Vérifié en preview (session déjà connectée avec le vrai compte de l'utilisateur — composant monté à part, isolément, via `createRoot` dans la console du navigateur, sans toucher aux données réelles, comme pour la vérification de `PremiumLockScreen` du 2026-08-03) : les deux variantes (tâche unique "Semaine" avec bouton "Ajouter à la tâche quotidienne", tâche récurrente "Mois" avec compteur de cycles manqués et bouton "Compris") s'affichent correctement, badge coloré + carte tâche + tag bien rendus en thème clair. Non re-testé en thème sombre ni dans le flux réel de l'app (nécessiterait de faire vieillir une vraie tâche).
 
@@ -151,7 +227,7 @@ Suite à l'entrée précédente (réactivation du simulateur de date dans Régla
 
 | Fichier | Changement |
 |---|---|
-| `src/components/settings/SettingsView.js` | Nouvelle constante `DEV_ACCOUNT_EMAIL` + `isDevAccount` (comparaison insensible à la casse sur `userProfile.email`). Le `SectionCard` "💾 Données" (avec son bouton "Gérer les données" vers la sous-page) n'est ajouté à la liste des réglages que si `isDevAccount` est vrai. Double verrou côté sous-page `settingsPage === "privacy"` : si un compte non développeur y accède quand même (état `settingsPage` restauré autrement), un message "Accès réservé" s'affiche à la place du contenu réel. |
+| `src/app/pages/settings/SettingsView.js` | Nouvelle constante `DEV_ACCOUNT_EMAIL` + `isDevAccount` (comparaison insensible à la casse sur `userProfile.email`). Le `SectionCard` "💾 Données" (avec son bouton "Gérer les données" vers la sous-page) n'est ajouté à la liste des réglages que si `isDevAccount` est vrai. Double verrou côté sous-page `settingsPage === "privacy"` : si un compte non développeur y accède quand même (état `settingsPage` restauré autrement), un message "Accès réservé" s'affiche à la place du contenu réel. |
 
 `npm run build` OK (116 modules). En rechargeant la preview, le navigateur avait une session déjà connectée avec le vrai compte de l'utilisateur (foyer "Les bus", profil "Myenndine") — pas le compte développeur : conforme à l'attendu, aucune trace du bouton "Données" ne devait apparaître pour ce compte. Un clic sur "Paramètres" a été fait pour naviguer (action non destructive), mais **je n'ai pas poussé la vérification visuelle plus loin** (screenshot indisponible/timeout) pour éviter tout risque d'interaction accidentelle avec de vraies données pendant les tests. À confirmer par l'utilisateur : se connecter avec `bohemianrollinghouse@gmail.com` → la section "Données" doit apparaître en bas de Réglages ; avec tout autre compte, elle doit être absente.
 
@@ -163,7 +239,7 @@ Suite à l'entrée précédente (relance "tâche non faite"), l'utilisateur a de
 
 | Fichier | Changement |
 |---|---|
-| `src/components/settings/SettingsView.js` | Réglages → Données : nouvelle section "Date de test (développeur)" (interrupteur date réelle/simulée, champs date+heure, boutons "−1 jour"/"+1 jour"/"+7 jours"/"Revenir à aujourd'hui"), branchée sur les props déjà existantes (`appTimeMode`, `simulatedDateTime`, `currentAppDateLabel`, `onUseRealDate`, `onUseSimulatedDate`, `onChangeSimulatedDate`, `onChangeSimulatedTime`, `onShiftSimulatedDate`, `onResetSimulatedDate`). |
+| `src/app/pages/settings/SettingsView.js` | Réglages → Données : nouvelle section "Date de test (développeur)" (interrupteur date réelle/simulée, champs date+heure, boutons "−1 jour"/"+1 jour"/"+7 jours"/"Revenir à aujourd'hui"), branchée sur les props déjà existantes (`appTimeMode`, `simulatedDateTime`, `currentAppDateLabel`, `onUseRealDate`, `onUseSimulatedDate`, `onChangeSimulatedDate`, `onChangeSimulatedTime`, `onShiftSimulatedDate`, `onResetSimulatedDate`). |
 
 Aucun changement côté `App.js` nécessaire : décaler la date simulée déclenche déjà `appTimeVersion` → un `checkReset` qui recrée `state.tasks` avec une nouvelle référence, donc `useStaleTaskAlerts` (qui dépend de `tasks`) se réévalue automatiquement — la modale de relance apparaît donc immédiatement après avoir avancé de 6 (semaine) ou 27 (mois) jours, sans attendre le tick périodique de 5 min.
 
@@ -175,16 +251,16 @@ Aucun changement côté `App.js` nécessaire : décaler la date simulée déclen
 
 L'utilisateur voulait qu'une modale apparaisse quand une tâche créée dans l'onglet "Semaine" n'a pas été cochée au bout de 6 jours, indiquant qu'elle n'a pas été faite et proposant de la basculer en tâche "Quotidien" — sauf si c'est une tâche récurrente, où la modale se contente d'informer (pas de proposition). Même logique pour "Mois" (seuil 27 jours), avec proposition de bascule vers "Semaine" ou "Jour".
 
-Aucun `createdAt` n'existait sur les tâches jusqu'ici (seul l'id `task-<timestamp>` encodait implicitement la date de création). Pour les tâches récurrentes, le mécanisme de cycle existant (`missedCount`/`currentCycleKey` dans `applyTaskCycles`, `src/utils/state.js`) incrémente déjà `missedCount` à chaque cycle hebdo/mensuel manqué — réutilisé comme déclencheur plutôt que de recalculer un seuil en jours pour ces tâches-là.
+Aucun `createdAt` n'existait sur les tâches jusqu'ici (seul l'id `task-<timestamp>` encodait implicitement la date de création). Pour les tâches récurrentes, le mécanisme de cycle existant (`missedCount`/`currentCycleKey` dans `applyTaskCycles`, `src/app/utils/state.js`) incrémente déjà `missedCount` à chaque cycle hebdo/mensuel manqué — réutilisé comme déclencheur plutôt que de recalculer un seuil en jours pour ces tâches-là.
 
 | Fichier | Changement |
 |---|---|
-| `src/utils/state.js` | `normalizeTask` : nouveaux champs `createdAt` (repris de l'id `task-<timestamp>` pour les tâches existantes, sinon date du jour), `staleNoticeDismissedAt` et `staleNoticeMissedCount` (déduplication de la relance). |
-| `src/hooks/useTasks.js` | `handleAddTask` pose `createdAt`/`staleNoticeDismissedAt`/`staleNoticeMissedCount` sur les nouvelles tâches. Deux nouveaux handlers : `handleChangeTaskPeriod(taskId, newPeriod)` (bascule une tâche unique vers une autre période, réinitialise `createdAt` pour repartir sur un délai frais) et `handleDismissStaleNotice(taskId)` (marque la relance comme vue — `staleNoticeDismissedAt` pour les tâches uniques, `staleNoticeMissedCount = missedCount` pour les récurrentes, qui pourront donc re-alerter au prochain cycle manqué). |
-| `src/utils/staleTasks.js` (nouveau) | `getStaleTaskAlerts(tasks, now)` — fonction pure qui calcule la liste des relances à afficher (tâches uniques Semaine/Mois non faites au-delà du seuil et pas encore ignorées ; tâches récurrentes dont `missedCount > staleNoticeMissedCount`). Ignore les tâches à échéance (`priority === "deadline"`). |
-| `src/hooks/useStaleTaskAlerts.js` (nouveau) | Hook réévaluant `getStaleTaskAlerts` toutes les 5 min + au retour au premier plan (focus/visibilitychange), même schéma que `useTaskNotifications`. |
-| `src/components/modals/AppModals.js` | Nouveau composant `StaleTaskModal` : affiche la tâche concernée, message adapté (semaine/mois), et selon le cas les boutons "Ajouter à la tâche quotidienne" (semaine, tâche unique), "Passer à la semaine"/"Passer au jour" (mois, tâche unique), ou juste "Compris" (récurrente). |
-| `src/App.js` | Branche `useStaleTaskAlerts(state.tasks)`, affiche `StaleTaskModal` pour la première relance en attente (masquée si une notification popup est déjà affichée), câblée sur `handleDismissStaleNotice`/`handleChangeTaskPeriod`. |
+| `src/app/utils/state.js` | `normalizeTask` : nouveaux champs `createdAt` (repris de l'id `task-<timestamp>` pour les tâches existantes, sinon date du jour), `staleNoticeDismissedAt` et `staleNoticeMissedCount` (déduplication de la relance). |
+| `src/app/hooks/useTasks.js` | `handleAddTask` pose `createdAt`/`staleNoticeDismissedAt`/`staleNoticeMissedCount` sur les nouvelles tâches. Deux nouveaux handlers : `handleChangeTaskPeriod(taskId, newPeriod)` (bascule une tâche unique vers une autre période, réinitialise `createdAt` pour repartir sur un délai frais) et `handleDismissStaleNotice(taskId)` (marque la relance comme vue — `staleNoticeDismissedAt` pour les tâches uniques, `staleNoticeMissedCount = missedCount` pour les récurrentes, qui pourront donc re-alerter au prochain cycle manqué). |
+| `src/app/utils/staleTasks.js` (nouveau) | `getStaleTaskAlerts(tasks, now)` — fonction pure qui calcule la liste des relances à afficher (tâches uniques Semaine/Mois non faites au-delà du seuil et pas encore ignorées ; tâches récurrentes dont `missedCount > staleNoticeMissedCount`). Ignore les tâches à échéance (`priority === "deadline"`). |
+| `src/app/hooks/useStaleTaskAlerts.js` (nouveau) | Hook réévaluant `getStaleTaskAlerts` toutes les 5 min + au retour au premier plan (focus/visibilitychange), même schéma que `useTaskNotifications`. |
+| `src/app/modals/AppModals.js` | Nouveau composant `StaleTaskModal` : affiche la tâche concernée, message adapté (semaine/mois), et selon le cas les boutons "Ajouter à la tâche quotidienne" (semaine, tâche unique), "Passer à la semaine"/"Passer au jour" (mois, tâche unique), ou juste "Compris" (récurrente). |
+| `src/app/App.js` | Branche `useStaleTaskAlerts(state.tasks)`, affiche `StaleTaskModal` pour la première relance en attente (masquée si une notification popup est déjà affichée), câblée sur `handleDismissStaleNotice`/`handleChangeTaskPeriod`. |
 
 `npm run build` OK (116 modules). Logique de détection (`getStaleTaskAlerts`) vérifiée par un script Node autonome (11 cas : tâches uniques semaine/mois avant/après seuil, déjà faites, déjà ignorées ; tâches récurrentes avec cycle manqué déjà notifié ou non ; tâche à échéance et tâche quotidienne toujours ignorées) — tous les cas passent. **Non testé en preview interactive de bout en bout** : l'app exige un compte Firebase connecté (pas de mode démo), donc impossible de créer une vraie tâche et vérifier l'apparition de la modale dans le navigateur sans les identifiants de l'utilisateur.
 
@@ -196,7 +272,7 @@ L'utilisateur signale que lorsqu'il est sur le dernier jour de la semaine (diman
 
 | Fichier | Changement |
 |---|---|
-| `src/components/meals/MealsView.js` | Boutons "Semaine précédente"/"Semaine suivante" : appellent désormais aussi `setSelectedDayIdx(0)` (lundi) en plus de `setWeekOffset`. Bouton "Cette semaine" (clic sur le libellé) : appelle `setSelectedDayIdx(todayIdx)` pour revenir sur le jour actuel. |
+| `src/app/pages/meals/MealsView.js` | Boutons "Semaine précédente"/"Semaine suivante" : appellent désormais aussi `setSelectedDayIdx(0)` (lundi) en plus de `setWeekOffset`. Bouton "Cette semaine" (clic sur le libellé) : appelle `setSelectedDayIdx(todayIdx)` pour revenir sur le jour actuel. |
 
 `npm run build` OK. Non re-testé en preview interactive (nécessite un compte connecté).
 
@@ -211,7 +287,7 @@ L'utilisateur voulait une page web séparée de l'application (le "site officiel
 | `site/index.html`, `site/style.css`, `site/favicon.svg` | Nouvelle page de présentation statique (HTML/CSS pur, sans build), reprend l'identité visuelle de l'app (polices Cormorant Garamond/DM Sans, couleurs `--mrd-*`, wordmark). CTA vers `https://my-rolling-day.web.app` (app réelle). |
 | `site/reset-password.html` | Nouvelle page statique autonome : lit `oobCode` dans l'URL, utilise le SDK Firebase v10 modulaire via CDN (`gstatic.com/firebasejs/10.12.5`) pour appeler `verifyPasswordResetCode`/`confirmPasswordReset` directement (config Firebase publique, même projet `my-rolling-day`). Reprend la logique/les textes de l'ancien `ResetPasswordScreen.js`. |
 | `functions/index.js` | `requestPasswordReset` : le lien envoyé par e-mail pointe désormais vers `https://myrollingday.fr/reset-password.html?oobCode=...` au lieu de `https://my-rolling-day.web.app/?mode=resetPassword&oobCode=...`. |
-| `src/App.js`, `src/components/auth/ResetPasswordScreen.js` (supprimé), `src/firebase/clientAuth.js` | Retrait de la route in-app `?mode=resetPassword` et du composant `ResetPasswordScreen` (plus utilisé) ; retrait des exports `verifyResetCode`/`confirmReset` devenus inutiles (la logique équivalente vit maintenant dans `site/reset-password.html`). |
+| `src/app/App.js`, `src/components/auth/ResetPasswordScreen.js` (supprimé), `src/app/providers/clientAuth.js` | Retrait de la route in-app `?mode=resetPassword` et du composant `ResetPasswordScreen` (plus utilisé) ; retrait des exports `verifyResetCode`/`confirmReset` devenus inutiles (la logique équivalente vit maintenant dans `site/reset-password.html`). |
 
 **Hébergement final : pas Firebase Hosting, mais l'hébergement mutualisé existant de l'utilisateur** (`myrollingday.fr`/`myrollingday.com` étaient déjà pointés en DNS vers un serveur Plesk à `5.135.136.43`, deux comptes séparés — un par domaine). SSH indisponible sur ce plan (nécessite une demande à l'hébergeur) ; déploiement fait en **FTP** (ProFTPD, port 21) :
 - Compte `.fr` : contenu réel du site (`index.html`, `style.css`, `favicon.svg`, `reset-password.html`) + `.htaccess` (`DirectoryIndex index.html index.php`, pour que l'ancien `index.php` placeholder de l'hébergeur — non supprimable, cf. ci-dessous — ne prenne pas le pas sur la nouvelle page).
@@ -231,8 +307,8 @@ L'utilisateur signale que lors d'une recherche dans le picker "Choisir un repas"
 
 | Fichier | Changement |
 |---|---|
-| `src/components/meals/MealsView.js` | Nouveau `useEffect` (déclenché par `pickModal`) qui verrouille le scroll de la page tant que le picker est ouvert : `document.body` passe en `position: fixed` (avec `top: -scrollY` pour compenser) + `overflow: hidden`, restauré (position/top/overflow + `window.scrollTo`) à la fermeture. Empêche le navigateur de scroller la page en arrière-plan quand le clavier apparaît, donc la modale ne bouge plus. Import de `useEffect` ajouté. |
-| `src/styles.css` | `.meal-picker-modal` (3 endroits : base, `.mrd-shell`, media query mobile ≤720px) : ajout d'une déclaration `max-height` en `dvh` juste après celle en `vh` (le navigateur retient la dernière valeur supportée) — `dvh` s'ajuste dynamiquement à la présence du clavier, contrairement à `vh`. |
+| `src/app/pages/meals/MealsView.js` | Nouveau `useEffect` (déclenché par `pickModal`) qui verrouille le scroll de la page tant que le picker est ouvert : `document.body` passe en `position: fixed` (avec `top: -scrollY` pour compenser) + `overflow: hidden`, restauré (position/top/overflow + `window.scrollTo`) à la fermeture. Empêche le navigateur de scroller la page en arrière-plan quand le clavier apparaît, donc la modale ne bouge plus. Import de `useEffect` ajouté. |
+| `src/theme/styles.css` | `.meal-picker-modal` (3 endroits : base, `.mrd-shell`, media query mobile ≤720px) : ajout d'une déclaration `max-height` en `dvh` juste après celle en `vh` (le navigateur retient la dernière valeur supportée) — `dvh` s'ajuste dynamiquement à la présence du clavier, contrairement à `vh`. |
 
 Vérifié en preview (session réelle de l'utilisateur déjà connectée dans le navigateur de dev — aucune donnée modifiée, fermeture du picker sans sélectionner de recette) : ouverture du picker "Choisir un repas" → `document.body.style.position` passe bien à `"fixed"` et `overflow` à `"hidden"` ; frappe dans le champ de recherche → `window.scrollY` reste à `0`, aucun décalage ; fermeture (✕) → styles du body restaurés (`position`/`overflow` vides) et backdrop retiré du DOM. Revérifié en viewport mobile (375×812) : même comportement, `max-height` de la modale calculée en `dvh` (714,56px = 88 % de 812px). `npm run build` OK (115 modules, aucune erreur). Aucune nouvelle erreur console (seuls les warnings React préexistants, sans rapport).
 
@@ -244,9 +320,9 @@ L'utilisateur voulait un "vrai écran de vente" à la place du simple écran d'a
 
 | Fichier | Changement |
 |---|---|
-| `src/components/premium/PremiumLockScreen.js` | Réécrit : liste de 5 bénéfices (repas, inventaire, recettes, lien liste↔inventaire, "pour tout le foyer"), sélecteur de plan Mensuel (4,99 €/mois) / Annuel (39,99 €/an, badge "Économise 33 %", affiché par défaut), bouton principal dont le libellé reflète le plan choisi ("Activer Premium — X €/mois ou /an"), et bouton secondaire "Gérer depuis les Réglages" (renvoie vers `onOpenPremiumSettings`, comportement inchangé). Nouvelle prop `onActivatePremium`. |
-| `src/App.js` | Nouveau handler `handleActivatePremium` (= `runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true))`, même mécanique que le toggle des Réglages) branché sur les 3 usages de `PremiumLockScreen` (`meals`, `inventory`, `recipes`) via la nouvelle prop `onActivatePremium`. |
-| `src/styles.css` | Nouvelles classes `.premium-lock-benefits(-benefit-icon)`, `.premium-lock-plans/.premium-lock-plan(.on)/-badge/-label/-price/-sub`, `.premium-lock-secondary` ; `.premium-lock-card` élargie (320px → 380px, marge réduite). Toutes basées sur les variables de couleur existantes (`--mrd-amber*`), donc compatibles dark mode sans règle supplémentaire. |
+| `src/app/pages/premium/PremiumLockScreen.js` | Réécrit : liste de 5 bénéfices (repas, inventaire, recettes, lien liste↔inventaire, "pour tout le foyer"), sélecteur de plan Mensuel (4,99 €/mois) / Annuel (39,99 €/an, badge "Économise 33 %", affiché par défaut), bouton principal dont le libellé reflète le plan choisi ("Activer Premium — X €/mois ou /an"), et bouton secondaire "Gérer depuis les Réglages" (renvoie vers `onOpenPremiumSettings`, comportement inchangé). Nouvelle prop `onActivatePremium`. |
+| `src/app/App.js` | Nouveau handler `handleActivatePremium` (= `runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true))`, même mécanique que le toggle des Réglages) branché sur les 3 usages de `PremiumLockScreen` (`meals`, `inventory`, `recipes`) via la nouvelle prop `onActivatePremium`. |
+| `src/theme/styles.css` | Nouvelles classes `.premium-lock-benefits(-benefit-icon)`, `.premium-lock-plans/.premium-lock-plan(.on)/-badge/-label/-price/-sub`, `.premium-lock-secondary` ; `.premium-lock-card` élargie (320px → 380px, marge réduite). Toutes basées sur les variables de couleur existantes (`--mrd-amber*`), donc compatibles dark mode sans règle supplémentaire. |
 
 **Prix actuels codés en dur (4,99 €/mois, 39,99 €/an) : à ajuster si l'utilisateur vise un autre tarif.** Le bouton "Activer Premium" reste pour l'instant le même mécanisme de test que le toggle des Réglages (pas de vrai paiement) — à remplacer par le SDK RevenueCat/Stripe une fois les comptes externes créés.
 
@@ -260,8 +336,8 @@ L'utilisateur signale que supprimer un membre le laisse toujours visible sur Fir
 
 | Fichier | Changement |
 |---|---|
-| `src/hooks/useAuth.js` | `handleDeletePerson(personId)` : si la personne a un `linkedAccountId`, appelle désormais `removeFamilyMember(currentFamilyId, person.linkedAccountId)` avant de supprimer la fiche `people`. |
-| `src/firebase/clientFamily.js` | `removeFamilyMember` : ajout du garde-fou `assertUserIsNotLastAdmin` (absent jusqu'ici — un admin aurait pu se retirer lui-même en dernier admin, verrouillant le foyer). Retrait de la tentative d'écriture directe dans `users/{uid}` (échouait de toute façon sous les règles quand l'appelant n'est pas cet uid) — déléguée à la nouvelle Cloud Function ci-dessous. |
+| `src/app/hooks/useAuth.js` | `handleDeletePerson(personId)` : si la personne a un `linkedAccountId`, appelle désormais `removeFamilyMember(currentFamilyId, person.linkedAccountId)` avant de supprimer la fiche `people`. |
+| `src/app/providers/clientFamily.js` | `removeFamilyMember` : ajout du garde-fou `assertUserIsNotLastAdmin` (absent jusqu'ici — un admin aurait pu se retirer lui-même en dernier admin, verrouillant le foyer). Retrait de la tentative d'écriture directe dans `users/{uid}` (échouait de toute façon sous les règles quand l'appelant n'est pas cet uid) — déléguée à la nouvelle Cloud Function ci-dessous. |
 | `firestore.rules` | Nouveau helper `isFamilyAdmin(familyId)`. `match /members/{uid}` : `allow write` accepte désormais `request.auth.uid == uid` **ou** `isFamilyAdmin(familyId)` (un admin peut retirer un autre membre, pas seulement soi-même). |
 | `functions/index.js` | Nouvelle Cloud Function `onMemberRemoved` (`onDocumentDeleted` sur `families/{familyId}/members/{uid}`) : nettoie côté serveur (Admin SDK, contourne les règles) le doc `users/{uid}` du membre retiré — `familyIds` (arrayRemove), `linkedMemberIdsByHousehold.{familyId}` (delete), `currentFamilyId` remis à `""` si c'était ce foyer. Nécessaire car un admin retirant quelqu'un d'autre n'a pas le droit d'écrire dans le `users/{uid}` d'un tiers ; le fallback client existant (`useAuth.js`, entrée du 2026-05-25) bascule déjà automatiquement l'utilisateur retiré sur un autre foyer accessible à sa prochaine connexion. |
 
@@ -277,7 +353,7 @@ Cause : `src/main.js` enveloppait tout le rendu dans `<AndroidEmulator>` (`src/c
 |---|---|
 | `src/main.js` | Suppression de l'import et de l'enveloppe `AndroidEmulator` : `root.render(html\`<${App} />\`)` directement, sans wrapper. |
 | `src/components/dev/AndroidEmulator.js` | Fichier supprimé (plus aucune référence après le changement ci-dessus). |
-| `src/styles.css` | Suppression du bloc CSS mort associé (`.emu-bg`, `.emu-wrap`, `.emu-phone`, `.emu-btn`, `.emu-vol-up/-dn`, `.emu-pwr`, `.emu-frame`, `.emu-screen`, `.emu-punch`, `.emu-content`, `.emu-navbar`, `.emu-pill`, `.emu-label` + variante dark). |
+| `src/theme/styles.css` | Suppression du bloc CSS mort associé (`.emu-bg`, `.emu-wrap`, `.emu-phone`, `.emu-btn`, `.emu-vol-up/-dn`, `.emu-pwr`, `.emu-frame`, `.emu-screen`, `.emu-punch`, `.emu-content`, `.emu-navbar`, `.emu-pill`, `.emu-label` + variante dark). |
 
 Vérifié : `npm run build` OK (115 modules, aucune erreur). En preview à 1280×800, `document.querySelector('.emu-phone')` et `.emu-bg` sont désormais `null` — l'app s'affiche directement en pleine fenêtre. Aucune nouvelle erreur console (seuls des warnings React préexistants sur les attributs SVG kebab-case, sans rapport).
 
@@ -285,19 +361,19 @@ Vérifié : `npm run build` OK (115 modules, aucune erreur). En preview à 1280�
 
 ## [2026-07-27] — Fix "permission insuffisante" à l'acceptation d'un code d'invitation (rejoindre un foyer)
 
-L'utilisateur signale qu'un membre invité par code reçoit "permission insuffisante" en rejoignant le foyer. Cause : `acceptHouseholdInvitation` (`src/firebase/clientFamily.js`) faisait la création du doc `families/{familyId}/members/{uid}` **et** les écritures protégées par `isFamilyMember(familyId)` (`people/{personId}`, `families/{familyId}`, l'invitation) dans le **même** `writeBatch`. Or Firestore évalue les règles de sécurité d'un batch par rapport à l'état de la base **avant** le batch — `exists()`/`get()` ne voient pas les écritures des autres opérations du même batch. Résultat : au tout premier join, `isFamilyMember(familyId)` reste faux au moment d'évaluer les écritures sur `people`/`families`/`invitations`, qui échouent avec permission refusée.
+L'utilisateur signale qu'un membre invité par code reçoit "permission insuffisante" en rejoignant le foyer. Cause : `acceptHouseholdInvitation` (`src/app/providers/clientFamily.js`) faisait la création du doc `families/{familyId}/members/{uid}` **et** les écritures protégées par `isFamilyMember(familyId)` (`people/{personId}`, `families/{familyId}`, l'invitation) dans le **même** `writeBatch`. Or Firestore évalue les règles de sécurité d'un batch par rapport à l'état de la base **avant** le batch — `exists()`/`get()` ne voient pas les écritures des autres opérations du même batch. Résultat : au tout premier join, `isFamilyMember(familyId)` reste faux au moment d'évaluer les écritures sur `people`/`families`/`invitations`, qui échouent avec permission refusée.
 
 | Fichier | Changement |
 |---|---|
-| `src/firebase/clientFamily.js` | `acceptHouseholdInvitation` : le `setDoc` du doc membre (`families/{familyId}/members/{uid}`) est désormais fait seul, **avant** (`await`) le reste des écritures (`people`, `users`, invitation, `families`), qui restent groupées dans un second `writeBatch`. Ainsi `isFamilyMember(familyId)` est déjà vrai (doc membre committé) quand les règles évaluent le second batch. |
+| `src/app/providers/clientFamily.js` | `acceptHouseholdInvitation` : le `setDoc` du doc membre (`families/{familyId}/members/{uid}`) est désormais fait seul, **avant** (`await`) le reste des écritures (`people`, `users`, invitation, `families`), qui restent groupées dans un second `writeBatch`. Ainsi `isFamilyMember(familyId)` est déjà vrai (doc membre committé) quand les règles évaluent le second batch. |
 
 **Suite 1** : après premier redéploiement Netlify, l'utilisateur confirme que l'erreur persiste à l'identique. Cause réelle trouvée : `getDoc(personRef)` (lecture de `families/{familyId}/people/{personId}`) était appelé **avant** la création du doc membre, alors que la règle de lecture de `people` exige elle aussi `isFamilyMember(familyId)` — donc refusée en tout premier, avant même d'atteindre le batch corrigé plus haut. Fix : la lecture de `personRef` est déplacée **après** la création du membre. Rebuild + redéploiement Netlify.
 
-**Suite 2 (résolution finale)** : toujours "permission insuffisante" après ce 2e fix — au point que l'utilisateur a dû désactiver temporairement toutes les règles Firestore en prod pour débloquer un test (**risque de sécurité** : base ouverte à tous tant que les règles n'étaient pas restaurées). Cause définitive : `previewHouseholdInvitation` (`src/firebase/clientFamily.js`), appelée **avant** `acceptHouseholdInvitation` par `handleJoinHouseholdOnboarding` (`src/hooks/useAuth.js`) pour afficher le nom du foyer, lisait `families/{familyId}` directement — protégé lui aussi par `isFamilyMember`. Un non-membre échouait donc dès cet appel de preview, avant même d'atteindre le code déjà corrigé.
+**Suite 2 (résolution finale)** : toujours "permission insuffisante" après ce 2e fix — au point que l'utilisateur a dû désactiver temporairement toutes les règles Firestore en prod pour débloquer un test (**risque de sécurité** : base ouverte à tous tant que les règles n'étaient pas restaurées). Cause définitive : `previewHouseholdInvitation` (`src/app/providers/clientFamily.js`), appelée **avant** `acceptHouseholdInvitation` par `handleJoinHouseholdOnboarding` (`src/app/hooks/useAuth.js`) pour afficher le nom du foyer, lisait `families/{familyId}` directement — protégé lui aussi par `isFamilyMember`. Un non-membre échouait donc dès cet appel de preview, avant même d'atteindre le code déjà corrigé.
 
 Plutôt que de continuer à corriger des lectures/écritures client une par une contre des règles `isFamilyMember`, la logique d'acceptation est déplacée **côté serveur** :
 - `functions/index.js` : nouvelle Cloud Function callable `acceptInvitation` (europe-west1, Admin SDK — contourne les règles Firestore) qui fait toute la validation de l'invitation + création du membre + liaison du profil `people` + mise à jour `users`/`invitation`/`families`/`joinEvents` en une seule opération serveur.
-- `src/firebase/clientFamily.js` : `acceptHouseholdInvitation` appelle désormais `httpsCallable(functions, "acceptInvitation")` au lieu d'écrire directement dans Firestore. `createHouseholdInvitation` dénormalise maintenant `familyName` sur le doc invitation (lu par un membre existant, donc sans souci de permission) pour que `previewHouseholdInvitation` n'ait plus besoin de lire `families/{familyId}`.
+- `src/app/providers/clientFamily.js` : `acceptHouseholdInvitation` appelle désormais `httpsCallable(functions, "acceptInvitation")` au lieu d'écrire directement dans Firestore. `createHouseholdInvitation` dénormalise maintenant `familyName` sur le doc invitation (lu par un membre existant, donc sans souci de permission) pour que `previewHouseholdInvitation` n'ait plus besoin de lire `families/{familyId}`.
 
 Déployé (confirmation explicite de l'utilisateur) : `firebase deploy --only firestore:rules,functions:acceptInvitation` — règles sécurisées restaurées en prod + nouvelle fonction créée. **Reste à faire** : rebuild (`npm run build`, déjà fait) + redéploiement du `dist/` sur Netlify, puis retest réel du join.
 
@@ -330,8 +406,8 @@ Service d'envoi choisi avec l'utilisateur (parmi Resend / Brevo / Mailgun / exte
 | Fichier | Changement |
 |---|---|
 | `functions/index.js` | Nouvelle Cloud Function callable `requestPasswordReset` (region `europe-west1`) : valide l'email, appelle `adminAuth.generatePasswordResetLink(email)`, extrait `oobCode` du lien retourné, reconstruit le lien vers `https://my-rolling-day.web.app/?mode=resetPassword&oobCode=...`, puis dépose un document dans la collection Firestore `mail` (`to`, `message.subject`, `message.html`) — surveillée par l'extension "Trigger Email from Firestore" qui envoie effectivement l'e-mail. Erreurs mappées en `HttpsError` avec messages français directement affichables (`not-found` si email inconnu, `invalid-argument` si email invalide). Nouveau helper `buildResetPasswordEmailHtml()` (template HTML inline, couleurs de l'app : fond crème `#FAF4ED`, accent terracotta `#B8654A`, texte brun `#3D2E22`, approximés depuis les variables OKLCH de `styles.css` — les clients mail ne supportent pas `oklch()`). |
-| `src/firebase/core.js` | Ajout de `export const functions = getFunctions(app, "europe-west1")` (import `getFunctions` depuis `firebase/functions`), même région que la nouvelle Cloud Function. |
-| `src/firebase/clientAuth.js` | `resetPassword(email)` n'appelle plus `sendPasswordResetEmail` (SDK client, retiré des imports) mais `httpsCallable(functions, "requestPasswordReset")`. Les erreurs (déjà en français côté serveur) remontent telles quelles — `formatAuthError` (`core.js`) retombe déjà sur `error.message` par défaut, aucun changement nécessaire côté formatage. |
+| `src/app/providers/core.js` | Ajout de `export const functions = getFunctions(app, "europe-west1")` (import `getFunctions` depuis `firebase/functions`), même région que la nouvelle Cloud Function. |
+| `src/app/providers/clientAuth.js` | `resetPassword(email)` n'appelle plus `sendPasswordResetEmail` (SDK client, retiré des imports) mais `httpsCallable(functions, "requestPasswordReset")`. Les erreurs (déjà en français côté serveur) remontent telles quelles — `formatAuthError` (`core.js`) retombe déjà sur `error.message` par défaut, aucun changement nécessaire côté formatage. |
 | `firestore.rules` | Nouvelle règle explicite `match /mail/{mailId} { allow read, write: if false; }` — défense en profondeur (la collection contient des adresses e-mail ; en pratique seule la Cloud Function/l'extension y touchent, via Admin SDK qui contourne déjà les règles). |
 
 `npm run build` OK (116 modules, aucune erreur). `node --check functions/index.js` OK.
@@ -348,10 +424,10 @@ L'utilisateur voulait que le lien "mot de passe oublié" reçu par e-mail ouvre 
 | Fichier | Changement |
 |---|---|
 | `firebase.json` | Ajout d'un bloc `hosting` (`public: "dist"`, rewrite `**` → `/index.html`). Déployé sur `https://my-rolling-day.web.app` (`firebase deploy --only hosting`). |
-| `src/firebase/clientAuth.js` | Ajout de `verifyResetCode(oobCode)` et `confirmReset(oobCode, newPassword)` (`verifyPasswordResetCode`/`confirmPasswordReset` de `firebase/auth`). |
-| `src/firebase/core.js` | `formatAuthError` : ajout des codes `auth/expired-action-code` et `auth/invalid-action-code`. |
+| `src/app/providers/clientAuth.js` | Ajout de `verifyResetCode(oobCode)` et `confirmReset(oobCode, newPassword)` (`verifyPasswordResetCode`/`confirmPasswordReset` de `firebase/auth`). |
+| `src/app/providers/core.js` | `formatAuthError` : ajout des codes `auth/expired-action-code` et `auth/invalid-action-code`. |
 | `src/components/auth/ResetPasswordScreen.js` (nouveau) | Écran de saisie du nouveau mot de passe (vérifie le `oobCode`, formulaire mot de passe + confirmation, réutilise les classes `auth-shell`/`auth-card`/`aform`/`ainp`/`aok`/`error-box` existantes). |
-| `src/App.js` | Tout en haut du rendu (avant les branches erreur/splash/auth), détection de `?mode=resetPassword&oobCode=...` dans l'URL → affiche `ResetPasswordScreen` directement, sans dépendre de l'état d'auth/planner. |
+| `src/app/App.js` | Tout en haut du rendu (avant les branches erreur/splash/auth), détection de `?mode=resetPassword&oobCode=...` dans l'URL → affiche `ResetPasswordScreen` directement, sans dépendre de l'état d'auth/planner. |
 
 **Bloqué** : la personnalisation de l'URL du lien d'action dans la console Firebase (Authentication → Templates → Réinitialisation du mot de passe → "Personnaliser l'URL d'action") échoue systématiquement avec le toast "Une erreur s'est produite lors de la modification de l'URL d'action" — confirmé en observant l'écran en direct (via computer-use), pas un problème de permissions ni de domaine autorisé (vérifié). Probablement lié à la dépréciation de Firebase Dynamic Links (25/08/2025) qui a cassé cette fonctionnalité côté Firebase. Tant que ce n'est pas résolu, le lien du mail continue de pointer vers la page Firebase par défaut — `ResetPasswordScreen.js` n'est donc pas encore atteint par le flux réel (testé uniquement en local avec un `oobCode` factice, qui affiche bien l'état "Lien invalide" attendu). Piste de repli proposée à l'utilisateur (pas encore implémentée, "on verra") : passer `actionCodeSettings.url` à `sendPasswordResetEmail` pour au moins afficher un lien "Continuer vers l'app" sur la page Firebase par défaut après la réinitialisation.
 
@@ -361,14 +437,14 @@ L'utilisateur veut transformer l'app en modèle freemium : les modules Inventair
 
 | Fichier | Changement |
 |---|---|
-| `src/firebase/clientFamily.js` | Nouvelle fonction `setFamilyPremiumOverride(familyId, value)` (même forme que `renameFamily`), écrit `premiumOverride` sur `/families/{familyId}`. Aucune règle Firestore à modifier (le foyer est déjà écrit par tout membre) — limite connue à durcir (écriture réservée aux Cloud Functions) une fois le vrai paiement branché. |
-| `src/utils/premium.js` (nouveau) | `PREMIUM_TABS` (`meals`, `inventory`, `recipes`) et `isPremiumTab(tab)`, point central réutilisé par `App.js` et `BottomNav.js`. |
-| `src/components/premium/PremiumLockScreen.js` (nouveau) | Écran d'accroche (étoile, titre/texte selon `feature`, bouton "Découvrir Premium") affiché à la place du contenu des modules verrouillés. |
-| `src/App.js` | `isPremium` dérivé de `currentFamily?.premiumOverride` ; les branches `activeTab === "meals"/"inventory"/"recipes"` affichent `PremiumLockScreen` si `!isPremium` ; `ListsView` reçoit `isPremium` + `onRequirePremium` (toast) ; `SettingsView` reçoit `isPremium` + `onSetPremiumOverride` ; `BottomNav` reçoit `isPremium`. |
-| `src/components/lists/ListsView.js` | Bouton "Lié à l'inventaire" (liste existante + formulaire de création) verrouillé si `!isPremium` : icône 🔒, clic déclenche `onRequirePremium` au lieu de basculer `addToInventory`. |
-| `src/components/settings/SettingsView.js` | Nouvelle section "Premium" (toggle de test `SettingsToggleRow`), enveloppée dans `.premium-section-highlight` pour un style dégradé ambre→rouge-brique tant que non actif (état `.is-active` plus sobre une fois le premium activé). |
-| `src/components/nav/BottomNav.js` | Petite étoile ⭐ (`.mrd-bnav-premium-star`) sur l'onglet "Repas" et sur les entrées "Inventaire"/"Recettes" du menu "Plus" quand `!isPremium` (Listes/Notes/Historique restent sans étoile). |
-| `src/styles.css` | Classes `.premium-lock-*`, `.mrd-inv-badge.locked`, `.mrd-bnav-premium-star(-tab)`, `.premium-section-highlight(.is-active)`. |
+| `src/app/providers/clientFamily.js` | Nouvelle fonction `setFamilyPremiumOverride(familyId, value)` (même forme que `renameFamily`), écrit `premiumOverride` sur `/families/{familyId}`. Aucune règle Firestore à modifier (le foyer est déjà écrit par tout membre) — limite connue à durcir (écriture réservée aux Cloud Functions) une fois le vrai paiement branché. |
+| `src/app/utils/premium.js` (nouveau) | `PREMIUM_TABS` (`meals`, `inventory`, `recipes`) et `isPremiumTab(tab)`, point central réutilisé par `App.js` et `BottomNav.js`. |
+| `src/app/pages/premium/PremiumLockScreen.js` (nouveau) | Écran d'accroche (étoile, titre/texte selon `feature`, bouton "Découvrir Premium") affiché à la place du contenu des modules verrouillés. |
+| `src/app/App.js` | `isPremium` dérivé de `currentFamily?.premiumOverride` ; les branches `activeTab === "meals"/"inventory"/"recipes"` affichent `PremiumLockScreen` si `!isPremium` ; `ListsView` reçoit `isPremium` + `onRequirePremium` (toast) ; `SettingsView` reçoit `isPremium` + `onSetPremiumOverride` ; `BottomNav` reçoit `isPremium`. |
+| `src/app/pages/lists/ListsView.js` | Bouton "Lié à l'inventaire" (liste existante + formulaire de création) verrouillé si `!isPremium` : icône 🔒, clic déclenche `onRequirePremium` au lieu de basculer `addToInventory`. |
+| `src/app/pages/settings/SettingsView.js` | Nouvelle section "Premium" (toggle de test `SettingsToggleRow`), enveloppée dans `.premium-section-highlight` pour un style dégradé ambre→rouge-brique tant que non actif (état `.is-active` plus sobre une fois le premium activé). |
+| `src/app/components/nav/BottomNav.js` | Petite étoile ⭐ (`.mrd-bnav-premium-star`) sur l'onglet "Repas" et sur les entrées "Inventaire"/"Recettes" du menu "Plus" quand `!isPremium` (Listes/Notes/Historique restent sans étoile). |
+| `src/theme/styles.css` | Classes `.premium-lock-*`, `.mrd-inv-badge.locked`, `.mrd-bnav-premium-star(-tab)`, `.premium-section-highlight(.is-active)`. |
 
 Vérifié en preview (`preview_click`/`preview_eval`/`preview_snapshot`) : bascule du toggle "Premium actif (test)" → écriture Firestore confirmée par lecture directe du document et persistance après rechargement complet de la page ; écran d'accroche affiché sur Repas/Inventaire/Recettes quand non premium, contenu normal une fois actif ; étoiles présentes uniquement sur Repas (nav) et Inventaire/Recettes (menu Plus), absentes sur Listes/Notes/Historique ; dégradé de la carte "Premium" confirmé via `getComputedStyle`. Aucune erreur console liée au nouveau code (seuls des warnings React pré-existants, sans rapport).
 
@@ -379,10 +455,10 @@ L'utilisateur ne voulait plus que le lien "mot de passe oublié" reçu par mail 
 | Fichier | Changement |
 |---|---|
 | `firebase.json` | Ajout d'un bloc `hosting` (`public: "dist"`, rewrite `**` → `/index.html`), en plus de `firestore`/`functions` déjà présents. |
-| `src/firebase/clientAuth.js` | Ajout de `verifyResetCode(oobCode)` (`verifyPasswordResetCode`) et `confirmReset(oobCode, newPassword)` (`confirmPasswordReset`), importés depuis `firebase/auth`. |
-| `src/firebase/core.js` | `formatAuthError` : nouveaux cas `auth/expired-action-code` et `auth/invalid-action-code` (messages français). |
+| `src/app/providers/clientAuth.js` | Ajout de `verifyResetCode(oobCode)` (`verifyPasswordResetCode`) et `confirmReset(oobCode, newPassword)` (`confirmPasswordReset`), importés depuis `firebase/auth`. |
+| `src/app/providers/core.js` | `formatAuthError` : nouveaux cas `auth/expired-action-code` et `auth/invalid-action-code` (messages français). |
 | `src/components/auth/ResetPasswordScreen.js` (nouveau) | Écran autonome : vérifie le `oobCode` au montage, affiche un formulaire nouveau mot de passe + confirmation (validation ≥6 caractères, correspondance), appelle `confirmReset`, puis écran de succès. Réutilise entièrement les classes CSS existantes (`auth-shell`, `auth-card`, `aform`, `ainp`, `aok`, `error-box`) — aucun nouveau CSS. |
-| `src/App.js` | Import de `ResetPasswordScreen` ; ajout d'une branche de routing prioritaire (avant même l'écran d'erreur de démarrage) qui détecte `?mode=resetPassword&oobCode=...` dans `window.location.search` et affiche l'écran dédié. |
+| `src/app/App.js` | Import de `ResetPasswordScreen` ; ajout d'une branche de routing prioritaire (avant même l'écran d'erreur de démarrage) qui détecte `?mode=resetPassword&oobCode=...` dans `window.location.search` et affiche l'écran dédié. |
 
 Vérifié en preview (`preview_eval` pour naviguer vers `?mode=resetPassword&oobCode=...` + `preview_screenshot`) : avec un `oobCode` invalide, l'écran "Lien invalide" s'affiche correctement, aux couleurs de l'app, sans erreur console liée au nouveau code.
 
@@ -394,8 +470,8 @@ Deux ajustements demandés sur la modale "Ajouter un article" : (1) le select "U
 
 | Fichier | Changement |
 |---|---|
-| `src/components/inventory/InventoryView.js` | `UNITS[0].label` : `"—"` → `"Unité"` (valeur `""` inchangée). Le `<select>` unité applique `color: var(--mrd-fg3)` tant que `form.unit` est vide, `var(--mrd-fg)` une fois une unité choisie. Nouveau bloc "Lieu de rangement" (select, visible uniquement si `organiserMode`) inséré juste sous "Nom de l'article", avec la même présentation que le select du Ranger (flèche ▼, option "Non classé"). `form.storageLocationId` ajouté à `emptyForm()`, pré-rempli avec `activeLocation.id` dans `openCreateModal()` (si on est déjà dans l'onglet d'un rangement) et avec `item.storageLocationId` dans `openEditModal()`. `submitInventory()` inclut désormais `storageLocationId: form.storageLocationId || ""` dans le payload envoyé à `onAddInventoryItem`/`onUpdateInventoryItem`. |
-| `src/hooks/useLists.js` | `handleAddInventoryItem` : l'objet créé inclut désormais `storageLocationId: item.storageLocationId || ""` (auparavant toujours absent, donc l'article atterrissait systématiquement dans "Non rangé"). |
+| `src/app/pages/inventory/InventoryView.js` | `UNITS[0].label` : `"—"` → `"Unité"` (valeur `""` inchangée). Le `<select>` unité applique `color: var(--mrd-fg3)` tant que `form.unit` est vide, `var(--mrd-fg)` une fois une unité choisie. Nouveau bloc "Lieu de rangement" (select, visible uniquement si `organiserMode`) inséré juste sous "Nom de l'article", avec la même présentation que le select du Ranger (flèche ▼, option "Non classé"). `form.storageLocationId` ajouté à `emptyForm()`, pré-rempli avec `activeLocation.id` dans `openCreateModal()` (si on est déjà dans l'onglet d'un rangement) et avec `item.storageLocationId` dans `openEditModal()`. `submitInventory()` inclut désormais `storageLocationId: form.storageLocationId || ""` dans le payload envoyé à `onAddInventoryItem`/`onUpdateInventoryItem`. |
+| `src/app/hooks/useLists.js` | `handleAddInventoryItem` : l'objet créé inclut désormais `storageLocationId: item.storageLocationId || ""` (auparavant toujours absent, donc l'article atterrissait systématiquement dans "Non rangé"). |
 
 ## [2026-07-14] — Repas : vue mois — semaine en cours en haut + clic sur un jour renvoie vers le choix des repas
 
@@ -403,7 +479,7 @@ Dans l'aperçu "Mois" des repas, les semaines étaient affichées dans l'ordre c
 
 | Fichier | Changement |
 |---|---|
-| `src/components/meals/MealsView.js` | `renderMonthView()` : les `weeks` calculées sont triées (`orderedWeeks`) pour placer en premier la semaine dont la clé correspond à `todayMonday` (semaine réelle actuelle), le reste restant dans l'ordre chronologique — toutes les semaines du mois restent affichées. Les lignes de jour (`div` non cliquable) sont devenues des `<button>` avec un état `selectedMonthDayKey` : 1er clic → sélectionne le jour (classe `.selected`), 2e clic sur le jour déjà sélectionné → `setWeekOffset` sur la semaine correspondante + `setSelectedDayIdx` + `setViewMode("week")`, ce qui renvoie sur la vue semaine avec le bon jour actif. |
+| `src/app/pages/meals/MealsView.js` | `renderMonthView()` : les `weeks` calculées sont triées (`orderedWeeks`) pour placer en premier la semaine dont la clé correspond à `todayMonday` (semaine réelle actuelle), le reste restant dans l'ordre chronologique — toutes les semaines du mois restent affichées. Les lignes de jour (`div` non cliquable) sont devenues des `<button>` avec un état `selectedMonthDayKey` : 1er clic → sélectionne le jour (classe `.selected`), 2e clic sur le jour déjà sélectionné → `setWeekOffset` sur la semaine correspondante + `setSelectedDayIdx` + `setViewMode("week")`, ce qui renvoie sur la vue semaine avec le bon jour actif. |
 
 Vérifié en preview (`preview_click` + `preview_eval` + `preview_snapshot`) : depuis "Cette semaine" → clic "Mois" → la semaine "13 – 19 JUILLET" apparaît bien en tête, suivie de toutes les autres semaines de juillet ; clic sur "Mer 15" ajoute la classe `selected`, un second clic bascule vers la vue semaine avec le pill "Mer15" actif (`on`).
 
@@ -415,8 +491,8 @@ L'utilisateur voulait pouvoir augmenter/diminuer la quantité d'un produit sans 
 
 | Fichier | Changement |
 |---|---|
-| `src/components/inventory/InventoryView.js` | Nouvelle fonction `incrementItemQuantity(item)` (ajoute 1 à `item.quantity`), en plus de `decrementItemQuantity(item)` (soustrait 1, bascule en `stockState: "empty"` si le résultat atteint 0 — même comportement que le bouton "Fini"). Suppression du bouton "−1" de `inv-item-action-row`. À la place, la ligne où s'affichait la quantité (`qtyLabel`) est remplacée par un `.inv-qty-stepper` (`− valeur +`) quand l'article n'est pas fini et a une quantité numérique (`canStepQty`) ; sinon la quantité reste affichée en texte simple comme avant. |
-| `src/styles.css` | Nouvelles classes `.inv-qty-stepper`, `.inv-qty-step-btn` (petit bouton rond 22px), `.inv-qty-step-value`. |
+| `src/app/pages/inventory/InventoryView.js` | Nouvelle fonction `incrementItemQuantity(item)` (ajoute 1 à `item.quantity`), en plus de `decrementItemQuantity(item)` (soustrait 1, bascule en `stockState: "empty"` si le résultat atteint 0 — même comportement que le bouton "Fini"). Suppression du bouton "−1" de `inv-item-action-row`. À la place, la ligne où s'affichait la quantité (`qtyLabel`) est remplacée par un `.inv-qty-stepper` (`− valeur +`) quand l'article n'est pas fini et a une quantité numérique (`canStepQty`) ; sinon la quantité reste affichée en texte simple comme avant. |
+| `src/theme/styles.css` | Nouvelles classes `.inv-qty-stepper`, `.inv-qty-step-btn` (petit bouton rond 22px), `.inv-qty-step-value`. |
 
 Vérifié en preview (`preview_eval` + `preview_screenshot`) : clic sur "+" incrémente bien l'article ciblé (ex. Balayette 4→5) sans affecter les autres lignes ; clic sur "−" décrémente (5→4) ; le stepper est bien positionné à l'endroit où était affichée la quantité, avec "−" à gauche et "+" à droite.
 
@@ -427,11 +503,11 @@ Vérifié en preview (`preview_eval` + `preview_screenshot`) : clic sur "+" incr
 L'utilisateur publie sur Netlify par glisser-déposer. Deux problèmes distincts détectés :
 
 1. **Erreur au dépôt** : il glissait le dossier du projet entier (au lieu du dossier `dist/` généré par le build), ce qui incluait `node_modules/` et `android/app/build/` — dont un fichier Gradle verrouillé/introuvable (`nestedResourcesValidationReport.txt`) qui faisait échouer l'upload. Nettoyage des artefacts Gradle obsolètes (`android/app/build`, `android/build`, `android/.gradle`, et les `build/` dans les packages Capacitor de `node_modules`). Solution : ne publier que le dossier `dist/` (généré par `npm run build`), jamais la racine du projet.
-2. **Icônes de catégorie de recettes invisibles une fois publié** (visibles en dev seulement) : `src/components/recipes/CategoryIcons.js` référençait les SVG (`entree.svg`, `plat.svg`, etc.) via un chemin brut en chaîne de caractères (`"./src/assets/icons/entree.svg"`) au lieu d'un `import`. Vite sert `src/` tel quel en dev, mais au build seuls les fichiers réellement importés comme modules sont copiés/hashés dans `dist/assets/` — ce chemin `src/...` n'existe plus en prod, d'où les logos manquants (visible notamment dans "Repas du jour" via `CategoryIcon`).
+2. **Icônes de catégorie de recettes invisibles une fois publié** (visibles en dev seulement) : `src/app/pages/recipes/CategoryIcons.js` référençait les SVG (`entree.svg`, `plat.svg`, etc.) via un chemin brut en chaîne de caractères (`"./src/assets/icons/entree.svg"`) au lieu d'un `import`. Vite sert `src/` tel quel en dev, mais au build seuls les fichiers réellement importés comme modules sont copiés/hashés dans `dist/assets/` — ce chemin `src/...` n'existe plus en prod, d'où les logos manquants (visible notamment dans "Repas du jour" via `CategoryIcon`).
 
 | Fichier | Changement |
 |---|---|
-| `src/components/recipes/CategoryIcons.js` | Les 6 icônes SVG (`entree`, `plat`, `dessert`, `petit-dejeuner`, `boisson`, `fait-maison`) sont désormais importées en haut de fichier (`import xIcon from "../../assets/icons/x.svg"`) au lieu d'un chemin `src/...` en dur dans `CATEGORY_CONFIG`. |
+| `src/app/pages/recipes/CategoryIcons.js` | Les 6 icônes SVG (`entree`, `plat`, `dessert`, `petit-dejeuner`, `boisson`, `fait-maison`) sont désormais importées en haut de fichier (`import xIcon from "../../assets/icons/x.svg"`) au lieu d'un chemin `src/...` en dur dans `CATEGORY_CONFIG`. |
 
 Vérifié : `npm run build` produit bien les 6 SVG hashés dans `dist/assets/` (absents avant le correctif) ; en preview, le `mask-image` de l'icône "Plat" du repas du jour résout et charge (200) correctement.
 
@@ -441,8 +517,8 @@ L'utilisateur voulait un vrai bouton de validation (coche/croix) sur les lignes 
 
 | Fichier | Changement |
 |---|---|
-| `src/components/meals/MealsView.js` | `extraRecipeRow()` : le bouton affiche désormais `"○"` quand non validé et `"✓"` (style `.on`, vert) une fois validé, au lieu de `"✓"` dans les deux cas. |
-| `src/App.js` | `handleToggleCookWithInventory()` : le toast s'affiche désormais systématiquement quand un repas lié à l'inventaire est marqué cuisiné — "Les ingrédients ont bien été déduits de votre inventaire" (avec Annuler) si `deductedAny`, sinon "Aucun ingrédient de cette recette n'a été trouvé dans l'inventaire". |
+| `src/app/pages/meals/MealsView.js` | `extraRecipeRow()` : le bouton affiche désormais `"○"` quand non validé et `"✓"` (style `.on`, vert) une fois validé, au lieu de `"✓"` dans les deux cas. |
+| `src/app/App.js` | `handleToggleCookWithInventory()` : le toast s'affiche désormais systématiquement quand un repas lié à l'inventaire est marqué cuisiné — "Les ingrédients ont bien été déduits de votre inventaire" (avec Annuler) si `deductedAny`, sinon "Aucun ingrédient de cette recette n'a été trouvé dans l'inventaire". |
 
 Vérifié en preview (accessibilité + `preview_inspect` sur `.app-toast` + logs console) : ajout d'un dessert ("Compote pomme poire maison") avec "Lié à l'inventaire" actif → clic sur le bouton passe de ○ à ✓ (fond vert) et le toast apparaît en bas de l'écran à chaque validation.
 
@@ -452,7 +528,7 @@ L'utilisateur classe ses items de pense-bête après coup (via les boutons ✅ T
 
 | Fichier | Changement |
 |---|---|
-| `src/components/inbox/InboxView.js` | Suppression de la `ibx-hint-row` (les 3 chips "Tâche/Événement/Note" affichés sous le champ de saisie) et de l'état `selectedHint` associé. `handleAdd()` appelle désormais `onAddInboxItem(text, null)` — le hint n'est plus choisi à la capture, seulement au tri via les boutons de dispatch existants sur chaque item. |
+| `src/app/pages/inbox/InboxView.js` | Suppression de la `ibx-hint-row` (les 3 chips "Tâche/Événement/Note" affichés sous le champ de saisie) et de l'état `selectedHint` associé. `handleAdd()` appelle désormais `onAddInboxItem(text, null)` — le hint n'est plus choisi à la capture, seulement au tri via les boutons de dispatch existants sur chaque item. |
 
 Vérifié en preview : le champ de saisie du pense-bête n'affiche plus que le textarea et "+ Capturer" ; le tri par item (✅/📅/📝) fonctionne toujours normalement.
 
@@ -462,8 +538,8 @@ Premier essai : garder les colonnes par personne et juste ajouter un en-tête de
 
 | Fichier | Changement |
 |---|---|
-| `src/components/history/HistoryView.js` | Restructuration complète. `groupByDay()` regroupe tout `history` (déjà trié plus récent → plus ancien via `unshift`) par `entry.date`. Pour chaque jour, `groupByUser()` sous-groupe les entrées par personne. Rendu : une section par jour (`.history-day`, titre via `dayLabel()` = "Aujourd'hui"/"Hier"/date), contenant une grille de cartes personne (`.history-person-card`, réutilise `.history-column-head`/`.history-column-body`/`.history-entry*`). |
-| `src/styles.css` | `.history-columns`/`.history-column` renommés `.history-day-cards`/`.history-person-card` (et leurs variantes dark mode / `.mrd-shell`). Nouvelles classes `.history-feed` (colonne verticale des jours) et `.history-day-title` (titre de section par date). |
+| `src/app/pages/history/HistoryView.js` | Restructuration complète. `groupByDay()` regroupe tout `history` (déjà trié plus récent → plus ancien via `unshift`) par `entry.date`. Pour chaque jour, `groupByUser()` sous-groupe les entrées par personne. Rendu : une section par jour (`.history-day`, titre via `dayLabel()` = "Aujourd'hui"/"Hier"/date), contenant une grille de cartes personne (`.history-person-card`, réutilise `.history-column-head`/`.history-column-body`/`.history-entry*`). |
+| `src/theme/styles.css` | `.history-columns`/`.history-column` renommés `.history-day-cards`/`.history-person-card` (et leurs variantes dark mode / `.mrd-shell`). Nouvelles classes `.history-feed` (colonne verticale des jours) et `.history-day-title` (titre de section par date). |
 
 ## [2026-07-09] — Nav du bas : bouton "Plus" (accès rapide) à la place de "Listes"
 
@@ -471,8 +547,8 @@ L'onglet "Listes" de la nav du bas était le seul accès direct à Notes/Inventa
 
 | Fichier | Changement |
 |---|---|
-| `src/components/nav/BottomNav.js` | Remplacement de l'onglet "Listes" par un bouton "Plus" (icône +) qui ouvre un menu popup au-dessus de la nav avec 5 accès : Listes, Notes, Inventaire, Recettes, Historique. Fermeture au clic extérieur (`mousedown` sur `document`) ou après sélection d'un item. |
-| `src/styles.css` | Nouvelles classes `.mrd-bnav-quick-wrap`, `.mrd-bnav-quick-menu`, `.mrd-bnav-quick-item(-emoji)` (+ variantes dark mode), inspirées du pattern `task-menu-*` déjà utilisé ailleurs (ex. kebab menu de `ListsView.js`). |
+| `src/app/components/nav/BottomNav.js` | Remplacement de l'onglet "Listes" par un bouton "Plus" (icône +) qui ouvre un menu popup au-dessus de la nav avec 5 accès : Listes, Notes, Inventaire, Recettes, Historique. Fermeture au clic extérieur (`mousedown` sur `document`) ou après sélection d'un item. |
+| `src/theme/styles.css` | Nouvelles classes `.mrd-bnav-quick-wrap`, `.mrd-bnav-quick-menu`, `.mrd-bnav-quick-item(-emoji)` (+ variantes dark mode), inspirées du pattern `task-menu-*` déjà utilisé ailleurs (ex. kebab menu de `ListsView.js`). |
 
 Vérifié en preview : ouverture/fermeture du menu et navigation vers chacun des 5 items fonctionnent.
 
@@ -482,8 +558,8 @@ Depuis l'ajout du bouton "Plus" dans la nav du bas (Notes/Inventaire/Recettes/Hi
 
 | Fichier | Changement |
 |---|---|
-| `src/components/home/HomeView.js` | Suppression de la section "Accès rapide" (grille de 4 boutons) et de la constante `QUICK_ITEMS` devenue inutile. `marginBottom: 24` déplacé sur la section "Pense-bête à trier", désormais la dernière section de la page, pour conserver l'espacement en bas. |
-| `src/styles.css` | Suppression des classes CSS devenues orphelines : `.mrd-quick-grid`, `.mrd-quick-btn`, `.mrd-quick-btn-icon-wrap`, `.mrd-quick-btn-icon`, `.mrd-quick-badge`, `.mrd-quick-btn-label`. |
+| `src/app/pages/home/HomeView.js` | Suppression de la section "Accès rapide" (grille de 4 boutons) et de la constante `QUICK_ITEMS` devenue inutile. `marginBottom: 24` déplacé sur la section "Pense-bête à trier", désormais la dernière section de la page, pour conserver l'espacement en bas. |
+| `src/theme/styles.css` | Suppression des classes CSS devenues orphelines : `.mrd-quick-grid`, `.mrd-quick-btn`, `.mrd-quick-btn-icon-wrap`, `.mrd-quick-btn-icon`, `.mrd-quick-badge`, `.mrd-quick-btn-label`. |
 
 Vérifié en preview (`preview_snapshot` + `preview_screenshot`) : la section a bien disparu de l'accueil, l'espacement en bas de page est conservé, et les 4 accès restent disponibles via le bouton "Plus" de la nav du bas.
 
@@ -545,7 +621,7 @@ Ajout de Vite comme bundler et intégration Capacitor pour produire des apps nat
 | `package.json` | Ajout deps : `react`, `react-dom`, `htm`, `firebase`, `@capacitor/core`, `@capacitor/android`, `@capacitor/ios` ; devDeps : `vite`, `@capacitor/cli` ; scripts : `dev`, `build`, `preview`, `cap:sync`. |
 | `vite.config.js` | Nouveau fichier — configuration Vite minimale (`publicDir: "public"`, `build.outDir: "dist"`). |
 | `capacitor.config.json` | Nouveau fichier — `appId: "com.myrollingday.app"`, `webDir: "dist"`, `androidScheme: "https"`. |
-| `src/lib.js` | Imports CDN esm.sh → npm `react`, `react-dom/client`, `htm`. |
+| `src/app/lib.js` | Imports CDN esm.sh → npm `react`, `react-dom/client`, `htm`. |
 | `src/firebase/*.js` (7 fichiers) | Imports CDN gstatic.com → npm `firebase/app`, `firebase/auth`, `firebase/firestore`, `firebase/messaging`. |
 | Tous les `.js` de `src/` (32 fichiers) | Suppression des suffixes `?v=xxx` sur les imports locaux (Vite gère le versioning à la build). |
 | `index.html` | Suppression des `?v=xxx` sur les attributs `href` / `src`. |
@@ -566,9 +642,9 @@ Si une tâche de l'onglet **Semaine** (non récurrente) n'est pas cochée 3 jour
 | Fichier | Changement |
 |---------|------------|
 | `functions/index.js` | Ajout du helper `extractTimestampFromId` (extrait le timestamp du champ `id` de la forme `task-{ms}`). Section 4 dans `checkTasksForFamily` : filtre `type === "weekly"` + `taskKind !== "recurring"` + non terminée + âge ≥ 3 jours. Anti-spam `srv-task-weekly-3d-{taskId}` (expire 3 jours → relance si toujours en attente). Contrôlé par `settings.weeklyReminder !== false`. |
-| `src/utils/state.js` | `normalizeState` → `taskNotifications.weeklyReminder: state.taskNotifications?.weeklyReminder !== false` (activé par défaut). Version `?v=2026-05-28-weekly-notif-1`. |
-| `src/components/settings/SettingsView.js` | Ajout de `weeklyReminder` dans l'objet `notif` et dans `activeNotificationItems`. Nouveau toggle 📆 "Taches hebdomadaires en attente" dans la section "Types d'alertes" (en dernier, avec `last`). Version `?v=2026-05-28-weekly-notif-1`. |
-| `src/App.js` | Mise à jour des versions d'import `state.js` et `SettingsView.js`. |
+| `src/app/utils/state.js` | `normalizeState` → `taskNotifications.weeklyReminder: state.taskNotifications?.weeklyReminder !== false` (activé par défaut). Version `?v=2026-05-28-weekly-notif-1`. |
+| `src/app/pages/settings/SettingsView.js` | Ajout de `weeklyReminder` dans l'objet `notif` et dans `activeNotificationItems`. Nouveau toggle 📆 "Taches hebdomadaires en attente" dans la section "Types d'alertes" (en dernier, avec `last`). Version `?v=2026-05-28-weekly-notif-1`. |
+| `src/app/App.js` | Mise à jour des versions d'import `state.js` et `SettingsView.js`. |
 
 ---
 
@@ -586,12 +662,12 @@ Chaque fois qu'une tâche est créée dans le planner, tous les membres du foyer
 
 | Fichier | Changement |
 |---------|------------|
-| `src/firebase/clientFamily.js` | `createHouseholdInvitation` : supprime la garde `if (person.linkedAccountId)` qui bloquait la création d'un code pour un membre dont le compte était déjà lié. La sécurité reste assurée côté `acceptHouseholdInvitation` : seul le même uid peut ré-accepter le code. Utile quand un membre perd l'accès au foyer (ex. `currentFamilyId` réinitialisé ou document membre manquant) — le ré-accept recrée le document membre et remet `currentFamilyId` à jour. Version `?v=2026-05-26-reinvite-linked-1`. |
-| `src/firebase/client.js` | Mise à jour du numéro de version de `clientFamily.js`. |
-| `src/components/settings/SettingsView.js` | (1) `editModalCanInvite` : retire `!editModalPerson.linkedAccountId` → bouton visible même si compte déjà lié. (2) Passe `linkedAccount={editModalLinkedAccount}` à `EditMemberModal`. Version `?v=2026-05-26-reinvite-linked-1`. |
-| `src/components/settings/SettingsModals.js` | `EditMemberModal` : (1) nouveau prop `linkedAccount` ; (2) affiche l'email du compte lié sous le nom dans l'en-tête de la modal ; (3) label du bouton → `"Recréer l'accès"` si compte déjà lié, sinon `"Recreer un code"` / `"Creer un code"`. |
-| `src/styles.css` | Ajout de `.foyer-modal-member-info`, `.foyer-modal-member-email`, `.foyer-modal-member-email--unknown` pour l'affichage de l'email sous le nom. |
-| `src/App.js` | Mise à jour du numéro de version de `SettingsView.js`. |
+| `src/app/providers/clientFamily.js` | `createHouseholdInvitation` : supprime la garde `if (person.linkedAccountId)` qui bloquait la création d'un code pour un membre dont le compte était déjà lié. La sécurité reste assurée côté `acceptHouseholdInvitation` : seul le même uid peut ré-accepter le code. Utile quand un membre perd l'accès au foyer (ex. `currentFamilyId` réinitialisé ou document membre manquant) — le ré-accept recrée le document membre et remet `currentFamilyId` à jour. Version `?v=2026-05-26-reinvite-linked-1`. |
+| `src/app/providers/client.js` | Mise à jour du numéro de version de `clientFamily.js`. |
+| `src/app/pages/settings/SettingsView.js` | (1) `editModalCanInvite` : retire `!editModalPerson.linkedAccountId` → bouton visible même si compte déjà lié. (2) Passe `linkedAccount={editModalLinkedAccount}` à `EditMemberModal`. Version `?v=2026-05-26-reinvite-linked-1`. |
+| `src/app/modals/SettingsModals.js` | `EditMemberModal` : (1) nouveau prop `linkedAccount` ; (2) affiche l'email du compte lié sous le nom dans l'en-tête de la modal ; (3) label du bouton → `"Recréer l'accès"` si compte déjà lié, sinon `"Recreer un code"` / `"Creer un code"`. |
+| `src/theme/styles.css` | Ajout de `.foyer-modal-member-info`, `.foyer-modal-member-email`, `.foyer-modal-member-email--unknown` pour l'affichage de l'email sous le nom. |
+| `src/app/App.js` | Mise à jour du numéro de version de `SettingsView.js`. |
 
 ---
 
@@ -611,7 +687,7 @@ Le formulaire de création/édition d'événement masquait complètement la sect
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/agenda/AgendaView.js` | Suppression du `!form.repeatWeekly ?` qui cachait le toggle 🔔 ; `enabled: agendaNotifEnabled && !repeatWeekly` → `enabled: agendaNotifEnabled` ; `sentKeys` lookup utilise `recurringItems` quand `editing.entryKind === "recurring"` |
+| `src/app/pages/agenda/AgendaView.js` | Suppression du `!form.repeatWeekly ?` qui cachait le toggle 🔔 ; `enabled: agendaNotifEnabled && !repeatWeekly` → `enabled: agendaNotifEnabled` ; `sentKeys` lookup utilise `recurringItems` quand `editing.entryKind === "recurring"` |
 
 ---
 
@@ -622,7 +698,7 @@ Les événements récurrents (hebdomadaires, quotidiens, mensuels) avec une noti
 | Fichier | Changement |
 |---------|------------|
 | `functions/index.js` | `checkAgendaForFamily` accepte maintenant `recurringEvents` en paramètre. Pour chaque récurrent avec `notification.enabled`, calcule si l'événement se produit aujourd'hui (`daily` / `weekday` / `dayOfMonth`), puis applique la même logique de fenêtre 5 min et d'anti-spam que les événements ponctuels. Clé anti-spam : `srv-recur-{id}-{dateKey}-{start}-{min}`. Appel mis à jour pour passer `recurringEvents`. |
-| `src/components/agenda/AgendaView.js` | Ajout de `recurringRef` + `onUpdateRecurringRef`. Le `checkAgendaNotifications` (vérifié toutes les 30 s) parcourt maintenant aussi les récurrents, calcule si l'occurrence est aujourd'hui, et stocke la `sentKey` dans `event.notification.sentKeys` via `onUpdateRecurring` pour l'anti-spam. |
+| `src/app/pages/agenda/AgendaView.js` | Ajout de `recurringRef` + `onUpdateRecurringRef`. Le `checkAgendaNotifications` (vérifié toutes les 30 s) parcourt maintenant aussi les récurrents, calcule si l'occurrence est aujourd'hui, et stocke la `sentKey` dans `event.notification.sentKeys` via `onUpdateRecurring` pour l'anti-spam. |
 
 ---
 
@@ -638,7 +714,7 @@ La notification est active par défaut. L'heure se règle dans Réglages → Not
 | Fichier | Changement |
 |---------|------------|
 | `functions/index.js` | `checkTasksForFamily` : filtre `t.type === "daily"` → `daily OU dueDate === aujourd'hui` ; nouveau message |
-| `src/hooks/useTaskNotifications.js` | Même correctif pour la notif client (app ouverte) |
+| `src/app/hooks/useTaskNotifications.js` | Même correctif pour la notif client (app ouverte) |
 
 ---
 
@@ -675,7 +751,7 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/App.js` | `taskAppearsInTab` : si `tab === "daily"` et que la tâche a une entrée agenda (`planning.dateKey`) correspondant à la date du jour (`localDateKey(getCurrentAppDate())`), la tâche apparaît dans l'onglet quotidien quelle que soit son `type` (hebdo, mensuel, etc.). Les tâches "daily" restent toujours visibles. Les tâches deadline gardent leur section dédiée. Pas d'impact sur l'onglet "Mes tâches". |
+| `src/app/App.js` | `taskAppearsInTab` : si `tab === "daily"` et que la tâche a une entrée agenda (`planning.dateKey`) correspondant à la date du jour (`localDateKey(getCurrentAppDate())`), la tâche apparaît dans l'onglet quotidien quelle que soit son `type` (hebdo, mensuel, etc.). Les tâches "daily" restent toujours visibles. Les tâches deadline gardent leur section dédiée. Pas d'impact sur l'onglet "Mes tâches". |
 
 ---
 
@@ -683,8 +759,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/settings/SettingsView.js` | Suppression des boutons ronds ✏️ (dans l'en-tête) et 🗑️ (rond dans actions). Remplacement par deux boutons texte `households-switch-btn--edit` (« ✏️ Renommer » / « ✕ Annuler ») et `households-switch-btn--danger` (« Supprimer ») dans une nouvelle div `.households-row-actions-right`, cohérents avec « Changer de foyer » / « + Ajouter un membre ». |
-| `src/styles.css` | Suppression de `.households-row-edit-btn` et `.households-delete-btn`. Ajout de `.households-row-actions-right`, `.households-switch-btn--edit`, `.households-switch-btn--danger` et leurs variantes dark mode. |
+| `src/app/pages/settings/SettingsView.js` | Suppression des boutons ronds ✏️ (dans l'en-tête) et 🗑️ (rond dans actions). Remplacement par deux boutons texte `households-switch-btn--edit` (« ✏️ Renommer » / « ✕ Annuler ») et `households-switch-btn--danger` (« Supprimer ») dans une nouvelle div `.households-row-actions-right`, cohérents avec « Changer de foyer » / « + Ajouter un membre ». |
+| `src/theme/styles.css` | Suppression de `.households-row-edit-btn` et `.households-delete-btn`. Ajout de `.households-row-actions-right`, `.households-switch-btn--edit`, `.households-switch-btn--danger` et leurs variantes dark mode. |
 
 ---
 
@@ -692,7 +768,7 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/styles.css` | Dans `.households-rename-row` (flex row), le bouton Valider héritait de `.settings-valider-btn { width: 100% }` prévu pour les contextes flex-column. Cela écrasait l'input (flex: 1) à une largeur quasi nulle, rendant la saisie impossible. Ajout de `.households-rename-input { min-width: 0 }` et override `.households-rename-row .settings-valider-btn { width: auto; flex-shrink: 0; padding-left/right: 16px }` pour que l'input prenne tout l'espace disponible et le bouton sa taille naturelle. |
+| `src/theme/styles.css` | Dans `.households-rename-row` (flex row), le bouton Valider héritait de `.settings-valider-btn { width: 100% }` prévu pour les contextes flex-column. Cela écrasait l'input (flex: 1) à une largeur quasi nulle, rendant la saisie impossible. Ajout de `.households-rename-input { min-width: 0 }` et override `.households-rename-row .settings-valider-btn { width: auto; flex-shrink: 0; padding-left/right: 16px }` pour que l'input prenne tout l'espace disponible et le bouton sa taille naturelle. |
 
 ---
 
@@ -700,8 +776,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/hooks/useAuth.js` | Nouvel effet `auto-fallback` : quand `familiesReady = true`, que `currentFamilyId` est défini, mais que `currentFamily === null` (foyer introuvable dans la liste chargée — accès refusé, document supprimé, etc.), bascule automatiquement sur le premier foyer accessible dans `safeFamilies`. Évite qu'un utilisateur ayant rejoint un nouveau foyer soit bloqué en mode onboarding après déconnexion/reconnexion si son `currentFamilyId` pointait encore sur l'ancien foyer. Version `?v=2026-05-25-auto-fallback-1`. |
-| `src/App.js` | Mise à jour du numéro de version de `useAuth.js`. |
+| `src/app/hooks/useAuth.js` | Nouvel effet `auto-fallback` : quand `familiesReady = true`, que `currentFamilyId` est défini, mais que `currentFamily === null` (foyer introuvable dans la liste chargée — accès refusé, document supprimé, etc.), bascule automatiquement sur le premier foyer accessible dans `safeFamilies`. Évite qu'un utilisateur ayant rejoint un nouveau foyer soit bloqué en mode onboarding après déconnexion/reconnexion si son `currentFamilyId` pointait encore sur l'ancien foyer. Version `?v=2026-05-25-auto-fallback-1`. |
+| `src/app/App.js` | Mise à jour du numéro de version de `useAuth.js`. |
 
 ---
 
@@ -709,9 +785,9 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/firebase/clientFamily.js` | `watchFamilies` : (1) déduplique les IDs avec `[...new Set(...)]` pour éviter le stall si `familyIds` contient des doublons ; (2) dans le callback d'erreur de `onSnapshot`, appelle désormais `cacheStates.set(familyId, false)` puis `fireIfReady()` — sans ça, si un foyer renvoie une erreur Firestore (ex. règle de sécurité refusée), la garde `cacheStates.size < ids.length` restait bloquée et le callback principal n'était jamais appelé, laissant `families` figé sur l'ancien foyer unique. Version `?v=2026-05-25-watch-families-fix-1`. |
-| `src/firebase/client.js` | Mise à jour du numéro de version de `clientFamily.js`. |
-| `src/hooks/useAuth.js` | Mise à jour du numéro de version de `client.js`. |
+| `src/app/providers/clientFamily.js` | `watchFamilies` : (1) déduplique les IDs avec `[...new Set(...)]` pour éviter le stall si `familyIds` contient des doublons ; (2) dans le callback d'erreur de `onSnapshot`, appelle désormais `cacheStates.set(familyId, false)` puis `fireIfReady()` — sans ça, si un foyer renvoie une erreur Firestore (ex. règle de sécurité refusée), la garde `cacheStates.size < ids.length` restait bloquée et le callback principal n'était jamais appelé, laissant `families` figé sur l'ancien foyer unique. Version `?v=2026-05-25-watch-families-fix-1`. |
+| `src/app/providers/client.js` | Mise à jour du numéro de version de `clientFamily.js`. |
+| `src/app/hooks/useAuth.js` | Mise à jour du numéro de version de `client.js`. |
 
 ---
 
@@ -719,10 +795,10 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/utils/state.js` | Ajout de `lunchStarterCooked`, `lunchDessertCooked`, `dinnerStarterCooked`, `dinnerDessertCooked` dans `createMealShell` et `normalizeMeal`. Version `?v=2026-05-25-extras-inventory-cook-1`. |
-| `src/App.js` | `computeMealCookState` accepte un 5e param `subSlot` (`"main"` / `"starter"` / `"dessert"`) pour choisir la bonne clé recette et cuisiné. `handleToggleCookWithInventory` accepte un 4e param `subSlot` et passe la bonne `cookedKey` dans l'annulation toast. Version `MealsView.js` et `state.js` → `?v=2026-05-25-extras-inventory-cook-1`. |
-| `src/components/meals/MealsView.js` | Extraction de `checkInventoryAfterPick(recipe)` pour factoriser la vérification inventaire. `selectRecipe()` appelle cette fonction aussi pour entrée et dessert. `renderSlotExtras()` lit `starterCooked`/`dessertCooked` et passe un bouton 🍳 compact à `extraRecipeRow` qui appelle `onToggleCook(day, slot, wk, "starter"|"dessert")`. |
-| `src/styles.css` | Ajout de `.mrd-meals-cook-btn--sm` et `.mrd-meals-cook-btn--sm.on` : variante compacte du bouton cuisiné pour les extras (entrée/dessert). |
+| `src/app/utils/state.js` | Ajout de `lunchStarterCooked`, `lunchDessertCooked`, `dinnerStarterCooked`, `dinnerDessertCooked` dans `createMealShell` et `normalizeMeal`. Version `?v=2026-05-25-extras-inventory-cook-1`. |
+| `src/app/App.js` | `computeMealCookState` accepte un 5e param `subSlot` (`"main"` / `"starter"` / `"dessert"`) pour choisir la bonne clé recette et cuisiné. `handleToggleCookWithInventory` accepte un 4e param `subSlot` et passe la bonne `cookedKey` dans l'annulation toast. Version `MealsView.js` et `state.js` → `?v=2026-05-25-extras-inventory-cook-1`. |
+| `src/app/pages/meals/MealsView.js` | Extraction de `checkInventoryAfterPick(recipe)` pour factoriser la vérification inventaire. `selectRecipe()` appelle cette fonction aussi pour entrée et dessert. `renderSlotExtras()` lit `starterCooked`/`dessertCooked` et passe un bouton 🍳 compact à `extraRecipeRow` qui appelle `onToggleCook(day, slot, wk, "starter"|"dessert")`. |
+| `src/theme/styles.css` | Ajout de `.mrd-meals-cook-btn--sm` et `.mrd-meals-cook-btn--sm.on` : variante compacte du bouton cuisiné pour les extras (entrée/dessert). |
 
 ---
 
@@ -730,8 +806,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/settings/SettingsView.js` | Bouton 🗑️ conditionnel : visible uniquement si `isActive && canManageHousehold` (foyer courant + rôle admin). Pour les autres foyers (rôle inconnu côté client), le bouton est masqué — l'utilisateur doit d'abord basculer sur ce foyer puis supprimer. |
-| `src/App.js` | Version `SettingsView.js` → `?v=2026-05-24-households-manage-2`. |
+| `src/app/pages/settings/SettingsView.js` | Bouton 🗑️ conditionnel : visible uniquement si `isActive && canManageHousehold` (foyer courant + rôle admin). Pour les autres foyers (rôle inconnu côté client), le bouton est masqué — l'utilisateur doit d'abord basculer sur ce foyer puis supprimer. |
+| `src/app/App.js` | Version `SettingsView.js` → `?v=2026-05-24-households-manage-2`. |
 
 ---
 
@@ -739,10 +815,10 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/hooks/useAuth.js` | Ajout de `handleDeleteFamilyById(familyId)` : peut supprimer n'importe quel foyer de la liste (pas seulement le foyer actif), calcule le `nextFamilyId` automatiquement. Exporté. |
-| `src/components/settings/SettingsView.js` | Prop `onDeleteFamilyById` ajoutée. Dans la page **"Mes foyers"** : pour le foyer actif → bouton "➕ Ajouter un membre" (ouvre `settingsPage === "household"`) + 🗑️ ; pour les autres foyers → bouton "Changer de foyer". Dans la page **"Gérer le foyer"** : section "Autres foyers" entièrement supprimée (wizard + code d'invitation). |
-| `src/styles.css` | Ajout de `.households-row-actions`, `.households-row-actions-left`, `.households-delete-btn`, `.households-switch-btn`, `.households-switch-btn--add` + variantes dark. |
-| `src/App.js` | Destructure `handleDeleteFamilyById` depuis `useAuth`, prop `onDeleteFamilyById` passée au `<SettingsView>`. Version `SettingsView.js` → `?v=2026-05-24-households-manage-1`. |
+| `src/app/hooks/useAuth.js` | Ajout de `handleDeleteFamilyById(familyId)` : peut supprimer n'importe quel foyer de la liste (pas seulement le foyer actif), calcule le `nextFamilyId` automatiquement. Exporté. |
+| `src/app/pages/settings/SettingsView.js` | Prop `onDeleteFamilyById` ajoutée. Dans la page **"Mes foyers"** : pour le foyer actif → bouton "➕ Ajouter un membre" (ouvre `settingsPage === "household"`) + 🗑️ ; pour les autres foyers → bouton "Changer de foyer". Dans la page **"Gérer le foyer"** : section "Autres foyers" entièrement supprimée (wizard + code d'invitation). |
+| `src/theme/styles.css` | Ajout de `.households-row-actions`, `.households-row-actions-left`, `.households-delete-btn`, `.households-switch-btn`, `.households-switch-btn--add` + variantes dark. |
+| `src/app/App.js` | Destructure `handleDeleteFamilyById` depuis `useAuth`, prop `onDeleteFamilyById` passée au `<SettingsView>`. Version `SettingsView.js` → `?v=2026-05-24-households-manage-1`. |
 
 ---
 
@@ -750,9 +826,9 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/settings/SettingsView.js` | Nouvelle page `settingsPage === "households"` : liste de tous les foyers avec statut actif, switch, renommage inline (foyer actif + admin). La section "Changer de foyer" (chips) est remplacée par un lien "Mes foyers (N) →". |
-| `src/styles.css` | Ajout des classes `.households-row`, `.households-row--active`, `.households-row-name`, `.households-row-badge`, `.households-row-edit-btn`, `.households-rename-row`, `.households-switch-btn`, `.households-manage-link` + variantes dark. |
-| `src/App.js` | Version `SettingsView.js` → `?v=2026-05-24-households-page-1`. |
+| `src/app/pages/settings/SettingsView.js` | Nouvelle page `settingsPage === "households"` : liste de tous les foyers avec statut actif, switch, renommage inline (foyer actif + admin). La section "Changer de foyer" (chips) est remplacée par un lien "Mes foyers (N) →". |
+| `src/theme/styles.css` | Ajout des classes `.households-row`, `.households-row--active`, `.households-row-name`, `.households-row-badge`, `.households-row-edit-btn`, `.households-rename-row`, `.households-switch-btn`, `.households-manage-link` + variantes dark. |
+| `src/app/App.js` | Version `SettingsView.js` → `?v=2026-05-24-households-page-1`. |
 
 ---
 
@@ -760,9 +836,9 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/settings/NewHouseholdWizard.js` | **Nouveau fichier** — wizard multi-étapes (nom du foyer → membres → invitations). Réutilise les classes CSS de l'onboarding (`.onboarding-step`, `.onb-step-dots`, `.onb-kind-tab`, `.onb-member-*`, etc.). S'ouvre en modal overlay. |
-| `src/components/settings/SettingsView.js` | Import de `NewHouseholdWizard`, nouvelle prop `onCreateFamilyWizard`, état `showNewHouseholdWizard`. Le bouton "Créer un nouveau foyer" remplace l'ancien champ texte + bouton. |
-| `src/App.js` | Prop `onCreateFamilyWizard` → `handleCreateHouseholdOnboarding` (crée le foyer + membres + invitations). Version `SettingsView.js` → `?v=2026-05-24-household-wizard-1`. |
+| `src/app/pages/settings/NewHouseholdWizard.js` | **Nouveau fichier** — wizard multi-étapes (nom du foyer → membres → invitations). Réutilise les classes CSS de l'onboarding (`.onboarding-step`, `.onb-step-dots`, `.onb-kind-tab`, `.onb-member-*`, etc.). S'ouvre en modal overlay. |
+| `src/app/pages/settings/SettingsView.js` | Import de `NewHouseholdWizard`, nouvelle prop `onCreateFamilyWizard`, état `showNewHouseholdWizard`. Le bouton "Créer un nouveau foyer" remplace l'ancien champ texte + bouton. |
+| `src/app/App.js` | Prop `onCreateFamilyWizard` → `handleCreateHouseholdOnboarding` (crée le foyer + membres + invitations). Version `SettingsView.js` → `?v=2026-05-24-household-wizard-1`. |
 
 **Flux wizard :**
 1. **Nom du foyer** — champ texte + 4 suggestions rapides
@@ -775,11 +851,11 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/firebase/clientFamily.js` | Ajout de `deleteFamily({ familyId, user, nextFamilyId })` : vérifie le rôle admin, charge members/people/invitations/joinEvents, met à jour chaque profil utilisateur membre (retire familyId, vide currentFamilyId, supprime linkedMemberIdsByHousehold), supprime tous les docs en batch. |
-| `src/firebase/client.js` | Version `clientFamily.js` → `?v=2026-05-24-delete-household-1`. |
-| `src/hooks/useAuth.js` | Import de `deleteFamily` + version → `?v=2026-05-24-delete-household-1`. Nouveau `handleDeleteFamily()` (vérifie admin, calcule nextFamilyId, appelle `deleteFamily`, affiche un message de confirmation). Exporté. |
-| `src/components/settings/SettingsView.js` | Prop `onDeleteFamily` + handler `handleDeleteFamilyClick` avec double confirmation. Bouton "Supprimer le foyer" dans "Zone sensible", visible uniquement pour les admins (`canManageHousehold`). |
-| `src/App.js` | Destructure `handleDeleteFamily` depuis `useAuth`, versions `useAuth.js` et `SettingsView.js` → `?v=2026-05-24-delete-household-1`, prop `onDeleteFamily` passée au `<SettingsView>`. |
+| `src/app/providers/clientFamily.js` | Ajout de `deleteFamily({ familyId, user, nextFamilyId })` : vérifie le rôle admin, charge members/people/invitations/joinEvents, met à jour chaque profil utilisateur membre (retire familyId, vide currentFamilyId, supprime linkedMemberIdsByHousehold), supprime tous les docs en batch. |
+| `src/app/providers/client.js` | Version `clientFamily.js` → `?v=2026-05-24-delete-household-1`. |
+| `src/app/hooks/useAuth.js` | Import de `deleteFamily` + version → `?v=2026-05-24-delete-household-1`. Nouveau `handleDeleteFamily()` (vérifie admin, calcule nextFamilyId, appelle `deleteFamily`, affiche un message de confirmation). Exporté. |
+| `src/app/pages/settings/SettingsView.js` | Prop `onDeleteFamily` + handler `handleDeleteFamilyClick` avec double confirmation. Bouton "Supprimer le foyer" dans "Zone sensible", visible uniquement pour les admins (`canManageHousehold`). |
+| `src/app/App.js` | Destructure `handleDeleteFamily` depuis `useAuth`, versions `useAuth.js` et `SettingsView.js` → `?v=2026-05-24-delete-household-1`, prop `onDeleteFamily` passée au `<SettingsView>`. |
 
 ---
 
@@ -787,10 +863,10 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/home/HomeView.js` | Picker de foyer entièrement revu : cartes avec nom + membres + avatars pour le foyer actif, boutons "Créer un foyer" / "Rejoindre un foyer" en bas avec formulaire inline (mode `create`/`join` avec `← Retour`). Le bouton ▾ est maintenant **toujours visible** (même avec un seul foyer). Nouveaux props : `onCreateFamily`, `onJoinFamily`. |
-| `src/App.js` | Passage de `onCreateFamily` et `onJoinFamily` à `HomeView`. |
-| `src/components/settings/SettingsView.js` | **Carte principale Foyer** : blocs "Créer" et "Rejoindre" désormais masqués si un foyer actif existe (gardés uniquement pour l'onboarding). **Sous-page "Gérer le foyer en détail"** : nouveau groupe "Autres foyers" (créer + rejoindre) ajouté juste avant "Zone sensible". |
-| `src/styles.css` | Nouveaux styles : `.mrd-family-picker-card`, `.mrd-family-picker-action`, `.mrd-family-picker-back`, `.mrd-family-picker-form`, `.mrd-family-picker-input`, `.mrd-family-picker-submit`, etc. |
+| `src/app/pages/home/HomeView.js` | Picker de foyer entièrement revu : cartes avec nom + membres + avatars pour le foyer actif, boutons "Créer un foyer" / "Rejoindre un foyer" en bas avec formulaire inline (mode `create`/`join` avec `← Retour`). Le bouton ▾ est maintenant **toujours visible** (même avec un seul foyer). Nouveaux props : `onCreateFamily`, `onJoinFamily`. |
+| `src/app/App.js` | Passage de `onCreateFamily` et `onJoinFamily` à `HomeView`. |
+| `src/app/pages/settings/SettingsView.js` | **Carte principale Foyer** : blocs "Créer" et "Rejoindre" désormais masqués si un foyer actif existe (gardés uniquement pour l'onboarding). **Sous-page "Gérer le foyer en détail"** : nouveau groupe "Autres foyers" (créer + rejoindre) ajouté juste avant "Zone sensible". |
+| `src/theme/styles.css` | Nouveaux styles : `.mrd-family-picker-card`, `.mrd-family-picker-action`, `.mrd-family-picker-back`, `.mrd-family-picker-form`, `.mrd-family-picker-input`, `.mrd-family-picker-submit`, etc. |
 | `tests/unit/multi-family-source.test.js` | Test mis à jour pour refléter le nouveau comportement (create/join masqués dans la carte principale, présents dans la sous-page). |
 
 **Tests :** 18/18 ✅
@@ -814,12 +890,12 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/hooks/usePlannerSync.js` | Imports `firebase/client.js` mis à jour de `?v=2026-05-08-offline-cache-1` → `?v=2026-05-24-multi-family-1` (ligne 1 et 5 fusionnées en 1 import). |
-| `src/hooks/usePushMessaging.js` | Idem. |
-| `src/components/feedback/FeedbackWidget.js` | Idem. |
-| `src/components/settings/SettingsSupportPage.js` | Idem. |
-| `src/components/settings/SettingsView.js` | Import de `SettingsSupportPage.js` versionné (`?v=2026-05-24-multi-family-1`) pour invalider le cache. |
-| `src/App.js` | Versions mises à jour pour `usePlannerSync`, `usePushMessaging`, `FeedbackWidget`, `SettingsView`. |
+| `src/app/hooks/usePlannerSync.js` | Imports `firebase/client.js` mis à jour de `?v=2026-05-08-offline-cache-1` → `?v=2026-05-24-multi-family-1` (ligne 1 et 5 fusionnées en 1 import). |
+| `src/app/hooks/usePushMessaging.js` | Idem. |
+| `src/app/components/FeedbackWidget.js` | Idem. |
+| `src/app/pages/settings/SettingsSupportPage.js` | Idem. |
+| `src/app/pages/settings/SettingsView.js` | Import de `SettingsSupportPage.js` versionné (`?v=2026-05-24-multi-family-1`) pour invalider le cache. |
+| `src/app/App.js` | Versions mises à jour pour `usePlannerSync`, `usePushMessaging`, `FeedbackWidget`, `SettingsView`. |
 
 **Cause :** Lors de la refactorisation de `firebase/client.js` en sous-modules (`core.js`, `clientAuth.js`, etc.), `initializeApp(FIREBASE_CONFIG)` a été déplacé dans `core.js`. Mais plusieurs fichiers importaient encore `client.js` avec l'ancienne version `?v=2026-05-08-offline-cache-1`. Si le navigateur avait cette URL en cache avec l'**ancien** `client.js` monolithique (qui appelait aussi `initializeApp` directement), Firebase levait une erreur "App '[DEFAULT]' already exists" depuis gstatic.com (cross-origin) → `event.error` sans stack → handler bootstrap affichait **"Script error."** → écran "Démarrage bloqué" avant que React soit monté.
 
@@ -829,10 +905,10 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/auth/AuthScreen.js` | Suppression du blocage Google en mode PWA standalone. Le bouton "Continuer avec Google" est affiché sur toutes les pages (welcome, login, signup). `clientAuth.js` gère déjà le redirect vs popup automatiquement. |
+| `src/app/pages/auth/AuthScreen.js` | Suppression du blocage Google en mode PWA standalone. Le bouton "Continuer avec Google" est affiché sur toutes les pages (welcome, login, signup). `clientAuth.js` gère déjà le redirect vs popup automatiquement. |
 | `index.html` | Handler `window.addEventListener("error")` : ajout du filtre "Script error." (erreurs cross-origin CDN Firebase/gstatic sans info diagnostic) et d'un guard `__APP_BOOT_STATE__ === "react-mounted"` (ne remplace plus l'UI React). Même correction pour `unhandledrejection` : ignore FirebaseError et messaging/\*. |
-| `src/App.js` | `onAddTask` lambda : `(task) =>` → `(tab, form) =>` — passait seulement le 1er argument au lieu des 2 (`handleAddTask(type, form)`), causant `form = undefined` → crash à chaque création de tâche. |
-| `src/hooks/useAuth.js` | Ajout de `setCurrentFamily` aux imports Firebase. Utilisé par `handleSwitchFamily` mais manquant dans la liste. |
+| `src/app/App.js` | `onAddTask` lambda : `(task) =>` → `(tab, form) =>` — passait seulement le 1er argument au lieu des 2 (`handleAddTask(type, form)`), causant `form = undefined` → crash à chaque création de tâche. |
+| `src/app/hooks/useAuth.js` | Ajout de `setCurrentFamily` aux imports Firebase. Utilisé par `handleSwitchFamily` mais manquant dans la liste. |
 
 **Cause "démarrage bloqué / Script error." :** Une erreur cross-origin levée par Firebase CDN pendant l'usage (p.ex. lors d'une sauvegarde Firestore) se propageait au handler HTML inline qui ne filtrait pas ces messages — remplaçait toute l'UI par la page d'erreur bootstrap même en plein milieu d'une session.
 
@@ -842,8 +918,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/inbox/InboxView.js` | Refonte des formulaires de dispatch : les mini-forms inline sont remplacés par des **modales complètes** identiques aux formulaires natifs. Tâche : emoji picker, texte, période (aujourd'hui/semaine/mois/avant…), type (unique/récurrente), urgence, attribué à. Agenda : emoji picker, titre, date+heure, durée, attribué à, personne concernée, répéter. Note : texte, visibilité (Foyer/Privée), partage avec membres. Nouvelles props : `people`, `childProfiles`. |
-| `src/App.js` | Handlers `handleDispatchToTask`, `handleDispatchToAgenda`, `handleDispatchToNote` mis à jour pour accepter le payload complet (au lieu des paramètres individuels). `handleDispatchToAgenda` gère maintenant `repeatWeekly` → appelle `handleAddRecurring`. Props `people` et `childProfiles` ajoutées à `<InboxView>`. |
+| `src/app/pages/inbox/InboxView.js` | Refonte des formulaires de dispatch : les mini-forms inline sont remplacés par des **modales complètes** identiques aux formulaires natifs. Tâche : emoji picker, texte, période (aujourd'hui/semaine/mois/avant…), type (unique/récurrente), urgence, attribué à. Agenda : emoji picker, titre, date+heure, durée, attribué à, personne concernée, répéter. Note : texte, visibilité (Foyer/Privée), partage avec membres. Nouvelles props : `people`, `childProfiles`. |
+| `src/app/App.js` | Handlers `handleDispatchToTask`, `handleDispatchToAgenda`, `handleDispatchToNote` mis à jour pour accepter le payload complet (au lieu des paramètres individuels). `handleDispatchToAgenda` gère maintenant `repeatWeekly` → appelle `handleAddRecurring`. Props `people` et `childProfiles` ajoutées à `<InboxView>`. |
 
 **Avant :** tap "→ Tâche" ouvrait 3 chips quotidien/semaine/mois. **Après :** ouvre une modale complète avec toutes les options de `TasksView`. Idem pour agenda (toutes les options de `AgendaView`) et notes (visibilité + partage comme dans `NotesView`).
 
@@ -853,12 +929,12 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/utils/state.js` | Ajout de `state.inbox = []` dans `normalizeState()` avec normalisation des champs `id`, `text`, `hint`, `createdAt`, `createdBy`. |
-| `src/constants.js` | Ajout de `{ id: "inbox", label: "Inbox", icon: "📥" }` dans `TABS`. |
-| `src/components/inbox/InboxView.js` | **Nouveau composant.** Écran de capture rapide : textarea + chips de type optionnel (Tâche/Événement/Note) + liste d'items avec dispatch inline vers tâches (choix quotidien/semaine/mois), agenda (date picker + heure) ou notes (instantané). |
-| `src/styles.css` | Ajout des styles `.ibx-*` : add card, hint chips, items list, dispatch buttons, inline forms, section home. Dark mode inclus. |
-| `src/components/home/HomeView.js` | Nouveau prop `inbox`. Section "📥 Inbox" insérée entre "À venir" et "Accès rapide" — affiche jusqu'à 3 items avec badge de comptage et lien "Voir tout →". Masquée si inbox vide. |
-| `src/App.js` | Import `InboxView`. Ajout de `"inbox"` dans `secondaryScreens` et dans la map des titres. Handlers : `handleAddInboxItem`, `handleDeleteInboxItem`, `handleDispatchToTask`, `handleDispatchToAgenda`, `handleDispatchToNote`. Rendu `<InboxView>` dans `plannerContent`. Prop `inbox` passée à `HomeView`. |
+| `src/app/utils/state.js` | Ajout de `state.inbox = []` dans `normalizeState()` avec normalisation des champs `id`, `text`, `hint`, `createdAt`, `createdBy`. |
+| `src/app/config/constants.js` | Ajout de `{ id: "inbox", label: "Inbox", icon: "📥" }` dans `TABS`. |
+| `src/app/pages/inbox/InboxView.js` | **Nouveau composant.** Écran de capture rapide : textarea + chips de type optionnel (Tâche/Événement/Note) + liste d'items avec dispatch inline vers tâches (choix quotidien/semaine/mois), agenda (date picker + heure) ou notes (instantané). |
+| `src/theme/styles.css` | Ajout des styles `.ibx-*` : add card, hint chips, items list, dispatch buttons, inline forms, section home. Dark mode inclus. |
+| `src/app/pages/home/HomeView.js` | Nouveau prop `inbox`. Section "📥 Inbox" insérée entre "À venir" et "Accès rapide" — affiche jusqu'à 3 items avec badge de comptage et lien "Voir tout →". Masquée si inbox vide. |
+| `src/app/App.js` | Import `InboxView`. Ajout de `"inbox"` dans `secondaryScreens` et dans la map des titres. Handlers : `handleAddInboxItem`, `handleDeleteInboxItem`, `handleDispatchToTask`, `handleDispatchToAgenda`, `handleDispatchToNote`. Rendu `<InboxView>` dans `plannerContent`. Prop `inbox` passée à `HomeView`. |
 
 **Fonctionnement :** L'inbox est accessible depuis l'accueil (section dédiée visible dès le 1er item) et depuis `onNavigate("inbox")`. Chaque item peut être dispatchée en 2 taps (choisir destination → confirmer), puis est automatiquement retirée de l'inbox. Les données persistent via Firebase (sync `usePlannerSync`).
 
@@ -868,9 +944,9 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/constants.js` | `authDomain` corrigé : `"myrollingday.netlify.app"` → `"my-rolling-day.firebaseapp.com"`. L'ancienne valeur dirigeait le handler OAuth vers Netlify (404), ce qui cassait `signInWithPopup` en local. |
-| `src/firebase/clientAuth.js` | `console.error` du bloc popup enrichi avec `error?.message` et `error?.customData` (en plus de `error?.code` et `error` déjà présents). |
-| `src/hooks/useAuth.js` | Ajout de `console.error("[auth] runAuth error", ...)` avant `setAuthError(formatAuthError(error))` dans `runAuth()`. Ajout de `console.error("[auth] getGoogleRedirectResult error", ...)` avant `setAuthError` dans le catch du redirect. Les erreurs brutes ne sont plus masquées silencieusement par `formatAuthError`. |
+| `src/app/config/constants.js` | `authDomain` corrigé : `"myrollingday.netlify.app"` → `"my-rolling-day.firebaseapp.com"`. L'ancienne valeur dirigeait le handler OAuth vers Netlify (404), ce qui cassait `signInWithPopup` en local. |
+| `src/app/providers/clientAuth.js` | `console.error` du bloc popup enrichi avec `error?.message` et `error?.customData` (en plus de `error?.code` et `error` déjà présents). |
+| `src/app/hooks/useAuth.js` | Ajout de `console.error("[auth] runAuth error", ...)` avant `setAuthError(formatAuthError(error))` dans `runAuth()`. Ajout de `console.error("[auth] getGoogleRedirectResult error", ...)` avant `setAuthError` dans le catch du redirect. Les erreurs brutes ne sont plus masquées silencieusement par `formatAuthError`. |
 
 **Note Firebase Console** (non vérifiable en code) : s'assurer que `localhost` et `127.0.0.1` sont dans *Authentication → Authorized domains* et que le provider Google est activé sur https://console.firebase.google.com/project/my-rolling-day/authentication
 
@@ -880,10 +956,10 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/utils/storage.js` | Nouveau système `mrd_notif_prompt` (JSON) remplaçant le booléen `mrd_notifications_prompt_seen`. Fonctions : `shouldShowNotifPrompt()`, `markNotifPromptGranted()`, `markNotifPromptDismissed()`, `getNotifPromptDismissCount()`. Délais : 3j après 1er refus, 7j après 2e. Arrêt après 3 refus. Migration automatique de l'ancien booléen. |
-| `src/App.js` | Import des nouvelles fonctions storage. Récupération de `pushPermission` depuis `usePushMessaging`. Remplacement des 3× `alreadySeen` par `shouldShowNotifPrompt()`. `onActivate` → `markNotifPromptGranted()`, `onLater` → `markNotifPromptDismissed()`. Ajout d'une vérification au lancement de l'app (re-proposition si délai écoulé). |
-| `src/components/modals/AppModals.js` | `NotifPromptModal` reçoit `dismissCount` : titre et corps adaptés au 2e rappel, bouton "Non merci" au 3e. |
-| `src/components/agenda/AgendaView.js` | Suppression de la fonction morte `requestNotificationPermission()` (jamais appelée, sans FCM). |
+| `src/app/utils/storage.js` | Nouveau système `mrd_notif_prompt` (JSON) remplaçant le booléen `mrd_notifications_prompt_seen`. Fonctions : `shouldShowNotifPrompt()`, `markNotifPromptGranted()`, `markNotifPromptDismissed()`, `getNotifPromptDismissCount()`. Délais : 3j après 1er refus, 7j après 2e. Arrêt après 3 refus. Migration automatique de l'ancien booléen. |
+| `src/app/App.js` | Import des nouvelles fonctions storage. Récupération de `pushPermission` depuis `usePushMessaging`. Remplacement des 3× `alreadySeen` par `shouldShowNotifPrompt()`. `onActivate` → `markNotifPromptGranted()`, `onLater` → `markNotifPromptDismissed()`. Ajout d'une vérification au lancement de l'app (re-proposition si délai écoulé). |
+| `src/app/modals/AppModals.js` | `NotifPromptModal` reçoit `dismissCount` : titre et corps adaptés au 2e rappel, bouton "Non merci" au 3e. |
+| `src/app/pages/agenda/AgendaView.js` | Suppression de la fonction morte `requestNotificationPermission()` (jamais appelée, sans FCM). |
 
 ---
 
@@ -891,9 +967,9 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/history/HistoryView.js` | Remplacement de la vue "feed de tâches" par la version originale à colonnes par personne. Props : `history`, `users`, `onClearHistory`. Affiche un colonne par membre avec ses entrées, bouton "Effacer" en haut. |
-| `src/App.js` | Correction du rendu HistoryView : `tasks`/`people` remplacés par `history=${state.history}`, `users=${householdPeople}`, `onClearHistory=${handleClearHistory}`. Icône SVG du FAB agrandie de 22px → 26px. |
-| `src/styles.css` | Bouton FAB "+" agrandi de 52×52px → 64×64px. |
+| `src/app/pages/history/HistoryView.js` | Remplacement de la vue "feed de tâches" par la version originale à colonnes par personne. Props : `history`, `users`, `onClearHistory`. Affiche un colonne par membre avec ses entrées, bouton "Effacer" en haut. |
+| `src/app/App.js` | Correction du rendu HistoryView : `tasks`/`people` remplacés par `history=${state.history}`, `users=${householdPeople}`, `onClearHistory=${handleClearHistory}`. Icône SVG du FAB agrandie de 22px → 26px. |
+| `src/theme/styles.css` | Bouton FAB "+" agrandi de 52×52px → 64×64px. |
 
 ---
 
@@ -901,7 +977,7 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/tasks/TasksView.js` | Suppression du bouton 📦 "Archiver" par tâche, du bouton "Tout archiver" en titre de section, et de toute la section "Archives" (toggle + liste + bouton "Vider les archives" + bouton "Désarchiver"). Suppression de l'état `showArchived` et du `useMemo` `archivedTasks`. La section "Terminées" affiche maintenant les tâches directement sans wrapper ni bouton d'action. |
+| `src/app/pages/tasks/TasksView.js` | Suppression du bouton 📦 "Archiver" par tâche, du bouton "Tout archiver" en titre de section, et de toute la section "Archives" (toggle + liste + bouton "Vider les archives" + bouton "Désarchiver"). Suppression de l'état `showArchived` et du `useMemo` `archivedTasks`. La section "Terminées" affiche maintenant les tâches directement sans wrapper ni bouton d'action. |
 
 ---
 
@@ -909,8 +985,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/history/HistoryView.js` | Suppression des notes, des courses et des onglets de filtre. Le feed n'affiche plus que les tâches complétées. Compteur unique "X tâches complétées". Props `notes` et `lists` retirées. |
-| `src/App.js` | `HistoryView` ne reçoit plus que `tasks` et `people` (suppression de `notes` et `lists`). |
+| `src/app/pages/history/HistoryView.js` | Suppression des notes, des courses et des onglets de filtre. Le feed n'affiche plus que les tâches complétées. Compteur unique "X tâches complétées". Props `notes` et `lists` retirées. |
+| `src/app/App.js` | `HistoryView` ne reçoit plus que `tasks` et `people` (suppression de `notes` et `lists`). |
 
 ---
 
@@ -918,8 +994,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/lists/ListsView.js` | Remplacé par la version originale fournie par l'utilisateur. Suppression de tous les ajouts : champ `price` dans `itemForm`, calcul de totaux, widget budget, `onClearCheckedItems`, `onCheckAllItems`, section "Achetés" (devenu "Cochés"). Version originale restaurée intégralement. |
-| `src/App.js` | Suppression des props `onCheckAllItems` et `onClearCheckedItems` du render de `ListsView` (ces props n'existent plus dans le composant restauré). |
+| `src/app/pages/lists/ListsView.js` | Remplacé par la version originale fournie par l'utilisateur. Suppression de tous les ajouts : champ `price` dans `itemForm`, calcul de totaux, widget budget, `onClearCheckedItems`, `onCheckAllItems`, section "Achetés" (devenu "Cochés"). Version originale restaurée intégralement. |
+| `src/app/App.js` | Suppression des props `onCheckAllItems` et `onClearCheckedItems` du render de `ListsView` (ces props n'existent plus dans le composant restauré). |
 
 ---
 
@@ -936,8 +1012,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/history/HistoryView.js` | Onglet "Courses" ajouté aux filtres. `buildFeed` étendu : parcourt `lists[].items`, ajoute les articles `done + purchasedAt` (kind `"shopping"`, icon 🛒). Prop `lists = []` ajouté. Badge kind : "Courses" pour shopping. État vide adapté pour le filtre shopping. |
-| `src/App.js` | `HistoryView` reçoit maintenant `lists=${state.lists}`. |
+| `src/app/pages/history/HistoryView.js` | Onglet "Courses" ajouté aux filtres. `buildFeed` étendu : parcourt `lists[].items`, ajoute les articles `done + purchasedAt` (kind `"shopping"`, icon 🛒). Prop `lists = []` ajouté. Badge kind : "Courses" pour shopping. État vide adapté pour le filtre shopping. |
+| `src/app/App.js` | `HistoryView` reçoit maintenant `lists=${state.lists}`. |
 
 ---
 
@@ -945,8 +1021,8 @@ La clé dans `constants.js` (`FIREBASE_WEB_VAPID_KEY`) ne fait que **44 caractè
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/home/HomeView.js` | Ajout props `lists` et `inventory`. `searchResults` useMemo étendu : `listItemHits` (cherche dans `list.items[].text`, max 3, kind `"list-item"`, tab `"lists"`) et `inventoryHits` (cherche dans `item.name`, max 3, kind `"inventory"`, tab `"inventory"`). `KIND_EMOJI` mis à jour. Overlay de recherche : deux nouveaux groupes "Listes" et "Inventaire" rendus. |
-| `src/App.js` | `HomeView` reçoit maintenant `lists=${state.lists}` et `inventory=${state.inventory}`. |
+| `src/app/pages/home/HomeView.js` | Ajout props `lists` et `inventory`. `searchResults` useMemo étendu : `listItemHits` (cherche dans `list.items[].text`, max 3, kind `"list-item"`, tab `"lists"`) et `inventoryHits` (cherche dans `item.name`, max 3, kind `"inventory"`, tab `"inventory"`). `KIND_EMOJI` mis à jour. Overlay de recherche : deux nouveaux groupes "Listes" et "Inventaire" rendus. |
+| `src/app/App.js` | `HomeView` reçoit maintenant `lists=${state.lists}` et `inventory=${state.inventory}`. |
 
 ---
 
@@ -1262,7 +1338,7 @@ Tous les changements dans `App.js` — les callbacks sont wrappés pour afficher
 
 ## [2026-05-15] — Grille 2 colonnes avec photos dans la liste recettes
 
-`src/styles.css` — passage de la liste horizontale compacte à une grille photo 2 colonnes.
+`src/theme/styles.css` — passage de la liste horizontale compacte à une grille photo 2 colonnes.
 
 - `.recipes-page-rlist` → `display: grid; grid-template-columns: 1fr 1fr`
 - `.rcard.rcard-recipe` → `flex-direction: column; padding: 0; overflow: hidden`
@@ -1274,7 +1350,7 @@ Tous les changements dans `App.js` — les callbacks sont wrappés pour afficher
 
 ## [2026-05-15] — Fix scroll fiches recettes : ingrédients et condiments
 
-`src/styles.css` — 5 ajouts `flex-shrink: 0` + onglets sticky.
+`src/theme/styles.css` — 5 ajouts `flex-shrink: 0` + onglets sticky.
 
 **Problème** : `.recipe-sheet-body` est un flex-column avec `overflow-y: auto`. Le flex engine rétrécissait les enfants (flex-shrink par défaut = 1) pour qu'ils rentrent dans la hauteur disponible, au lieu de faire scroller le body. Le panel ingrédients se faisait clipper par `overflow: hidden`.
 
@@ -1320,7 +1396,7 @@ Composant `Tabs.js` supprimé — ancien système de navigation v1, remplacé pa
 
 ## [2026-05-13] — Nettoyage styles.css round 2 : suppressions chirurgicales + variables CSS
 
-`src/styles.css` : 74 lignes supplémentaires supprimées (6 181 → 6 107).
+`src/theme/styles.css` : 74 lignes supplémentaires supprimées (6 181 → 6 107).
 
 | Zone | Détail | Lignes |
 |------|--------|--------|
@@ -1342,7 +1418,7 @@ Composant `Tabs.js` supprimé — ancien système de navigation v1, remplacé pa
 
 ## [2026-05-13] — Nettoyage styles.css : suppression de 3 blocs CSS morts
 
-`src/styles.css` allégé de 386 lignes. Trois blocs de CSS mort supprimés.
+`src/theme/styles.css` allégé de 386 lignes. Trois blocs de CSS mort supprimés.
 
 | Bloc | Classes | Lignes supprimées | Lignes avant → après |
 |------|---------|-------------------|----------------------|
@@ -1379,10 +1455,10 @@ Graphe de dépendances : `core.js ← clientAuth.js ← clientFamily.js` ; les a
 ## [2026-05-13] — Refactoring SettingsView.js : découpage en 4 fichiers
 
 SettingsView.js est passé de ~82K (≈ 2000+ lignes) à 1 207 lignes par extraction de 4 responsabilités distinctes :
-- `src/components/settings/SettingsUI.js` (187 lignes) — constantes (BADGE_PALETTE, EMPTY_PERSON), utilitaires (calcAge, getNotificationPermissionState…) et composants UI partagés (SectionCard, SettingsRow, SettingsSwitch, ColorGrid, etc.)
-- `src/components/settings/SettingsLegal.js` (160 lignes) — données statiques TERMS_SECTIONS et composant PrivacyPolicyPage (politique de confidentialité en 14 sections)
-- `src/components/settings/SettingsModals.js` (216 lignes) — 3 modals extraits : EditMemberModal, AddPersonModal (avec son propre état interne), NewMemberInviteModal
-- `src/components/settings/SettingsSupportPage.js` (128 lignes) — page support/légal avec gestion du formulaire (état, envoi Firebase), contact, politique de confidentialité et CGU
+- `src/app/pages/settings/SettingsUI.js` (187 lignes) — constantes (BADGE_PALETTE, EMPTY_PERSON), utilitaires (calcAge, getNotificationPermissionState…) et composants UI partagés (SectionCard, SettingsRow, SettingsSwitch, ColorGrid, etc.)
+- `src/app/pages/settings/SettingsLegal.js` (160 lignes) — données statiques TERMS_SECTIONS et composant PrivacyPolicyPage (politique de confidentialité en 14 sections)
+- `src/app/modals/SettingsModals.js` (216 lignes) — 3 modals extraits : EditMemberModal, AddPersonModal (avec son propre état interne), NewMemberInviteModal
+- `src/app/pages/settings/SettingsSupportPage.js` (128 lignes) — page support/légal avec gestion du formulaire (état, envoi Firebase), contact, politique de confidentialité et CGU
 
 Aucune logique modifiée, seulement déplacée. Tous les imports mis à jour dans SettingsView.js. La variable `termsSections` inline remplacée par l'import `TERMS_SECTIONS`. Le composant `SettingsSupportPage` utilise `key=${supportPage}` pour réinitialiser son état à chaque changement de page.
 
@@ -1391,10 +1467,10 @@ Aucune logique modifiée, seulement déplacée. Tous les imports mis à jour dan
 ## [2026-05-13] — Refactoring App.js : découpage en 4 fichiers
 
 App.js est passé de ~1500 à ~1277 lignes par extraction de 4 responsabilités distinctes :
-- `src/utils/units.js` (72 lignes) — conversion d'unités, parsing de quantités, matching produits
-- `src/utils/personStorage.js` (49 lignes) — lecture/écriture localStorage pour personne active et mode appareil
-- `src/components/modals/AppModals.js` (136 lignes) — 4 modals extraits : ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal
-- `src/hooks/useAppRouting.js` (53 lignes) — logique de routage (needsFamilySetup, profileGuardActive, route-debug)
+- `src/app/utils/units.js` (72 lignes) — conversion d'unités, parsing de quantités, matching produits
+- `src/app/utils/personStorage.js` (49 lignes) — lecture/écriture localStorage pour personne active et mode appareil
+- `src/app/modals/AppModals.js` (136 lignes) — 4 modals extraits : ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal
+- `src/app/hooks/useAppRouting.js` (53 lignes) — logique de routage (needsFamilySetup, profileGuardActive, route-debug)
 
 Aucune logique modifiée, seulement déplacée. Tous les imports mis à jour dans App.js.
 
@@ -1448,17 +1524,17 @@ La liste des membres (sous-page Foyer) affichait `· code X7K2M9` sans tiret, al
 
 ### Fichiers modifiés
 
-**`src/components/auth/OnboardingFlow.js`**
+**`src/app/pages/auth/OnboardingFlow.js`**
 - Suppression de `makeInviteCode` (fonction entièrement retirée)
 - `InviteMembersStep` : remplacement de l'affichage du faux code par "Recevra un code"
 - Sous-titre de l'étape corrigé : "Un code leur sera attribué à la création du foyer"
 - Hint de bas de page corrigé : "Les codes seront affichés après la création du foyer"
 - `handleNext` sur `create-invite-members` : `inviteSelected` → `selectedSet` → `markedProfiles` avec `hasAccount: true` pour les profils sélectionnés
 
-**`src/components/settings/SettingsView.js`**
+**`src/app/pages/settings/SettingsView.js`**
 - Liste membres : `· code X7K2M9` → `· X7K-2M9` (format uniforme `XXX-XXX`)
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Version strings mis à jour : `OnboardingFlow.js?v=2026-05-08-invite-fix-1`, `SettingsView.js?v=2026-05-08-invite-fix-1`
 
 ### Source unique de vérité
@@ -1477,12 +1553,12 @@ Audit exhaustif du code source sans modification de logique métier. Lecture de 
 
 **Fichiers jamais documentés :**
 - `functions/index.js` (508 lignes) — Cloud Functions backend : notifications planifiées (5 min), gestion tokens FCM multi-appareils, anti-spam via `serverNotificationLog`
-- `src/hooks/usePushMessaging.js` — enregistrement token FCM côté client
-- `src/hooks/useTaskNotifications.js` — notifications locales (browser Notification API)
-- `src/components/auth/OnboardingFlow.js` — flux onboarding complet (3 modes : CREATE, JOIN, EXISTING-PROFILE)
-- `src/components/recipes/CategoryIcons.js`
-- `src/components/feedback/FeedbackWidget.js`
-- `src/firebase/messaging.js`
+- `src/app/hooks/usePushMessaging.js` — enregistrement token FCM côté client
+- `src/app/hooks/useTaskNotifications.js` — notifications locales (browser Notification API)
+- `src/app/pages/auth/OnboardingFlow.js` — flux onboarding complet (3 modes : CREATE, JOIN, EXISTING-PROFILE)
+- `src/app/pages/recipes/CategoryIcons.js`
+- `src/app/components/FeedbackWidget.js`
+- `src/app/providers/messaging.js`
 - `src/assets/`
 
 **Collections Firestore non documentées :**
@@ -1493,7 +1569,7 @@ Audit exhaustif du code source sans modification de logique métier. Lecture de 
 - `bug_reports/{id}`, `feature_requests/{id}`, `tester_feedback/{id}` — feedback utilisateurs
 
 **Fichiers morts confirmés :**
-- `src/components/family/FamilyPanel.js` — jamais importé, remplacé par SettingsView
+- `src/app/components/FamilyPanel.js` — jamais importé, remplacé par SettingsView
 - `src/components/Tabs.js` — jamais importé, remplacé par SegmentedTabs
 
 **Doublon confirmé :**
@@ -1555,14 +1631,14 @@ Audit exhaustif du code source sans modification de logique métier. Lecture de 
 
 ### Fichiers modifiés
 
-**`src/components/settings/SettingsView.js`**
+**`src/app/pages/settings/SettingsView.js`**
 - `settingsPage` n'est plus un état interne — devient prop reçue depuis App.js.
 - Nouvelle prop `onSettingsPageChange` (callback, même pattern que `onSupportPageChange`).
 - `goSettingsPage()` appelle `onSettingsPageChange()` au lieu de `setSettingsPage()`.
 - `SubPageHeader` : suppression du bouton `‹ Réglages`. Remplacement par un `<span className="settings-subpage-spacer">` des deux côtés pour garder le titre centré.
 - Tous les attributs `onBack` retirés des appels `<SubPageHeader />`.
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Nouveau state `settingsSubPage` (default `"main"`), réinitialisé à `"main"` à la déconnexion.
 - Props `settingsPage` et `onSettingsPageChange` passées à `<SettingsView>`.
 - Bouton ‹ Réglages du header : si `settingsSubPage !== "main"` → `setSettingsSubPage("main")` ; sinon ferme les réglages.
@@ -1576,7 +1652,7 @@ En mode standalone PWA iOS, `signInWithPopup` est bloqué (`auth/popup-not-suppo
 
 ### Fichiers modifiés
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `signInWithGoogle()` : si `isStandalonePwa()` → `signInWithRedirect` directement (flag `mrd_google_redirect_pending` en localStorage). Sinon → `signInWithPopup` avec fallback redirect élargi à `popup-not-supported` et `web-storage-unsupported`.
 - `formatAuthError()` : `auth/popup-not-supported` et `auth/web-storage-unsupported` retournent `""` (redirect déclenché silencieusement). `auth/unauthorized-domain` garde un message d'erreur neutre.
 
@@ -1592,15 +1668,15 @@ Enregistrer chaque appareil connecté dans `families/{familyId}/members/{uid}/de
 
 ### Fichiers modifiés
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `getOrCreateDeviceId()` (privée) : génère un ID stable par appareil dans localStorage (`mrd-device-id`).
 - `registerFcmDeviceToken({ uid, familyId, token })` (exportée) : écrit dans la subcollection `devices/{deviceId}`. Utilise `getDoc` pour distinguer création (setDoc + `createdAt`) et mise à jour (updateDoc sans `createdAt`).
 
-**`src/hooks/usePushMessaging.js`**
+**`src/app/hooks/usePushMessaging.js`**
 - Import de `registerFcmDeviceToken`.
 - `persistToken()` appelle maintenant aussi `registerFcmDeviceToken()` quand `familyId` est disponible.
 
-**`src/components/settings/SettingsView.js`**
+**`src/app/pages/settings/SettingsView.js`**
 - Remplacement du bouton `notification-status-line` par un `SettingsToggleRow` "Cet appareil" dans la sous-page Notifications.
 - Toggle ON → appelle `onRequestPushPermission()` directement (ou modal si "denied").
 - Toggle OFF (quand déjà granted) → modal explicatif (modifier les réglages du navigateur).
@@ -1612,10 +1688,10 @@ Enregistrer chaque appareil connecté dans `families/{familyId}/members/{uid}/de
 
 ### Fichiers modifiés
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Ajout de la classe `cnt--settings` sur le wrapper `cnt` qui contient `SettingsView`.
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - `.cnt--settings` : `padding: 0; background: #F7F2EC` (même fond que la page de connexion).
 - `.mrd-set-page` : ajout de `background: #F7F2EC`.
 - Dark mode : `.cnt--settings` et `.mrd-set-page` → `background: #100E0C`.
@@ -1629,7 +1705,7 @@ Dans `SettingsView.js`, `renderSettingsSubPage()` retourne tôt quand `settingsP
 
 ### Fichiers modifiés
 
-**`src/components/settings/SettingsView.js`**
+**`src/app/pages/settings/SettingsView.js`**
 - Ajout du modal `notification-modal-backdrop` à l'intérieur du bloc `settingsPage === "notifications"` de `renderSettingsSubPage()`.
 - Cas "denied" : affiche un message explicatif invitant à aller dans les réglages de l'appareil/navigateur plutôt que le bouton "Autoriser" (qui ne fonctionnerait pas).
 
@@ -1642,16 +1718,16 @@ Dans `SettingsView.js`, `renderSettingsSubPage()` retourne tôt quand `settingsP
 
 ### Fichiers modifiés
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `watchUserProfile` : passe `snapshot.metadata.fromCache` en 2e argument du callback (même pattern que `watchFamilyPeople`).
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - `watchUserProfile` callback : `setUserProfile(profile)` s'exécute toujours (pour afficher le cache rapidement). Mais `setProfileFetched(true)` et `setStartupStage("ready")` ne s'exécutent que si `!fromCache` — on attend la confirmation serveur avant d'avancer la machine à états.
 - `currentFamily` : sémantique stricte `undefined`/`null`/objet. `undefined` = en cours de chargement (familles pas encore fetchées ou profil pas prêt) ; `null` = définitivement aucune famille ; objet = famille trouvée.
 - `bootLoading` : simplifié grâce à `currentFamily === undefined` (plus besoin de vérifier séparément `familiesReady` et `userProfile`).
 - Ajout d'un `useEffect` `[route-debug]` qui logue en console chaque changement d'état de routage : `authReady`, `user`, `profileFetched`, `userProfile`, `familiesReady`, `currentFamilyId`, `currentFamily`, `peopleBootstrapped`, `people`, `bootLoading`.
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Ajout d'un `useEffect` `[route-debug]` qui logue `selectedScreen` (loading/auth/onboarding/home) à chaque changement de décision de route.
 
 ---
@@ -1666,10 +1742,10 @@ Il n'existait pas plusieurs listeners `onAuthStateChanged` — un seul appel dan
 
 ### Fichiers modifiés
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `watchAuth` : suppression du `console.log` interne — le log est géré par l'appelant (`useAuth.js`). `watchAuth` est maintenant un thin wrapper pur : `return onAuthStateChanged(auth, callback)`.
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - `bootLog` : suppression du `console.log("[startup]", ...)` redondant. La fonction utilise maintenant `window.__pushBootLog` en priorité (qui logue déjà dans la console avec le préfixe `[boot]`), avec fallback `[startup]` si le script index.html n'est pas présent.
 - Résultat : 1 ligne de console par événement de démarrage, au lieu de 3.
 
@@ -1683,14 +1759,14 @@ Il n'existait pas plusieurs listeners `onAuthStateChanged` — un seul appel dan
 
 ### Fichiers modifiés
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - Ajout de `--primary-color: oklch(0.58 0.13 28)` en variable CSS globale (avec fallback HEX `#B85F4A`).
 - `--mrd-a` pointe maintenant sur `var(--primary-color)` — un seul endroit à changer.
 - Remplacement de tous les `#C4607A` hardcodés (9 occurrences) par `var(--primary-color)`.
 - Remplacement de `rgba(196, 96, 122, 0.14)` par `oklch(58% 0.13 28 / 0.14)` (focus inputs/textarea).
 - Remplacement de `rgba(196, 96, 122, 0.38)` par `oklch(58% 0.13 28 / 0.38)` (ombre nav mobile).
 
-**`src/components/settings/SettingsView.js`**
+**`src/app/pages/settings/SettingsView.js`**
 - Boutons "Mettre en admin" / "Retirer le rôle admin" maintenant conditionnés à `editModalPerson.type !== "animal"` → les animaux ne peuvent pas être mis en admin.
 
 ---
@@ -1704,10 +1780,10 @@ Flash au démarrage : SplashScreen → chargement × 2 → "création de profil"
 Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache local** (`fromCache = true`). Ce snapshot peut être vide ou sans le champ `linkedAccountId`, ce qui rendait `linkedPerson = null` et `peopleBootstrapped = true` simultanément → `profileGuardActive = true` → OnboardingFlow s'affichait brièvement.
 
 ### Solution
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `watchFamilyPeople` passe maintenant `snapshot.metadata.fromCache` (2e argument du callback).
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - Ajout de `profileFetched` : vrai uniquement après le premier fire de `watchUserProfile`.
 - Ajout de `familiesReady` : vrai après résolution de `listFamilies`.
 - Dépendance `listFamilies` stabilisée via `familyIdsKey` (string stable) pour éviter un re-run sur chaque snapshot Firestore.
@@ -1715,7 +1791,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 - `bootLoading` exporté : seule source de vérité pour décider d'afficher le SplashScreen.
 - Reset propre de tous les flags lors du signe-out.
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Import de `bootLoading` depuis `useAuth()`.
 - Arbre de routing unifié : Erreur → `bootLoading` (un seul bloc) → `!user` → `profileGuardActive` → App.
 - `needsFamilySetup`, `needsLinkedProfileSetup`, `profileGuardActive` tous gardés par `!bootLoading` pour éviter toute transition prématurée.
@@ -1730,10 +1806,10 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - `watchFamilyPeople` callback : `setPeopleBootstrapped(true)` uniquement si `items.length > 0`, pour ignorer le premier snapshot vide du cache Firestore.
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Fusionné les deux écrans de chargement en un seul bloc `if (!authReady || waitingForProfileDoc || waitingForFamilyData)`.
 - Réorganisation des guards : erreur → `authReady && !user` (auth) → loader unique → onboarding → app.
 - Résultat : React garde le même élément DOM tout au long du chargement, l'animation ne redémarre plus.
@@ -1744,13 +1820,13 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/components/auth/OnboardingFlow.js`**
+**`src/app/pages/auth/OnboardingFlow.js`**
 - `progressSteps` : 4 points si aucun membre ajouté, 5 points si au moins un membre
 - `nextLabel()` : affiche "Terminer" à l'étape 4 quand aucun membre ajouté
 - `handleNext` sur `create-add-members` : appelle `onCreateHousehold` directement si pas de profils, sinon pousse vers `create-invite-members`
 - `AddMembersStep` : accepte `totalSteps` prop — affiche "Étape 4 sur 4" ou "Étape 4 sur 5" selon le nombre de membres
 
-**`src/App.js`** — version import mise à jour
+**`src/app/App.js`** — version import mise à jour
 
 ---
 
@@ -1758,11 +1834,11 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/components/tasks/TasksView.js`**
+**`src/app/pages/tasks/TasksView.js`**
 - Suppression du bloc `task-order-actions` (boutons ↑↓) dans `renderTaskCard`
 - Le déplacement par appui long (drag & drop) suffit pour réordonner les tâches
 
-**`src/App.js`** — version import mise à jour
+**`src/app/App.js`** — version import mise à jour
 
 ---
 
@@ -1770,7 +1846,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - Ajout de `min-height: 0` sur `.mrd-shell .recipe-sheet-body` et `.mrd-recipe-view-sheet .recipe-sheet-body`
 - Correction du bug flexbox classique : sans `min-height: 0`, le navigateur considère que la hauteur minimale d'un flex item est égale à sa hauteur de contenu, empêchant `overflow-y: auto` de s'activer. Le parent clippait visuellement mais le scroll ne fonctionnait pas.
 
@@ -1780,12 +1856,12 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/components/auth/AuthScreen.js`**
+**`src/app/pages/auth/AuthScreen.js`**
 - Écran Bienvenue : nouveau titre serif "Le quotidien / en douceur." avec accent italique coloré, fond dégradé chaud, sous-titre mis à jour
 - Login : "Content de te revoir" + logo au-dessus du formulaire, "← Retour"
 - Inscription : "Bienvenue chez nous" + logo au-dessus du formulaire
 
-**`src/components/auth/OnboardingFlow.js`** — réécriture complète
+**`src/app/pages/auth/OnboardingFlow.js`** — réécriture complète
 - Fond dégradé chaud sur tous les écrans (`.auth-shell`, `.onboarding-shell`)
 - Titre serif gauche aligné + kicker accent + sous-titre sur chaque étape
 - Préview avatar animée sur les étapes prénom et couleur (grande initiale dans un cercle coloré)
@@ -1797,7 +1873,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 - Boutons footer : ← petit bouton carré + bouton Suivant pleine largeur
 - Progression : points pill animés (actif = 22px, fait = couleur accentuée)
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - Toutes les nouvelles classes : `.onb-*`, `.auth-welcome-title-cocon`, `.auth-welcome-em`, `.auth-card-illu`
 - Dark mode intégré pour chaque nouveau composant
 
@@ -1807,7 +1883,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - Dans `acceptHouseholdInvitation`, après `batch.commit()` : écriture d'un document dans `families/{familyId}/joinEvents` avec `{ joinerUid, joinerName, memberName, createdAt }`
 - En cas d'échec de l'écriture joinEvent, l'erreur est juste loguée (non bloquante pour l'utilisateur)
 
@@ -1828,21 +1904,21 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers créés / modifiés
 
-**`src/components/feedback/FeedbackWidget.js`** (nouveau)
+**`src/app/components/FeedbackWidget.js`** (nouveau)
 - Tab vertical fixe sur le bord droit de l'écran (50% hauteur), couleur rose-terracotta `#C4607A`
 - Au clic : modal centré avec textarea "Décris le problème…"
 - Envoi vers Firestore collection `tester_feedback` (message, page active, user agent, userId)
 - État envoi : idle / sending / done (auto-ferme après 2.2s) / error
 - Visible uniquement sur l'écran principal (utilisateur connecté)
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - Ajout de `sendTesterFeedback({ message, page, userId })` → Firestore `tester_feedback`
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Import `FeedbackWidget`
 - Rendu juste après `.mrd-shell`, passe `user` et `activeTab` comme `currentPage`
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - Classes `.fb-root`, `.fb-tab`, `.fb-tab-icon`, `.fb-tab-text`, `.fb-backdrop`, `.fb-panel`, `.fb-panel-*`
 - Dark mode intégré
 
@@ -1850,7 +1926,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ## [2026-05-06] — Dark mode : correction cascade CSS (auth/onboarding/notification)
 
-### Fichier modifié : `src/styles.css`
+### Fichier modifié : `src/theme/styles.css`
 
 **Problème** : les overrides dark mode ajoutés en milieu de fichier (lignes ~4620-4634, ~1405-1409) étaient placés AVANT les règles hardcodées light (`#F7F2EC`, `#FDFAF7`, `#3E2C1C`) du bloc mobile (lignes ~4645-4940), qui les écrasaient dans la cascade CSS.
 
@@ -1866,7 +1942,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ## [2026-05-06] — Google Login PWA iOS : fix cascade geste utilisateur
 
-### Fichier modifié : `src/firebase/client.js`
+### Fichier modifié : `src/app/providers/client.js`
 
 **Problème** : `signInWithGoogle()` faisait `await ensureAuthPersistence()` AVANT d'appeler Firebase, ce qui brisait la chaîne du geste utilisateur. Sur iOS Safari, `window.open()` (utilisé en interne par `signInWithPopup`) est bloqué s'il est appelé après un `await`. De plus, `signInWithRedirect` en mode standalone fait quitter le contexte PWA et le retour OAuth s'ouvre dans Safari — `getRedirectResult()` reçoit toujours `null`.
 
@@ -1875,7 +1951,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 - `signInWithPopup` utilisé dans TOUS les cas (y compris standalone), le popup s'ouvre synchroniquement par rapport au geste
 - Fallback `signInWithRedirect` uniquement si le popup est explicitement bloqué (`auth/popup-blocked`)
 
-### Fichier modifié : `src/hooks/useAuth.js`
+### Fichier modifié : `src/app/hooks/useAuth.js`
 - Import version bumpée → `?v=2026-05-06-pwa-google-fix-2`
 
 ---
@@ -1884,21 +1960,21 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 
 ### Fichiers modifiés
 
-**`src/data/demoRecipes.js`**
+**`src/app/config/demoRecipes.js`**
 - Suppression des 24 recettes démo génériques
 - Ajout de 30 recettes de printemps issues du fichier `30_recettes_printemps_avec_preparation.docx`
 - Recettes 1–7 : `months: [4, 5]`, Recettes 8–30 : `months: [5]`
 - Labels : `"vegetarian"` ou `"vegan"` selon chaque recette
 - IDs : `demo-recipe-01` à `demo-recipe-30`
 
-**`src/data/condiments.js`**
+**`src/app/config/condiments.js`**
 - Ajout du condiment `{ id: "ciboulette", label: "Ciboulette" }` (requis par recette 30)
 
 ---
 
 ## [2026-05-06] — Dark mode : audit complet et corrections
 
-### Fichier modifié : `src/styles.css`
+### Fichier modifié : `src/theme/styles.css`
 
 **Corrections ajoutées (blocs `html[data-theme="dark"]`) :**
 
@@ -1919,7 +1995,7 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 | Support — légal h2 | Marron illisible | Terracotta `oklch(65% 0.13 28)` |
 | initial-members | Aucun dark | Fond `#181310`, cartes `#2B241F`, titres terracotta |
 
-### Fichier modifié : `src/components/settings/SettingsView.js`
+### Fichier modifié : `src/app/pages/settings/SettingsView.js`
 - Email support corrigé : `support@myrollingday.com` → `contact@bohemianrollinghouse.fr`
 - Import version bumpée → `?v=2026-05-06-dark-mode-email-1`
 
@@ -1928,17 +2004,17 @@ Firestore `onSnapshot` pour les `people` du foyer tire d'abord depuis le **cache
 ## [2026-05-06] — Politique de confidentialité complète (14 articles)
 
 ### Fichiers modifiés
-**`src/components/settings/SettingsView.js`**
+**`src/app/pages/settings/SettingsView.js`**
 - Suppression de `privacySections` (4 lignes placeholder)
 - Ajout du composant `PrivacyPolicyPage` (14 sections, listes à puces, liens mailto, sous-titres h3)
 - Remplacement de `<LegalTextPage sections=${privacySections} />` par `<${PrivacyPolicyPage} />` pour `supportPage === "privacy"`
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - `.support-legal-subh` : sous-titres h3 dans les sections légales
 - `.support-legal-list` / `.support-legal-list li` : listes à puces cohérentes avec le style existant
 - `.support-legal-link` : liens mailto avec couleur accent et underline
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Import SettingsView bumped → `?v=2026-05-06-privacy-policy-1`
 
 ### Contenu
@@ -1957,7 +2033,7 @@ Le modal "Codes d'invitation" (post-onboarding) utilisait les classes `notif-pro
 pensées pour la notification push — mauvais look, pas cohérent avec les autres modals.
 
 ### Fix
-**`src/App.js`** — bloc `postOnboardingState === "invite-codes"` :
+**`src/app/App.js`** — bloc `postOnboardingState === "invite-codes"` :
 - Overlay : `notif-prompt-overlay` → `modal-backdrop` (ferme au clic sur fond)
 - Carte : `notif-prompt-card` → `modal-card task-modal-redesign` (width: min(400px, 100%))
 - En-tête : `mrd-mhd` + `mrd-mtitle` "Codes d'invitation" + `mrd-mclose` ✕
@@ -1973,7 +2049,7 @@ L'étape 4 du wizard (AddMembersStep) utilise des boutons `?` et des tooltips in
 Les classes CSS correspondantes n'avaient pas encore été ajoutées.
 
 ### Fichier modifié
-**`src/styles.css`** — ajout après `.onboarding-empty-state` :
+**`src/theme/styles.css`** — ajout après `.onboarding-empty-state` :
 - `.ob-chip-group` : flex inline pour chip + bouton `?`
 - `.ob-help-btn` : bouton circulaire 18 px, discret, avec hover/focus-visible
 - `.ob-field-label-row` : flex row label + `?` pour le champ Rôle
@@ -1998,12 +2074,12 @@ selon les cas, le changement d'état ne provoquait pas de re-render suffisant.
 
 ### Fix
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `signInWithGoogle()` (branche standalone) : avant `signInWithRedirect`, stocke
   `localStorage.setItem("mrd_google_redirect_pending", "1")`.
   Si l'exception survient avant la navigation, le flag est retiré immédiatement.
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - Import ajouté : `ensureAuthPersistence`
 - Au démarrage, lit le flag `mrd_google_redirect_pending`
 - Si le flag est présent :
@@ -2026,9 +2102,9 @@ selon les cas, le changement d'état ne provoquait pas de re-render suffisant.
 7. `onAuthStateChanged(user)` → `setUser(user)` → `setAuthReady(true)` → app ouverte
 
 ### Fichiers modifiés
-- `src/firebase/client.js`
-- `src/hooks/useAuth.js`
-- `src/App.js` (version bump imports)
+- `src/app/providers/client.js`
+- `src/app/hooks/useAuth.js`
+- `src/app/App.js` (version bump imports)
 
 ---
 
@@ -2043,7 +2119,7 @@ après l'arrivée sur la page d'accueil (jamais pendant l'onboarding).
 
 ### Ce que j'ai fait
 
-**`src/components/auth/OnboardingFlow.js`**
+**`src/app/pages/auth/OnboardingFlow.js`**
 - `CREATE_STEPS` : ajout de `"create-add-members"` → 4 étapes au lieu de 3
 - Étape 3 `create-household-name` : le bouton "Suivant" va maintenant à `create-add-members`
   (au lieu d'appeler directement `onCreateHousehold`)
@@ -2059,12 +2135,12 @@ après l'arrivée sur la page d'accueil (jamais pendant l'onboarding).
 - `mapProfileTypeLabel` conservé pour affichage dans la liste des membres ajoutés
 - `useRef` supprimé des imports (plus utilisé)
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - `handleCreateHouseholdOnboarding` : collecte maintenant les codes d'invitation créés pour les
   membres "avec compte" et les retourne dans `result.invitations: [{ firstName, code }]`
 - Import version : `?v=2026-05-06-onboarding-members-1`
 
-**`src/App.js`**
+**`src/app/App.js`**
 - Suppression du composant `InitialMembersOnboarding` et de son écran de rendu
 - Suppression de `showInitialMembersOnboarding` state
 - Callback `onCreateHousehold` : capture `result.invitations`, stocke les codes dans
@@ -2078,7 +2154,7 @@ après l'arrivée sur la page d'accueil (jamais pendant l'onboarding).
   → affiche prénom + code pour chaque membre
   → texte gris : "Vous retrouverez les codes dans les réglages de votre application."
 
-**`src/styles.css`**
+**`src/theme/styles.css`**
 - Ajout de `.invite-codes-list`, `.invite-code-row`, `.invite-code-name`, `.invite-code-value`, `.invite-code-hint`
 
 ### Flux complet création foyer
@@ -2088,10 +2164,10 @@ après l'arrivée sur la page d'accueil (jamais pendant l'onboarding).
 7. Si membres "avec compte" → modal codes d'invitation
 
 ### Fichiers modifiés
-- `src/components/auth/OnboardingFlow.js`
-- `src/hooks/useAuth.js`
-- `src/App.js`
-- `src/styles.css`
+- `src/app/pages/auth/OnboardingFlow.js`
+- `src/app/hooks/useAuth.js`
+- `src/app/App.js`
+- `src/theme/styles.css`
 
 ---
 
@@ -2109,20 +2185,20 @@ Cette passe va plus loin : Google Auth fonctionne réellement en PWA via redirec
 
 ### Ce que j'ai fait
 
-**`src/firebase/client.js`**
+**`src/app/providers/client.js`**
 - `isStandalonePwa()` : détecte `navigator.standalone === true` **ou** `matchMedia display-mode:standalone`
 - `signInWithGoogle()` : branche automatiquement sur `signInWithRedirect` (standalone) ou `signInWithPopup` (navigateur)
 - `getGoogleRedirectResult()` : exporté pour être appelé au démarrage — récupère le résultat après retour de Google OAuth
 - `formatAuthError` : ajout de `auth/unauthorized-domain` → message "Connexion Google impossible..."
 - `auth/redirect-cancelled-by-user` → chaîne vide (annulation silencieuse)
 
-**`src/hooks/useAuth.js`**
+**`src/app/hooks/useAuth.js`**
 - `getGoogleRedirectResult()` appelé au montage, dans le même `useEffect` que `watchAuth`
 - Si erreur (sauf annulation) : `setAuthError(formatAuthError(error))`
 - Si succès : `onAuthStateChanged` se déclenche automatiquement avec le nouvel utilisateur
 - Import version bumped : `?v=2026-05-06-google-redirect-2`
 
-**`src/components/auth/AuthScreen.js`**
+**`src/app/pages/auth/AuthScreen.js`**
 - Suppression de `IS_STANDALONE` (constante module-level) et de toutes les branches conditionnelles
 - Le bouton Google est affiché identiquement dans les 3 pages (welcome / login / signup)
 - En standalone → `signInWithGoogle()` déclenche un redirect ; l'UX est transparente
@@ -2137,9 +2213,9 @@ Cette passe va plus loin : Google Auth fonctionne réellement en PWA via redirec
 6. `onAuthStateChanged` se déclenche → utilisateur connecté
 
 ### Fichiers modifiés
-- `src/firebase/client.js`
-- `src/hooks/useAuth.js`
-- `src/components/auth/AuthScreen.js`
+- `src/app/providers/client.js`
+- `src/app/hooks/useAuth.js`
+- `src/app/pages/auth/AuthScreen.js`
 
 ### Checklist Firebase Console à vérifier manuellement
 - **Authorized domains** : le domaine Netlify (`*.netlify.app` ou domaine custom) est bien listé
@@ -2165,31 +2241,31 @@ laissant `busy = true` indéfiniment et tous les boutons `disabled`.
 
 ### Corrections appliquées
 
-**1. `src/hooks/useAuth.js` — timeout de sécurité dans `runAuth`**
+**1. `src/app/hooks/useAuth.js` — timeout de sécurité dans `runAuth`**
 - `Promise.race()` entre l'action réelle et un timeout de 15 secondes
 - Si le timeout se déclenche : erreur `auth/timeout` → `setAuthError` → `finally` s'exécute → `busy = false`
 - Garantit que `busy` revient toujours à `false`, quel que soit le provider ou la plateforme
 
-**2. `src/firebase/client.js` — détection standalone avant `signInWithPopup`**
+**2. `src/app/providers/client.js` — détection standalone avant `signInWithPopup`**
 - Nouvelle fonction `isStandaloneMode()` : teste `navigator.standalone` (iOS) et `display-mode: standalone` (standard)
 - Si standalone : lève immédiatement une erreur `auth/popup-not-supported` avec message clair
 - La promesse se termine instantanément → `runAuth` reçoit l'erreur → `busy = false` immédiatement
 - `formatAuthError` étendu avec les codes `auth/popup-not-supported` et `auth/timeout`
 
-**3. `src/components/auth/AuthScreen.js` — masquage du bouton Google en standalone**
+**3. `src/app/pages/auth/AuthScreen.js` — masquage du bouton Google en standalone**
 - Constante `IS_STANDALONE` calculée une fois au chargement du module
 - Les 3 pages (welcome, login, signup) remplacent le bloc divider + bouton Google par une notice :
   "Connexion Google non disponible en mode application iPhone. Utilise email / mot de passe ou ouvre l'application dans Safari."
 - Connexion email / mot de passe totalement inchangée et fonctionnelle
 
-**4. `src/styles.css` — style `.auth-standalone-notice`**
+**4. `src/theme/styles.css` — style `.auth-standalone-notice`**
 - Une règle CSS minimale : texte muted centré, taille 13px, opacité 0.75
 
 ### Fichiers modifiés
-- `src/hooks/useAuth.js`
-- `src/firebase/client.js`
-- `src/components/auth/AuthScreen.js`
-- `src/styles.css`
+- `src/app/hooks/useAuth.js`
+- `src/app/providers/client.js`
+- `src/app/pages/auth/AuthScreen.js`
+- `src/theme/styles.css`
 
 ### Vérifications
 - Safari normal (non-standalone) : comportement Google inchangé
@@ -2254,24 +2330,24 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 
 ### Ce que j'ai fait
 - Ajout de Firebase Cloud Messaging en parallele du systeme existant de notifications locales navigateur
-- Creation du module `src/firebase/messaging.js` pour verifier le support, enregistrer le service worker, recuperer un token FCM avec la cle VAPID et ecouter les messages foreground
-- Creation du hook `src/hooks/usePushMessaging.js` pour centraliser permission, synchronisation du token et etat push
-- Extension de `src/firebase/client.js` avec `saveMessagingToken(...)` pour stocker le token dans Firestore cote utilisateur et foyer
+- Creation du module `src/app/providers/messaging.js` pour verifier le support, enregistrer le service worker, recuperer un token FCM avec la cle VAPID et ecouter les messages foreground
+- Creation du hook `src/app/hooks/usePushMessaging.js` pour centraliser permission, synchronisation du token et etat push
+- Extension de `src/app/providers/client.js` avec `saveMessagingToken(...)` pour stocker le token dans Firestore cote utilisateur et foyer
 - Creation de `public/firebase-messaging-sw.js` pour la reception background via `onBackgroundMessage`
 - Ajout du shim racine `firebase-messaging-sw.js` pour servir correctement le service worker FCM sans recreer une nouvelle app Firebase
 - Branchement de la demande d'autorisation uniquement via l'UI existante dans `SettingsView` et `OnboardingFlow`
 - Conservation du systeme local actuel `new Notification()` sans suppression
 
 ### Fichiers modifies
-- `src/constants.js`
-- `src/firebase/client.js`
-- `src/firebase/messaging.js`
-- `src/hooks/usePushMessaging.js`
-- `src/components/settings/SettingsView.js`
-- `src/components/auth/OnboardingFlow.js`
-- `src/App.js`
-- `src/hooks/useAuth.js`
-- `src/hooks/usePlannerSync.js`
+- `src/app/config/constants.js`
+- `src/app/providers/client.js`
+- `src/app/providers/messaging.js`
+- `src/app/hooks/usePushMessaging.js`
+- `src/app/pages/settings/SettingsView.js`
+- `src/app/pages/auth/OnboardingFlow.js`
+- `src/app/App.js`
+- `src/app/hooks/useAuth.js`
+- `src/app/hooks/usePlannerSync.js`
 - `src/main.js`
 - `index.html`
 - `public/firebase-messaging-sw.js`
@@ -2313,17 +2389,17 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
   - Ã©coute `visibilitychange` ajoutÃ©e comme pour l'agenda
 
 ### Fichiers modifiÃ©s
-- `src/hooks/useAgenda.js`
-- `src/utils/state.js`
-- `src/components/settings/SettingsView.js`
-- `src/components/tasks/TasksView.js`
-- `src/hooks/useTasks.js`
-- `src/hooks/useTaskNotifications.js`
-- `src/App.js`
-- `src/hooks/usePlannerSync.js`
-- `src/utils/storage.js`
-- `src/hooks/useMeals.js`
-- `src/components/meals/MealsView.js`
+- `src/app/hooks/useAgenda.js`
+- `src/app/utils/state.js`
+- `src/app/pages/settings/SettingsView.js`
+- `src/app/pages/tasks/TasksView.js`
+- `src/app/hooks/useTasks.js`
+- `src/app/hooks/useTaskNotifications.js`
+- `src/app/App.js`
+- `src/app/hooks/usePlannerSync.js`
+- `src/app/utils/storage.js`
+- `src/app/hooks/useMeals.js`
+- `src/app/pages/meals/MealsView.js`
 - `src/main.js`
 - `index.html`
 
@@ -2358,15 +2434,15 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 - Eviter les crashes silencieux, les features mortes et la dette de state qui grossit avec le temps
 
 ### Fichiers modifies
-- `src/App.js`
-- `src/components/auth/AuthScreen.js`
-- `src/components/inventory/InventoryView.js`
-- `src/components/notes/NotesView.js`
-- `src/components/settings/SettingsView.js`
-- `src/components/tasks/TasksView.js`
-- `src/hooks/useTasks.js`
-- `src/styles.css`
-- `src/utils/state.js`
+- `src/app/App.js`
+- `src/app/pages/auth/AuthScreen.js`
+- `src/app/pages/inventory/InventoryView.js`
+- `src/app/pages/notes/NotesView.js`
+- `src/app/pages/settings/SettingsView.js`
+- `src/app/pages/tasks/TasksView.js`
+- `src/app/hooks/useTasks.js`
+- `src/theme/styles.css`
+- `src/app/utils/state.js`
 - `src/main.js`
 - `index.html`
 
@@ -2436,7 +2512,7 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 - UX mobile-first, navigation plus fluide
 
 ### Fichiers modifiés
-- `src/styles.css`, `src/components/tasks/TasksView.js`, `src/components/notes/NotesView.js`, `src/components/inventory/InventoryView.js`
+- `src/theme/styles.css`, `src/app/pages/tasks/TasksView.js`, `src/app/pages/notes/NotesView.js`, `src/app/pages/inventory/InventoryView.js`
 
 ### Impacts
 - Nouvelle charte UI mobile
@@ -2456,7 +2532,7 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 - Premier essai revert car problèmes ; deuxième version stable
 
 ### Fichiers modifiés
-- `src/components/meals/MealsView.js`
+- `src/app/pages/meals/MealsView.js`
 
 ### Impacts
 - Vue Repas entièrement redessinée
@@ -2475,7 +2551,7 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 - Accueil trop basique ; deadlines mal classées
 
 ### Fichiers modifiés
-- `src/components/home/HomeView.js`, `src/hooks/useTasks.js`
+- `src/app/pages/home/HomeView.js`, `src/app/hooks/useTasks.js`
 
 ### Impacts
 - Accueil devient point d'entrée principal pour les tâches
@@ -2553,10 +2629,10 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 - Rappels contextuels uniquement pour les événements agenda (pas les tâches)
 
 ### Fichiers modifiés
-- `src/components/agenda/AgendaView.js`
-- `src/components/auth/OnboardingFlow.js`
-- `src/styles.css`
-- `src/App.js` (version strings)
+- `src/app/pages/agenda/AgendaView.js`
+- `src/app/pages/auth/OnboardingFlow.js`
+- `src/theme/styles.css`
+- `src/app/App.js` (version strings)
 - `index.html` (version string styles.css)
 
 ### Impacts
@@ -2569,7 +2645,7 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 ## [2026-05-05] — Notifications tâches du foyer
 
 ### Ce que j'ai fait
-- Nouveau hook `src/hooks/useTaskNotifications.js` — toute la logique de vérification
+- Nouveau hook `src/app/hooks/useTaskNotifications.js` — toute la logique de vérification
 - 3 types de notifications : fin de journée, urgentes, échéances
 - Intervalle 60s + déclenchement au focus fenêtre
 - Anti-spam via `task.notificationLog` (tableau de clés `taskId-type-date`)
@@ -2583,10 +2659,10 @@ La première fois : `npm install -g firebase-tools` puis `firebase login`
 - Notifications utiles sans spam pour les tâches foyer (quotidiennes, urgentes, échéances)
 
 ### Fichiers modifiés
-- `src/hooks/useTaskNotifications.js` (**nouveau**)
-- `src/utils/state.js`
-- `src/components/settings/SettingsView.js`
-- `src/App.js` (import hook, handler, props, version strings)
+- `src/app/hooks/useTaskNotifications.js` (**nouveau**)
+- `src/app/utils/state.js`
+- `src/app/pages/settings/SettingsView.js`
+- `src/app/App.js` (import hook, handler, props, version strings)
 - `index.html` (version string styles.css)
 
 ### Impacts

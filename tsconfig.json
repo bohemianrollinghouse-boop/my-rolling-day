@@ -1,0 +1,17 @@
+{
+  // Ce projet est en JavaScript : ce tsconfig ne sert qu'a `capacitor.config.ts`,
+  // pour que `import type { CapacitorConfig }` se resolve dans l'editeur. La CLI
+  // Capacitor, elle, transpile le fichier avec ses propres options et ne lit pas
+  // ce fichier. `allowJs` reste absent volontairement : aucun des 78 fichiers
+  // .js de src/ ne doit passer au verificateur de types.
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["capacitor.config.ts"]
+}

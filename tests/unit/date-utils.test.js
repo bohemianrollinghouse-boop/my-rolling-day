@@ -12,7 +12,7 @@ import {
   setCurrentAppTimeMode,
   setSimulatedAppDateValue,
   shiftSimulatedAppDate,
-} from "../../src/utils/date.js";
+} from "../../src/app/utils/date.js";
 import { installMockLocalStorage, uninstallMockLocalStorage } from "../helpers/browser-globals.js";
 
 test.beforeEach(() => {

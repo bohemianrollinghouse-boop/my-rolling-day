@@ -6,13 +6,50 @@ Read this file before touching feature code.
 
 - **Vite + npm** (bundler depuis le commit `201c442`). `npm run dev` en local,
   `npm run build` vers `dist/`.
-- React 18 + syntaxe HTM via `src/lib.js`. **Pas de JSX** : les composants
+- React 18 + syntaxe HTM via `src/app/lib.js`. **Pas de JSX** : les composants
   écrivent des templates ``html`...` ``.
 - Imports npm nus (`import React from "react"`, `import { getAuth } from "firebase/auth"`).
 - Firebase depuis npm (`firebase` en dépendance), plus depuis le CDN gstatic.
-- CSS global dans un seul fichier : `src/styles.css` (~7 100 lignes), tokens
+- CSS global dans un seul fichier : `src/theme/styles.css` (~7 100 lignes), tokens
   `--mrd-*` comme unique source de vérité couleur.
-- Capacitor 6 pour iOS / Android (`capacitor.config.json`, `webDir: "dist"`).
+- Capacitor 6 pour iOS / Android (`capacitor.config.ts`, `webDir: "dist"`).
+- Configuration Firebase isolée dans `src/environments/environment.js`.
+
+## Organisation du code
+
+Structure calquée sur le projet COBA (Ionic/Angular), adaptée à React + htm.
+COBA a un dossier par page parce qu'Angular impose un triplet `.ts/.html/.scss` ;
+ici une page est un seul `.js`, donc le dossier ne se justifie que quand l'écran
+a plusieurs fichiers (`pages/recipes/` en a cinq). La séparation, elle, est reprise
+telle quelle :
+
+```
+src/
+  app/
+    pages/<ecran>/   une destination de route + ses sous-composants propres
+    components/      briques non-écrans, dont l'enveloppe MrdModal
+    modals/          modales (AppModals, SettingsModals)
+    providers/       accès aux données — Firebase Auth + Firestore
+    plugins/         enveloppes de plugins natifs Capacitor
+    config/          constantes de domaine et données statiques
+    hooks/           actions métier (spécifique React ; COBA passe par la DI)
+    utils/           normalisation, dates, stockage, unités
+    App.js routes.js lib.js
+  environments/      configuration Firebase et drapeaux de build
+  theme/             styles.css + ionic-bridge.css
+  assets/
+  main.js
+```
+
+Deux écarts assumés par rapport à COBA :
+
+- **Pas de `.browserslistrc`** : Vite ne le lit pas (c'est un mécanisme
+  Angular/PostCSS). Le plancher navigateur est déclaré dans `vite.config.js`
+  via `build.target`, qui a un effet réel.
+- **Pas de `.npmrc`** : COBA a besoin de `legacy-peer-deps=true` pour ses plages
+  de pairs Angular/Ionic. Ici l'installation passe sans, et le drapeau masquerait
+  justement le conflit de pair sur `react-router-dom`, épinglé en 6.30.6 exprès
+  (la v7 est incompatible avec `@ionic/react-router` 9).
 
 ## Top-level data flow
 
@@ -54,11 +91,11 @@ When `needsFamilySetup || needsLinkedProfileSetup` is true, `OnboardingFlow` is 
 
 ## State management
 
-One main planner state object, shape defined in `src/data/defaultState.js`.
+One main planner state object, shape defined in `src/app/config/defaultState.js`.
 
 Key fields: `tasks`, `meals`, `recipes`, `lists`, `inventory`, `storageLocations`, `productLocationMemory`, `notes`, `history`, `agenda`, `recurringEvents`, `lastResetDaily`, `lastResetWeekly`, `lastResetMonthly`, `linkMealsToInventory`.
 
-Normalization and backward-compatibility: `src/utils/state.js`.
+Normalization and backward-compatibility: `src/app/utils/state.js`.
 
 ## Feature hooks
 
@@ -73,7 +110,7 @@ Normalization and backward-compatibility: `src/utils/state.js`.
 
 ## Firestore collections
 
-All Firestore access goes through `src/firebase/client.js`.
+All Firestore access goes through `src/app/providers/client.js`.
 
 ### User collections
 
@@ -126,7 +163,7 @@ All Firestore access goes through `src/firebase/client.js`.
 
 ## OnboardingFlow modes
 
-Three distinct flows in `src/components/auth/OnboardingFlow.js`:
+Three distinct flows in `src/app/pages/auth/OnboardingFlow.js`:
 
 **CREATE** (new household):
 1. `choose-household-mode`
@@ -174,7 +211,7 @@ Two separate systems:
 
 ### PWA / Service Worker
 
-- `firebase-messaging-sw.js` at root — registered by `src/firebase/messaging.js`
+- `firebase-messaging-sw.js` at root — registered by `src/app/providers/messaging.js`
 - Handles background FCM messages
 - `manifest.json` — PWA manifest (standalone, icons, theme_color)
 
@@ -189,10 +226,10 @@ Two separate systems:
 
 ## Shared logic
 
-- `src/utils/productUtils.js` — product name normalization, anti-duplicate foundation used across inventory, lists, and recipes
-- `src/utils/date.js` — all date helpers; any date-sensitive code should use these instead of raw `new Date()`
-- `src/utils/state.js` — daily/weekly/monthly reset, recurring task cycles, normalization, backward-compat migrations
-- `src/utils/storage.js` — JSON import/export parser
+- `src/app/utils/productUtils.js` — product name normalization, anti-duplicate foundation used across inventory, lists, and recipes
+- `src/app/utils/date.js` — all date helpers; any date-sensitive code should use these instead of raw `new Date()`
+- `src/app/utils/state.js` — daily/weekly/monthly reset, recurring task cycles, normalization, backward-compat migrations
+- `src/app/utils/storage.js` — JSON import/export parser
 
 ## Cache-busting — règle supprimée
 
@@ -232,7 +269,7 @@ téléphone en paysage fait 844 px de large et les atteint.
 **`@ionic/react-router` au-dessus de `react-router-dom` 6.** L'URL est la source
 de vérité de l'écran affiché — plus aucun `useState` pour ça.
 
-`src/routes.js` est la **seule** traduction entre l'URL et le vocabulaire
+`src/app/routes.js` est la **seule** traduction entre l'URL et le vocabulaire
 historique du code (`pathForTab`, `tabFromPath`, `bottomIdForTab`,
 `settingsPathFor`, `settingsStateFromPath`). Module pur, testé sans navigateur
 (`tests/unit/routes.test.js`).
@@ -282,5 +319,16 @@ build Vite où Firebase est remplacé par les stubs de
 trouvé — la suite affiche alors « 0 fail » sans avoir rien vérifié. Les chemins
 sont dans `tests/helpers/cdp-browser.js`. Vérifier le compteur `skipped` :
 il doit être à 0.
+
+⚠️ Un fichier posé dans `tests/unit/` **ne tourne pas tout seul** : il doit être
+importé par `tests/unit.test.js` (idem `tests/e2e/` → `tests/e2e.test.js`).
+`tests/unit/routes.test.js` est resté douze tests morts entre la phase 5 de la
+migration Ionic et le refactor de structure pour cette raison. Après avoir
+ajouté un fichier de test, vérifier que le compteur `# tests` a bougé.
+
+`tests/unit/structure.test.js` est la contrepartie exécutable de la section
+« Organisation du code » ci-dessus : il lit les imports relatifs réels et
+échoue si une dépendance remonte d'une couche, si `config/` acquiert une
+dépendance, ou si un fichier apparaît à la racine de `src/app/`.
 
 Garde anti-régression visuelle : `tests/screenshots/` (voir son README).

@@ -94,7 +94,7 @@ test("CDP: la passerelle de thème Ionic est branchée", { timeout: 180_000 }, a
     await session.send("Page.navigate", { url: `${serverHandle.url}/` });
     await session.waitForEvent("Page.loadEventFired", 20_000);
 
-    // Attendre que React soit monté : c'est src/utils/theme.js qui pose la
+    // Attendre que React soit monté : c'est src/app/utils/theme.js qui pose la
     // classe .ion-palette-dark, le script inline d'index.html n'étant qu'un
     // anti-flash.
     const deadline = Date.now() + 20_000;

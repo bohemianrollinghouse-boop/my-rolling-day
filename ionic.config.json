@@ -1,0 +1,7 @@
+{
+  "name": "My Rolling Day",
+  "type": "react-vite",
+  "integrations": {
+    "capacitor": {}
+  }
+}

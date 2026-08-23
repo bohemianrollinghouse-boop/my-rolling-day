@@ -19,7 +19,7 @@ import {
   isSettingsPath,
   pathForTab,
   tabFromPath,
-} from "../../src/routes.js";
+} from "../../src/app/routes.js";
 
 test("routes : pathForTab et tabFromPath sont réciproques", () => {
   const screens = ["home", "agenda", "meals", "lists", "notes", "inventory", "recipes", "history", "inbox", ...TASK_PERIODS];

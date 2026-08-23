@@ -15,12 +15,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <!-- Applique le theme des le boot, avant tout paint. `data-theme` et
          `ion-palette-dark` doivent etre poses ensemble : les deux sont reecrits
-         par src/utils/theme.js une fois React monte, mais sans ce script une
+         par src/app/utils/theme.js une fois React monte, mais sans ce script une
          app en sombre commencerait par un flash clair. -->
     <script>(function(){try{var d=localStorage.getItem('mrd-theme')==='dark';var r=document.documentElement;r.setAttribute('data-theme',d?'dark':'light');r.classList.toggle('ion-palette-dark',d);var c=d?'#211A15':'#FAF4ED';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c)});var sb=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');if(sb)sb.setAttribute('content',d?'black':'default')}catch(e){}}())</script>
     <title>My Rolling Day</title>
     <!-- Polices embarquées via @font-face dans styles.css (plus de Google Fonts) -->
-  <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="stylesheet" href="./src/theme/styles.css" />
   </head>
   <body>
     <div id="root">

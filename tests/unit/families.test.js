@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { canSwitchToFamily, normalizeFamilyIds } from "../../src/utils/families.js";
+import { canSwitchToFamily, normalizeFamilyIds } from "../../src/app/utils/families.js";
 
 test("normalizeFamilyIds nettoie et dedupe les foyers", () => {
   assert.deepEqual(normalizeFamilyIds(["family-a", "", " family-b ", "family-a", null]), ["family-a", "family-b"]);

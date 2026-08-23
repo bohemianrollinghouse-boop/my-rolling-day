@@ -24,8 +24,8 @@ Légende : 🔴 bloquant · 🟠 gros morceau · 🟡 confort · ⚪ optionnel
 
 | Fait | Chiffre |
 |---|---|
-| `src/styles.css` | 7 133 lignes, tout en global, tokens `--mrd-*` en source de vérité |
-| `src/App.js` | 1 635 lignes — orchestrateur + coque + routage `activeTab` + 6 modales |
+| `src/theme/styles.css` | 7 133 lignes, tout en global, tokens `--mrd-*` en source de vérité |
+| `src/app/App.js` | 1 635 lignes — orchestrateur + coque + routage `activeTab` + 6 modales |
 | Routage | **aucun router**. `activeTab` / `showSettings` / `settingsSubPage` / `settingsSupportPage` en `useState` |
 | Syntaxe | HTM (`html\`...\``), **pas de JSX**, ~35 500 lignes de `src/` |
 | Safe areas | 22 `env(safe-area-inset-*)` écrits à la main dans `styles.css` |
@@ -158,8 +158,9 @@ plugins communautaires à revalider) qui n'a pas à être mélangé à celui-ci.
   introduit uniquement dans les overlays refaits en Phase 7, et on juge sur
   pièce avant d'aller plus loin. Décision reportée, volontairement.
 - **Firebase, hooks métier, `utils/`, Cloud Functions** : intouchés. Aucune
-  phase de ce plan ne doit modifier `src/firebase/`, `src/hooks/` (hors routage)
-  ni `src/utils/` (hors `statusBar.js`).
+  phase de ce plan ne doit modifier `src/app/providers/`, `src/app/hooks/`
+  (hors routage) ni `src/app/utils/` (hors `statusBar.js`, devenu
+  `src/app/plugins/statusBar.js`).
 
 ---
 
@@ -222,7 +223,7 @@ thème lit les tokens de la marque, et rien n'a bougé à l'écran.
       d'où les 42 captures identiques.
 - [x] `src/theme/ionic-bridge.css` — 60 variables Ionic, **zéro valeur
       littérale**, uniquement des `var(--mrd-*)`.
-- [x] Bascule de thème centralisée dans **`src/utils/theme.js`** (`applyTheme`,
+- [x] Bascule de thème centralisée dans **`src/app/utils/theme.js`** (`applyTheme`,
       `readStoredTheme`). Elle était écrite à trois endroits (`App.js`,
       `SettingsView.js`, script inline d'`index.html`) ; il fallait désormais y
       ajouter `.ion-palette-dark`, soit une quatrième copie. `applyStatusBarTheme`
@@ -286,7 +287,7 @@ d'actions, 2 Repas dont le contenu remonte de ~28 px).
       `useLocation` / `useNavigate`, qui exigent d'être sous le routeur.
 - [x] Routes : `/home`, `/tasks/:period`, `/agenda`, `/meals`, plus les 6 écrans
       secondaires et `/settings`. `*` redirige sur `/home`.
-- [x] `src/routes.js` — **nouveau**, module pur, 12 tests unitaires.
+- [x] `src/app/routes.js` — **nouveau**, module pur, 12 tests unitaires.
 - [x] 5e bouton « Plus » → `IonActionSheet`. Supprime l'état `showQuickMenu` et
       l'écouteur `document mousedown`.
 - [x] Badge des retards → `ion-badge`. Étoile premium conservée.
@@ -303,7 +304,7 @@ d'actions, 2 Repas dont le contenu remonte de ~28 px).
 l'un devient `tabFromPath(location.pathname)`, l'autre
 `navigate(pathForTab(tab))`. Les 34 lectures et 17 écritures réparties dans
 `App.js` continuent de fonctionner sans être touchées, et toute la traduction
-tient dans `src/routes.js`. Sans ça, la phase aurait été une réécriture d'`App.js`.
+tient dans `src/app/routes.js`. Sans ça, la phase aurait été une réécriture d'`App.js`.
 
 `showSettings` disparaît comme état : c'est désormais `isSettingsPath(pathname)`.
 Les `setShowSettings(false)` suivis d'un `setActiveTab(...)` ont été supprimés —
@@ -569,7 +570,7 @@ détruirait un lien profond avant même que l'utilisateur soit connu.
 - `document.querySelector(".mrd-screen .cnt")` dans `SettingsView` et
   `SettingsSupportPage` : les deux sélecteurs ont disparu avec `ion-content`,
   et le retour en haut de page ne faisait plus rien — un `querySelector` qui ne
-  trouve rien ne lève pas. Remplacé par `src/utils/scroll.js`, qui passe par
+  trouve rien ne lève pas. Remplacé par `src/app/utils/scroll.js`, qui passe par
   l'API `scrollToTop` d'`ion-content` et cible la page **visible** (la page
   quittée reste montée).
 - Sur écran large, `max-width: 820px; margin: auto` sur `.cnt` rétrécissait
@@ -636,7 +637,7 @@ qu'un seul `@media` et aucun en-tête de section.
 **29 overlays maison convertis** dans 16 fichiers. Bilan : **51/57 captures
 IDENTIQUE**, les 6 autres expliquées plus bas.
 
-- [x] `src/components/common/MrdModal.js` — **enveloppe unique**. Les 16
+- [x] `src/app/components/MrdModal.js` — **enveloppe unique**. Les 16
       fichiers recodaient le même `<div class="modal-backdrop" onClick=fermer>`
       + `<div class="modal-card" onClick=stopPropagation>`, et ils avaient
       divergé (trois variantes de fond, deux d'animation). Une seule enveloppe
@@ -751,7 +752,7 @@ l'écran Notes, décalé de 5 px).
       de passe. C'est le seul contrôle de la phase qui n'était pas qu'une
       question d'apparence : `confirm()` gèle le fil JavaScript, et en WebView
       le dialogue est celui du système, hors charte. Passé par le **contrôleur
-      impératif** (`src/utils/dialogs.js`) plutôt qu'un `<IonAlert>` monté : les
+      impératif** (`src/app/utils/dialogs.js`) plutôt qu'un `<IonAlert>` monté : les
       appels sont dispersés dans 3 composants, un contrôleur évite d'ajouter un
       état et un rendu conditionnel à chacun.
 - [x] **`ion-segment`** — `SegmentedTabs` devient une enveloppe. Son API de

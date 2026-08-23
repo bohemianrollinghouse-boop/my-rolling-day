@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { addStockQuantities } from "../../src/utils/units.js";
-import { inventoryEntriesCanMerge, mergeInventoryEntry } from "../../src/hooks/useLists.js";
+import { addStockQuantities } from "../../src/app/utils/units.js";
+import { inventoryEntriesCanMerge, mergeInventoryEntry } from "../../src/app/hooks/useLists.js";
 
 /* Regression : la fusion additionnait les nombres sans jamais regarder les
    unites. « 500 g de riz » plus « 1 kg de riz » donnait 501 g. */

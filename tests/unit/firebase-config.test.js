@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveFirebaseAuthDomain } from "../../src/constants.js";
+import { resolveFirebaseAuthDomain } from "../../src/environments/environment.js";
 
 test.afterEach(() => {
   delete globalThis.window;

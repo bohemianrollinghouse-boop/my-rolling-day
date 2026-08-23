@@ -26,7 +26,7 @@ import { buildE2eApp } from "../helpers/e2e-build.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Réplique exacte de isStandaloneMode() dans src/firebase/client.js.
+ * Réplique exacte de isStandaloneMode() dans src/app/providers/client.js.
  * Testée ici en isolation pure sans importer le module Firebase.
  */
 function isStandaloneModeLogic() {
@@ -39,7 +39,7 @@ function isStandaloneModeLogic() {
 
 /**
  * Réplique exacte de la mécanique Promise.race + timeout de runAuth()
- * dans src/hooks/useAuth.js. Testée sans React ni Firebase.
+ * dans src/app/hooks/useAuth.js. Testée sans React ni Firebase.
  */
 async function runAuthWithTimeout(action, timeoutMs) {
   let timeoutId;

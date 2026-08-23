@@ -13,7 +13,7 @@ import {
   computeWeekStock,
   expiryShortLabel,
   recipeStockRank,
-} from "../../src/utils/recipeStock.js";
+} from "../../src/app/utils/recipeStock.js";
 
 function dateKeyIn(days) {
   const date = new Date();

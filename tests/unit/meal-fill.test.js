@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildFillPlan } from "../../src/utils/mealFill.js";
+import { buildFillPlan } from "../../src/app/utils/mealFill.js";
 import {
   isQuickRecipe,
   matchesAvailability,
@@ -9,7 +9,7 @@ import {
   periodLabel,
   periodPhrase,
   recipeMonths,
-} from "../../src/utils/recipeFilters.js";
+} from "../../src/app/utils/recipeFilters.js";
 
 /* Tirage déterministe : le mélange devient l'identité. */
 const noShuffle = () => 0.999999;

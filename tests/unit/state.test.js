@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createDefaultState } from "../../src/data/defaultState.js";
-import { checkReset, normalizeState } from "../../src/utils/state.js";
+import { createDefaultState } from "../../src/app/config/defaultState.js";
+import { checkReset, normalizeState } from "../../src/app/utils/state.js";
 import { installMockLocalStorage, uninstallMockLocalStorage } from "../helpers/browser-globals.js";
 
 test.beforeEach(() => {

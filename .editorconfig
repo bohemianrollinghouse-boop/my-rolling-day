@@ -1,0 +1,23 @@
+# Configuration d'editeur, voir https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+max_line_length = off
+# Deux espaces en fin de ligne = retour a la ligne en Markdown.
+trim_trailing_whitespace = false
+
+[*.{java,gradle}]
+indent_size = 4
+
+[*.{pbxproj,plist,xcworkspacedata}]
+# Fichiers generes par Xcode : ne jamais les reformater.
+indent_style = tab
+trim_trailing_whitespace = false
+insert_final_newline = false

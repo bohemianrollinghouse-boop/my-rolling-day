@@ -67,7 +67,7 @@ if (!window.__e2eStubs) {
         id: this.createdFamilyId || FAMILY_ID, name: "Mon Foyer E2E",
         inviteCode: "E2ECODE", memberCount: 1,
         // `window.__E2E_PREMIUM` debloque Repas / Inventaire / Recettes
-        // (isPremium = currentFamily.premiumOverride, cf. src/App.js). Sans lui
+        // (isPremium = currentFamily.premiumOverride, cf. src/app/App.js). Sans lui
         // ces trois vues rendent le paywall et ne sont pas capturables.
         premiumOverride: Boolean(window.__E2E_PREMIUM),
       };
@@ -269,7 +269,7 @@ export function onSnapshot(ref, callbackOrOptions, onError) {
         // au lieu de 8 ecrans d etat vide. Absente, le comportement d origine
         // est conserve : aucun document planner, l app cree son etat par defaut.
         // Le document planner est enveloppe : `{ data, updatedAt, updatedBy }`
-        // (cf. saveFamilyPlanner dans src/firebase/clientPlanner.js). La graine
+        // (cf. saveFamilyPlanner dans src/app/providers/clientPlanner.js). La graine
         // est fournie comme etat nu, on l enveloppe ici.
         const seed = window.__E2E_PLANNER_SEED;
         callback(seed

@@ -4,35 +4,35 @@ Maintenance notes. Keep this short and practical.
 
 ## Fragile areas
 
-### `src/App.js`
+### `src/app/App.js`
 
 - Very large orchestrator (~1500 lines).
 - Still contains cross-feature logic that ideally would live in hooks: quantity conversion helpers, `computeMealCookState`, meals/inventory interaction glue.
 - Handles navigation, toasts, planner glue, and cache-busting imports.
 
-### `src/hooks/useLists.js`
+### `src/app/hooks/useLists.js`
 
 - High-risk file.
 - Handles: shopping list creation/merge, optional inventory linkage, purchase toggle, undo toast, inventory merge rules, send inventory item to shopping list.
 - Easy place for duplicate, quantity, or race-condition regressions.
 
-### `src/components/meals/MealsView.js`
+### `src/app/pages/meals/MealsView.js`
 
 - Sensitive for meal/inventory/list flows.
 - Missing ingredients popup behavior depends on `linkMealsToInventory`.
 - Manual ingredient-to-list flow also exists when inventory link is off.
 
-### `src/components/recipes/RecipesView.js`
+### `src/app/pages/recipes/RecipesView.js`
 
 - Sensitive for recipe editing, structured ingredients, condiments, and seasonal availability.
 - UI changed multiple times; avoid reintroducing older condiment logic.
 
-### `src/components/tasks/TasksView.js`
+### `src/app/pages/tasks/TasksView.js`
 
 - Drag & drop and task modal logic is now fairly custom.
 - Long-press reorder, ghost card, insertion placeholder, and open/create triggers are easy to break.
 
-### `src/firebase/client.js`
+### `src/app/providers/client.js`
 
 - 1220+ lines. All Firestore operations. The one place `initializeApp()` is called.
 - `joinFamily()` is a pure alias for `acceptHouseholdInvitation()` — do not maintain both separately.
@@ -59,7 +59,7 @@ Maintenance notes. Keep this short and practical.
 
 ## Dead files (do not use)
 
-- `src/components/family/FamilyPanel.js` — never imported anywhere. Replaced by `SettingsView.js`.
+- `src/app/components/FamilyPanel.js` — never imported anywhere. Replaced by `SettingsView.js`.
 - `src/components/Tabs.js` — never imported anywhere. Replaced by `SegmentedTabs.js`.
 
 Safe to remove in a cleanup commit, confirmed by grep.

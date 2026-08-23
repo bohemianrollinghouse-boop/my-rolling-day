@@ -11,8 +11,9 @@ Le prototype design se trouve a part et ne doit pas remplacer cette base.
 - Vite + npm (bundler ; `npm run dev`, `npm run build`)
 - React 18 via npm, syntaxe HTM dans les composants
 - Firebase Auth + Firestore via npm
-- Capacitor 6 (iOS / Android)
-- CSS global dans `src/styles.css`, tokens `--mrd-*`
+- Capacitor 6 (iOS / Android), config dans `capacitor.config.ts`
+- CSS global dans `src/theme/styles.css`, tokens `--mrd-*`
+- config Firebase dans `src/environments/environment.js`
 
 Points importants :
 - pas de JSX — les composants ecrivent des templates ``html`...` ``
@@ -26,49 +27,61 @@ Points importants :
 
 - `index.html`
 - `src/main.js`
-- `src/App.js`
+- `src/app/App.js`
 
 `App.js` reste l orchestrateur principal.
 
 ## Organisation du code
 
+Structure inspiree du projet COBA (voir `docs/ARCHITECTURE.md`) : tout
+l applicatif est sous `src/app/`.
+
+- `src/app/pages/<ecran>/` — une destination de route
+- `src/app/components/` — briques reutilisables non-ecrans
+- `src/app/modals/` — modales
+- `src/app/providers/` — acces aux donnees (Firebase)
+- `src/app/plugins/` — enveloppes de plugins natifs
+- `src/app/config/` — constantes et donnees statiques
+- `src/app/hooks/` — actions metier
+- `src/app/utils/` — utilitaires purs
+
 ### Hooks metier
 
-- `src/hooks/useAuth.js`
-- `src/hooks/useTasks.js`
-- `src/hooks/useLists.js`
-- `src/hooks/useMeals.js`
-- `src/hooks/useAgenda.js`
-- `src/hooks/usePlannerSync.js`
+- `src/app/hooks/useAuth.js`
+- `src/app/hooks/useTasks.js`
+- `src/app/hooks/useLists.js`
+- `src/app/hooks/useMeals.js`
+- `src/app/hooks/useAgenda.js`
+- `src/app/hooks/usePlannerSync.js`
 
 ### Vues principales
 
-- `src/components/home/HomeView.js`
-- `src/components/nav/BottomNav.js`
-- `src/components/tasks/TasksView.js`
-- `src/components/agenda/AgendaView.js`
-- `src/components/lists/ListsView.js`
-- `src/components/inventory/InventoryView.js`
-- `src/components/meals/MealsView.js` (grille semaine)
-- `src/components/meals/RecipePicker.js` (selecteur de recette d un creneau)
-- `src/components/recipes/RecipesView.js` (fiche + formulaire de recette)
-- `src/components/recipes/RecipeLibrary.js` (bibliotheque : recherche, filtres, cartes)
-- `src/components/history/HistoryView.js`
-- `src/components/settings/SettingsView.js`
+- `src/app/pages/home/HomeView.js`
+- `src/app/components/nav/BottomNav.js`
+- `src/app/pages/tasks/TasksView.js`
+- `src/app/pages/agenda/AgendaView.js`
+- `src/app/pages/lists/ListsView.js`
+- `src/app/pages/inventory/InventoryView.js`
+- `src/app/pages/meals/MealsView.js` (grille semaine)
+- `src/app/pages/meals/RecipePicker.js` (selecteur de recette d un creneau)
+- `src/app/pages/recipes/RecipesView.js` (fiche + formulaire de recette)
+- `src/app/pages/recipes/RecipeLibrary.js` (bibliotheque : recherche, filtres, cartes)
+- `src/app/pages/history/HistoryView.js`
+- `src/app/pages/settings/SettingsView.js`
 
 ### Etat / utilitaires
 
-- `src/data/defaultState.js`
-- `src/data/demoRecipes.js`
-- `src/data/condiments.js`
-- `src/utils/state.js`
-- `src/utils/date.js`
-- `src/utils/productUtils.js`
-- `src/utils/storage.js`
-- `src/utils/recipeStock.js` (comparaison recettes / inventaire, faisabilite semaine)
-- `src/utils/units.js` (conversion des unites, cle produit, somme de quantites)
-- `src/utils/recipeFilters.js` (saison, duree, regime, contraintes)
-- `src/utils/mealFill.js` (tirage automatique de la semaine)
+- `src/app/config/defaultState.js`
+- `src/app/config/demoRecipes.js`
+- `src/app/config/condiments.js`
+- `src/app/utils/state.js`
+- `src/app/utils/date.js`
+- `src/app/utils/productUtils.js`
+- `src/app/utils/storage.js`
+- `src/app/utils/recipeStock.js` (comparaison recettes / inventaire, faisabilite semaine)
+- `src/app/utils/units.js` (conversion des unites, cle produit, somme de quantites)
+- `src/app/utils/recipeFilters.js` (saison, duree, regime, contraintes)
+- `src/app/utils/mealFill.js` (tirage automatique de la semaine)
 
 ## Regles produit a respecter
 
@@ -133,14 +146,14 @@ Le projet a deja une logique de memoire produit qui sert a reutiliser des noms c
 - listes
 - ingredients des recettes
 
-Le point central est `src/utils/productUtils.js`.
+Le point central est `src/app/utils/productUtils.js`.
 
 Eviter de reintroduire des comparaisons basees seulement sur le texte brut.
 
 ### Normalisation globale
 
 Toute mutation importante passe idealement par la normalisation dans :
-- `src/utils/state.js`
+- `src/app/utils/state.js`
 
 Ce fichier contient des migrations de compatibilite et des corrections structurelles.
 
@@ -149,13 +162,13 @@ Ce fichier contient des migrations de compatibilite et des corrections structure
 Le projet contient un mode de date simulee.
 
 Reference :
-- `src/utils/date.js`
+- `src/app/utils/date.js`
 
 Eviter d ajouter de nouveaux `new Date()` directs dans les logiques critiques sans passer par les helpers deja en place.
 
 ## Zones sensibles
 
-### `src/hooks/useLists.js`
+### `src/app/hooks/useLists.js`
 
 Zone tres sensible.
 
@@ -168,7 +181,7 @@ Ce hook gere notamment :
 
 Toute modification ici doit etre relue avec attention.
 
-### `src/components/meals/MealsView.js`
+### `src/app/pages/meals/MealsView.js`
 
 Zone sensible pour :
 - liaison repas / inventaire
@@ -176,7 +189,7 @@ Zone sensible pour :
 - affichage detail recette
 - etat `Prep` / `OK`
 
-### `src/components/recipes/RecipesView.js`
+### `src/app/pages/recipes/RecipesView.js`
 
 Zone sensible pour :
 - creation / modification de recette
@@ -185,7 +198,7 @@ Zone sensible pour :
 - disponibilites saisonnieres
 - badges alimentaires
 
-### `src/App.js`
+### `src/app/App.js`
 
 Tres gros fichier.
 

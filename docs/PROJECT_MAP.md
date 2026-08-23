@@ -5,29 +5,29 @@ Read this file first in future sessions.
 ## Root
 
 - `index.html`
-  Static entry HTML. Loads `src/styles.css` and `src/main.js` with cache-busting query params.
+  Static entry HTML. Loads `src/theme/styles.css` and `src/main.js` with cache-busting query params.
   Contient le spinner `.ldr` statique, le boot log (`window.__APP_BOOT_LOGS__`), et un timeout 8s
   qui affiche un écran d'erreur si React ne monte pas.
 - `src/main.js`
   Boots the app, mounts `App`, exposes fatal boot errors via `window.__APP_BOOT_STATE__`.
-- `src/App.js` (~1500 lignes)
+- `src/app/App.js` (~1500 lignes)
   Main orchestrator. Navigation, top-level state wiring, cross-feature glue, toast handling, view
   selection. Contient aussi des helpers locaux de conversion quantité/unité et gestion localStorage
   qui n'ont pas encore été extraits vers utils/.
-- `src/styles.css`
+- `src/theme/styles.css`
   Global styles for the entire app.
-- `src/lib.js`
+- `src/app/lib.js`
   React 18 + HTM bridge. Exporte : `React`, `createRoot`, `useEffect`, `useMemo`, `useRef`,
   `useState`, `html`. Source : esm.sh CDN.
-- `src/constants.js`
+- `src/app/config/constants.js`
   Shared constants : `FIREBASE_CONFIG`, `FIREBASE_WEB_VAPID_KEY`, `DAYS`, `MEMBER_COLORS`
   (6 couleurs), `APP_VERSION`, `TABS` (11 onglets).
 
 ## Firebase / Config
 
-- `src/firebase/client.js` (~1220 lignes)
+- `src/app/providers/client.js` (~1220 lignes)
   Toute la logique Firebase Auth + Firestore. Voir ARCHITECTURE.md pour les collections.
-- `src/firebase/messaging.js`
+- `src/app/providers/messaging.js`
   Firebase Cloud Messaging (FCM). Gère SW, token, permission, messages foreground.
   Exporte : `isPushMessagingSupported`, `getNotificationPermissionState`, `ensureMessagingServiceWorker`,
   `syncPushToken`, `clearPushToken`, `bindForegroundPushMessages`.
@@ -47,116 +47,160 @@ Read this file first in future sessions.
 
 ## Main folders
 
-- `src/components`
-  UI views and reusable pieces.
-- `src/hooks`
-  Feature actions and state mutation logic.
-- `src/utils`
-  Normalization, time, storage parsing, product memory.
-- `src/data`
-  Default state, demo recipes, condiment catalog.
-- `src/firebase`
-  Firebase auth + Firestore adapter.
+Structure inspirée du projet COBA (Ionic/Angular), adaptée à React + htm : tout
+l'applicatif vit sous `src/app/`, la configuration d'environnement et le thème
+restent à côté.
+
+- `src/app/pages/<ecran>/`
+  Un dossier par destination de route. Contient la vue et ses sous-composants
+  propres (`recipes/` a `RecipesView`, `RecipeLibrary`, `RecipeSheet`,
+  `CategoryIcons`, `VoiceCookingMode`).
+- `src/app/components`
+  Briques réutilisables qui ne sont pas des écrans : `Header`, `SegmentedTabs`,
+  `FamilyPanel`, `FeedbackWidget`, `MrdModal` (enveloppe `ion-modal`), `nav/`,
+  `settings/SettingsUI` (lignes, sections, interrupteurs des réglages, partagés
+  entre les pages réglages et `SettingsModals`).
+- `src/app/modals`
+  Modales : `AppModals`, `SettingsModals`. L'enveloppe `ion-modal` elle-meme
+  (`MrdModal`) vit dans `components/` : c'est une primitive reutilisee par les
+  16 fichiers qui ouvrent une modale, pas une modale.
+- `src/app/providers`
+  Accès aux données — adaptateur Firebase Auth + Firestore (ex-`src/firebase`).
+  Équivalent des `providers/*.service.ts` de COBA.
+- `src/app/plugins`
+  Enveloppes de plugins natifs Capacitor : `statusBar`, `notifications`.
+- `src/app/config`
+  Constantes de domaine et données statiques : jours, palettes, onglets,
+  version, état par défaut, recettes de démo, catalogue de condiments.
+- `src/app/hooks`
+  Actions métier et mutations d'état. Spécifique React : pas d'équivalent COBA,
+  Angular passe par l'injection de dépendances.
+- `src/app/utils`
+  Normalisation, dates, stockage, unités, dialogues, défilement.
+- `src/app/{App,routes,lib}.js`
+  Coquille applicative, table des routes, liaison React + htm.
+- `src/environments/environment.js`
+  Configuration Firebase et drapeaux de build. Voir le commentaire du fichier
+  sur l'absence de jumeau `.prod.js`.
+- `src/theme/`
+  `styles.css` (CSS global, tokens `--mrd-*`) et `ionic-bridge.css`
+  (branchement des variables `--ion-*` sur les tokens).
 - `src/assets/`
-  Brand assets (favicon, apple-touch-icon) et icônes SVG.
+  Marque (favicon, apple-touch-icon), polices, icônes SVG.
+- `src/main.js`
+  Point d'entrée : `setupIonicReact`, overlay d'erreur fatale, montage React.
 - `tests`
-  Unit tests and E2E tests.
+  Tests unitaires, E2E (CDP) et captures d'écran de non-régression visuelle.
 - `scripts`
-  Test runner helpers.
+  Génération de build-info, bump de version, préparation et envoi des releases.
+
+## Racine : configuration
+
+- `capacitor.config.ts`
+  Config Capacitor en TypeScript (comme COBA). Lue par la CLI via la
+  devDependency `typescript`, jamais embarquée dans le bundle.
+- `ionic.config.json`
+  Marqueur de projet Ionic (`type: react-vite`, intégration Capacitor).
+- `tsconfig.json`
+  Ne couvre que `capacitor.config.ts`. `allowJs` volontairement absent.
+- `vite.config.js`
+  Build web. `build.target` documente le plancher navigateur.
+- `.editorconfig`
+  Indentation et fins de ligne, y compris les exceptions Xcode et Gradle.
 
 ## Feature map
 
 ### Tasks
 
-- View: `src/components/tasks/TasksView.js`
-- Shared task card: `src/components/tasks/TaskCard.js`
-- Emoji picker: `src/components/tasks/EmojiPicker.js`
-- Mutations: `src/hooks/useTasks.js`
-- Notifications tâches : `src/hooks/useTaskNotifications.js`
-- Normalization / reset / recurrence: `src/utils/state.js`
-- Top tab navigation lives in: `src/App.js`
+- View: `src/app/pages/tasks/TasksView.js`
+- Shared task card: `src/app/pages/tasks/TaskCard.js`
+- Emoji picker: `src/app/pages/tasks/EmojiPicker.js`
+- Mutations: `src/app/hooks/useTasks.js`
+- Notifications tâches : `src/app/hooks/useTaskNotifications.js`
+- Normalization / reset / recurrence: `src/app/utils/state.js`
+- Top tab navigation lives in: `src/app/App.js`
 
 ### Agenda
 
-- View: `src/components/agenda/AgendaView.js`
-- Mutations: `src/hooks/useAgenda.js`
-- Task-to-agenda derived planning map built in: `src/App.js`
-- Agenda and recurring entries normalized in: `src/utils/state.js`
+- View: `src/app/pages/agenda/AgendaView.js`
+- Mutations: `src/app/hooks/useAgenda.js`
+- Task-to-agenda derived planning map built in: `src/app/App.js`
+- Agenda and recurring entries normalized in: `src/app/utils/state.js`
 
 ### Lists
 
-- View: `src/components/lists/ListsView.js`
-- Mutations: `src/hooks/useLists.js`
-- Shopping list default / dedupe / merge rules: `src/hooks/useLists.js`, `src/utils/state.js`
+- View: `src/app/pages/lists/ListsView.js`
+- Mutations: `src/app/hooks/useLists.js`
+- Shopping list default / dedupe / merge rules: `src/app/hooks/useLists.js`, `src/app/utils/state.js`
 
 ### Inventory
 
-- View: `src/components/inventory/InventoryView.js`
-- Mutations: `src/hooks/useLists.js`
+- View: `src/app/pages/inventory/InventoryView.js`
+- Mutations: `src/app/hooks/useLists.js`
 - Storage locations + product location memory:
-  - `src/data/defaultState.js`
-  - `src/hooks/useLists.js`
+  - `src/app/config/defaultState.js`
+  - `src/app/hooks/useLists.js`
 
 ### Meals
 
-- View: `src/components/meals/MealsView.js`
-- Mutations: `src/hooks/useMeals.js`
-- Meal shells and recipe normalization helpers: `src/utils/state.js`
-- Extra stock deduction / shopping sync glue still lives partly in: `src/App.js`
+- View: `src/app/pages/meals/MealsView.js`
+- Mutations: `src/app/hooks/useMeals.js`
+- Meal shells and recipe normalization helpers: `src/app/utils/state.js`
+- Extra stock deduction / shopping sync glue still lives partly in: `src/app/App.js`
 
 ### Recipes
 
-- View: `src/components/recipes/RecipesView.js`
-- Category icons: `src/components/recipes/CategoryIcons.js`
-- Mutations: `src/hooks/useMeals.js`
-- Demo data: `src/data/demoRecipes.js`
-- Condiment catalog: `src/data/condiments.js`
-- Recipe normalization / migration: `src/utils/state.js`
+- View: `src/app/pages/recipes/RecipesView.js`
+- Category icons: `src/app/pages/recipes/CategoryIcons.js`
+- Mutations: `src/app/hooks/useMeals.js`
+- Demo data: `src/app/config/demoRecipes.js`
+- Condiment catalog: `src/app/config/condiments.js`
+- Recipe normalization / migration: `src/app/utils/state.js`
 
 ### Settings
 
-- View: `src/components/settings/SettingsView.js` (~1826 lignes)
+- View: `src/app/pages/settings/SettingsView.js` (~1826 lignes)
 - Sous-pages : main, profile, household, notifications, appearance, account, privacy, help, about
 - Sous-pages support (SupportView) : bug, feature, contact, privacy, terms
-- Auth/family actions passed from: `src/App.js`
-- Time simulation controls wired through: `src/utils/date.js`
+- Auth/family actions passed from: `src/app/App.js`
+- Time simulation controls wired through: `src/app/utils/date.js`
 
 ### Auth & Onboarding
 
-- Auth screen (connexion): `src/components/auth/AuthScreen.js`
+- Auth screen (connexion): `src/app/pages/auth/AuthScreen.js`
   Flux : welcome → login (email+password), signup, forgot-password. Google OAuth.
-- Onboarding (création/rejoindre foyer): `src/components/auth/OnboardingFlow.js` (~935 lignes)
+- Onboarding (création/rejoindre foyer): `src/app/pages/auth/OnboardingFlow.js` (~935 lignes)
   Flux CREATE : choose-household-mode → create-first-name → create-badge-color →
     create-household-name → create-add-members → [create-invite-members]
   Flux JOIN : join-invitation-code → join-confirm-household → join-profile-name →
     join-badge-color → join-done
   Flux EXISTING-PROFILE : existing-profile-name → existing-badge-color → existing-done
-- Hook auth: `src/hooks/useAuth.js` (~828 lignes)
+- Hook auth: `src/app/hooks/useAuth.js` (~828 lignes)
 
 ### Push Notifications
 
-- Hook: `src/hooks/usePushMessaging.js` (~131 lignes)
-- Firebase Messaging adapter: `src/firebase/messaging.js`
-- Task notifications (local Notification API): `src/hooks/useTaskNotifications.js` (~191 lignes)
+- Hook: `src/app/hooks/usePushMessaging.js` (~131 lignes)
+- Firebase Messaging adapter: `src/app/providers/messaging.js`
+- Task notifications (local Notification API): `src/app/hooks/useTaskNotifications.js` (~191 lignes)
 - Cloud Functions (backend): `functions/index.js`
 
 ## Other views
 
-- Home / shell dashboard: `src/components/home/HomeView.js` (~534 lignes)
-- Bottom nav: `src/components/nav/BottomNav.js`
+- Home / shell dashboard: `src/app/pages/home/HomeView.js` (~534 lignes)
+- Bottom nav: `src/app/components/nav/BottomNav.js`
   Onglets : home, tasks, agenda, meals, lists
-- Notes: `src/components/notes/NotesView.js`
-- History: `src/components/history/HistoryView.js`
-- Feedback widget flottant: `src/components/feedback/FeedbackWidget.js`
+- Notes: `src/app/pages/notes/NotesView.js`
+- History: `src/app/pages/history/HistoryView.js`
+- Feedback widget flottant: `src/app/components/FeedbackWidget.js`
 
 ## Shared UI
 
-- `src/components/common/SegmentedTabs.js` — contrôle tab segmenté (utilisé dans App, Agenda, Lists)
-- `src/components/tasks/TaskCard.js` — carte tâche réutilisée dans Tasks et Agenda
+- `src/app/components/SegmentedTabs.js` — contrôle tab segmenté (utilisé dans App, Agenda, Lists)
+- `src/app/pages/tasks/TaskCard.js` — carte tâche réutilisée dans Tasks et Agenda
 
 ## FICHIERS MORTS (ne pas utiliser)
 
-- `src/components/family/FamilyPanel.js` — composant legacy jamais importé, remplacé par SettingsView
+- `src/app/components/FamilyPanel.js` — composant legacy jamais importé, remplacé par SettingsView
 - `src/components/Tabs.js` — composant tab legacy jamais importé, remplacé par SegmentedTabs
 
 ## Tests

@@ -1,7 +1,7 @@
 import { setupIonicReact } from "@ionic/react";
 
-import { App } from "./App.js";
-import { createRoot, html } from "./lib.js";
+import { App } from "./app/App.js";
+import { createRoot, html } from "./app/lib.js";
 
 // Mode `ios` force sur les deux plateformes. Par defaut Ionic rend `md` sur
 // Android : le design maison (chaud, arrondi, feutre) est beaucoup plus proche

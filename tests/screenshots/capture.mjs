@@ -436,12 +436,12 @@ async function runVariant(browser, serverUrl, variant, outDir, report) {
     window.__E2E_PREMIUM = true;
     try {
       localStorage.setItem("mrd-theme", ${JSON.stringify(variant.theme)});
-      // Date figee (cf. src/utils/date.js) : sans elle, « Aujourd hui » et la
+      // Date figee (cf. src/app/utils/date.js) : sans elle, « Aujourd hui » et la
       // grille de semaine changent a chaque execution et toute comparaison
       // visuelle devient du bruit.
       localStorage.setItem("mrd-app-time-mode", "simulated");
       localStorage.setItem("mrd-app-time-simulated", ${JSON.stringify(FROZEN_DATE)});
-      // Neutralise la modale « Activer les notifications ? » (src/utils/storage.js).
+      // Neutralise la modale « Activer les notifications ? » (src/app/utils/storage.js).
       localStorage.setItem("mrd_notif_prompt", JSON.stringify({ dismissCount: 3, lastDismissed: null, granted: true }));
     } catch (e) {}
     const style = document.createElement("style");

@@ -2,7 +2,7 @@
  * Tests E2E — Navigation par onglets Ionic
  *
  * Ce fichier dupliquait `NAV_TABS` et `getBottomId` en JavaScript pur pour les
- * tester sans navigateur. Ces deux-là vivent maintenant dans `src/routes.js` et
+ * tester sans navigateur. Ces deux-là vivent maintenant dans `src/app/routes.js` et
  * sont couverts par `tests/unit/routes.test.js`, qui teste **le vrai module**
  * plutôt qu'une copie — une copie qui, par construction, reste verte même si
  * l'original casse. La section « logique pure » a donc disparu d'ici.
@@ -257,7 +257,7 @@ test("CDP: navigation entre onglets — aucun crash", { timeout: 240_000 }, asyn
          – depuis qu'elle est une `ion-modal`, elle apporte sa propre
            `.ion-page`, et les assertions qui visent « la page visible »
            tombaient sur elle au lieu de l'écran.
-       Marquer la demande comme traitée (`src/utils/storage.js`) reproduit
+       Marquer la demande comme traitée (`src/app/utils/storage.js`) reproduit
        l'état d'un utilisateur qui revient. */
     await session.send("Page.addScriptToEvaluateOnNewDocument", {
       source: `try { localStorage.setItem("mrd_notif_prompt",

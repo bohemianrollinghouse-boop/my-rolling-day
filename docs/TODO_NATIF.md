@@ -82,7 +82,7 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
 - **SHA-1 debug déclarée dans Firebase** (via CLI) + `google-services.json`
   régénéré : il contient désormais un `oauth_client` de type 1
   (`certificate_hash: 079c5c…d0bb`). Google Sign-In Android débloqué en dev.
-- **Notifications multi-plateforme** : nouvel adaptateur `src/utils/notify.js`
+- **Notifications multi-plateforme** : nouvel adaptateur `src/app/plugins/notifications.js`
   (web `Notification` / natif `@capacitor/local-notifications`, cache de
   permission synchrone, listener de tap centralisé). Branché dans
   `AgendaView.js`, `useTaskNotifications.js`, `storage.js`
@@ -112,7 +112,7 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
   l'annulation de la feuille de partage n'est pas traitée comme une erreur.
 - **Coller le code d'invitation** : `readClipboardText()` dans
   `OnboardingFlow.js` — `@capacitor/clipboard` en natif, fallback web.
-- **Status bar synchronisée au thème** : `src/utils/statusBar.js`
+- **Status bar synchronisée au thème** : `src/app/plugins/statusBar.js`
   (`setStyle` + `setBackgroundColor` Android), appelé au boot (`App.js`) et à
   chaque bascule (`SettingsView.js`).
 - **Persistance auth durcie** : `indexedDBLocalPersistence` avec fallback
@@ -138,7 +138,7 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
 
 - Crash Google Sign-In (`initialize()` jamais appelé, `load()` natif vide) →
   `ensureGoogleAuthInitialized()` + `iosClientId`/`androidClientId` dans
-  `capacitor.config.json`.
+  `capacitor.config.ts`.
 - Crash « Prendre une photo » (recettes) → `NSCameraUsageDescription` +
   `NSPhotoLibraryUsageDescription`.
 - Logo absent (5 chemins `./src/assets/…` non réécrits par Vite) → imports.

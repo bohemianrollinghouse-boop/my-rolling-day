@@ -6,7 +6,7 @@ import {
   findSimilarItem,
   formatQuantityUnit,
   normalizeProductName,
-} from "../../src/utils/productUtils.js";
+} from "../../src/app/utils/productUtils.js";
 
 test("normalizeProductName harmonise accents, pluriels et variantes simples", () => {
   assert.equal(normalizeProductName("  Pommes  "), "pomes");

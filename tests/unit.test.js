@@ -8,3 +8,5 @@ import "./unit/firebase-config.test.js";
 import "./unit/families.test.js";
 import "./unit/multi-family-source.test.js";
 import "./unit/design-tokens.test.js";
+import "./unit/routes.test.js";
+import "./unit/structure.test.js";

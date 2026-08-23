@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const SRC = fileURLToPath(new URL("../../src/", import.meta.url));
-const STYLES = join(SRC, "styles.css");
+const STYLES = join(SRC, "theme", "styles.css");
 const css = readFileSync(STYLES, "utf8");
 
 /* La passerelle Ionic ne définit aucune couleur : elle branche les `--ion-*`
@@ -133,12 +133,12 @@ test("design : BADGE_PALETTE n'est définie qu'à un seul endroit", () => {
   const owners = JS.filter(({ lines }) =>
     lines.some((l) => /(export\s+)?const BADGE_PALETTE\s*=\s*\[/.test(l))
   ).map((f) => f.file);
-  assert.deepEqual(owners, ["constants.js"]);
+  assert.deepEqual(owners, ["app/config/constants.js"]);
 });
 
 test("design : le repli de couleur membre n'est écrit qu'une fois", () => {
   const owners = scanJs((line) => /#8B7355/i.test(line)).map((h) => h.split(":")[0]);
-  assert.deepEqual([...new Set(owners)], ["constants.js"]);
+  assert.deepEqual([...new Set(owners)], ["app/config/constants.js"]);
 });
 
 

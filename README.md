@@ -27,16 +27,17 @@ Documentation agent :
 ## Stack technique
 
 - HTML + CSS + JavaScript
-- React 18 charge par CDN
-- syntaxe HTM dans les composants
-- modules ES natifs
-- Firebase Auth
-- Firestore
+- Vite + npm (`npm run dev`, `npm run build` vers `dist/`)
+- React 18 depuis npm, syntaxe HTM dans les composants
+- Ionic (`@ionic/react` 9) pour la coque, la navigation et les overlays
+- Capacitor 6 pour iOS / Android (`capacitor.config.ts`)
+- Firebase Auth + Firestore depuis npm
 
 Particularites importantes :
-- pas de JSX
-- pas de build complexe visible dans ce dossier
-- beaucoup d imports utilisent `?v=...` pour forcer le rechargement navigateur
+- pas de JSX — les composants ecrivent des templates ``html`...` ``
+- **plus de suffixe `?v=...`** : cette regle de cache busting datait de l epoque
+  sans bundler, elle est obsolete et ne doit pas etre reintroduite
+- structure du code inspiree du projet COBA, voir `docs/ARCHITECTURE.md`
 
 ## Lancer l application
 
@@ -95,8 +96,8 @@ node --test --test-isolation=none tests/e2e.test.js
 ## Firebase
 
 La logique Firebase se trouve surtout ici :
-- `src/firebase/client.js`
-- `src/constants.js`
+- `src/app/providers/` (adaptateur Auth + Firestore)
+- `src/environments/environment.js` (cles et identifiants du projet)
 
 Fonctions principales :
 - connexion email / mot de passe
@@ -114,39 +115,39 @@ Si Google Auth ne fonctionne pas, verifier les domaines autorises dans Firebase 
 
 - `index.html`
 - `src/main.js`
-- `src/App.js`
+- `src/app/App.js`
 
 ### Hooks metier
 
-- `src/hooks/useAuth.js`
-- `src/hooks/useTasks.js`
-- `src/hooks/useLists.js`
-- `src/hooks/useMeals.js`
-- `src/hooks/useAgenda.js`
-- `src/hooks/usePlannerSync.js`
+- `src/app/hooks/useAuth.js`
+- `src/app/hooks/useTasks.js`
+- `src/app/hooks/useLists.js`
+- `src/app/hooks/useMeals.js`
+- `src/app/hooks/useAgenda.js`
+- `src/app/hooks/usePlannerSync.js`
 
 ### Composants principaux
 
-- `src/components/home/HomeView.js`
-- `src/components/nav/BottomNav.js`
-- `src/components/tasks/TasksView.js`
-- `src/components/agenda/AgendaView.js`
-- `src/components/lists/ListsView.js`
-- `src/components/inventory/InventoryView.js`
-- `src/components/meals/MealsView.js`
-- `src/components/recipes/RecipesView.js`
-- `src/components/history/HistoryView.js`
-- `src/components/settings/SettingsView.js`
+- `src/app/pages/home/HomeView.js`
+- `src/app/components/nav/BottomNav.js`
+- `src/app/pages/tasks/TasksView.js`
+- `src/app/pages/agenda/AgendaView.js`
+- `src/app/pages/lists/ListsView.js`
+- `src/app/pages/inventory/InventoryView.js`
+- `src/app/pages/meals/MealsView.js`
+- `src/app/pages/recipes/RecipesView.js`
+- `src/app/pages/history/HistoryView.js`
+- `src/app/pages/settings/SettingsView.js`
 
 ### Donnees / utilitaires
 
-- `src/data/defaultState.js`
-- `src/data/demoRecipes.js`
-- `src/data/condiments.js`
-- `src/utils/state.js`
-- `src/utils/date.js`
-- `src/utils/productUtils.js`
-- `src/utils/storage.js`
+- `src/app/config/defaultState.js`
+- `src/app/config/demoRecipes.js`
+- `src/app/config/condiments.js`
+- `src/app/utils/state.js`
+- `src/app/utils/date.js`
+- `src/app/utils/productUtils.js`
+- `src/app/utils/storage.js`
 
 ## Fonctionnalites clefs
 
@@ -184,7 +185,7 @@ Le projet contient une logique commune de reconnaissance produit entre :
 - recettes
 
 Le point central est :
-- `src/utils/productUtils.js`
+- `src/app/utils/productUtils.js`
 
 Objectif :
 - detecter les produits deja connus
@@ -194,7 +195,7 @@ Objectif :
 ## Etat global
 
 L etat par defaut est cree ici :
-- `src/data/defaultState.js`
+- `src/app/config/defaultState.js`
 
 On y trouve notamment :
 - `tasks`
@@ -220,12 +221,12 @@ Sinon le navigateur peut continuer a charger une ancienne version.
 Le projet contient une logique de date simulee.
 
 Eviter d ajouter des `new Date()` directement dans toutes les logiques metier sans verifier d abord :
-- `src/utils/date.js`
+- `src/app/utils/date.js`
 
 ### Normalisation
 
 La normalisation centrale passe par :
-- `src/utils/state.js`
+- `src/app/utils/state.js`
 
 Eviter de contourner cette couche pour les objets metier persistants.
 
@@ -239,9 +240,9 @@ Il ne doit pas remplacer la structure actuelle du projet.
 
 ## Notes pour developpement
 
-- `src/App.js` reste un gros point d orchestration
-- `src/hooks/useLists.js` est une zone sensible
-- `src/components/meals/MealsView.js` et `src/components/recipes/RecipesView.js` sont sensibles pour les flux repas / recettes / inventaire
+- `src/app/App.js` reste un gros point d orchestration
+- `src/app/hooks/useLists.js` est une zone sensible
+- `src/app/pages/meals/MealsView.js` et `src/app/pages/recipes/RecipesView.js` sont sensibles pour les flux repas / recettes / inventaire
 - certaines versions de fichiers peuvent contenir des suffixes `?v=...` heterogenes
 
 ## Conseil pratique
