@@ -980,7 +980,6 @@ html[data-theme="dark"] {
 
   --mrd-amberRgb:    230 167 103;
 
-
   /* élévation — base noir chaud */
 
   --mrd-shadowXs:    0 1px 3px oklch(8% 0.012 60 / .20);
@@ -1906,13 +1905,6 @@ html[data-theme="dark"] .mrd-set-page { background: var(--mrd-bgDeep); }
 .suggest-item:last-child { border-bottom: none; }
 .suggest-item:hover { background: var(--mrd-surf2); }
 .quantity-unit-row { display: flex; gap: 8px; align-items: center; }
-.recipe-ingredient-chip-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
-.recipe-ingredient-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--mrd-borderSoft); border-radius: 999px; background: var(--mrd-surf); padding: 4px 8px; min-height: 24px; }
-.recipe-ingredient-chip-main { display: inline-flex; align-items: baseline; gap: 5px; flex-wrap: nowrap; }
-.recipe-ingredient-chip-name { font-size: 11px; line-height: 1; color: var(--mrd-fg); white-space: nowrap; }
-.recipe-ingredient-chip-qty { font-size: 10px; line-height: 1; color: var(--mrd-fg3); white-space: nowrap; }
-.recipe-ingredient-chip-kind { font-size: 9px; line-height: 1; color: var(--mrd-amberDeep); background: var(--mrd-amberLt); border-radius: 999px; padding: 2px 5px; white-space: nowrap; }
-.recipe-ingredient-chip-removable { padding-right: 4px; }
 .condiment-section-label { font-size: 11px; font-weight: 600; color: var(--mrd-fg3); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; margin-bottom: 4px; }
 .condiment-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 .condiment-badge-removable { cursor: pointer; font-weight: 500; border-color: var(--mrd-aMd); background: var(--mrd-surf3); color: var(--mrd-fg); }
@@ -1935,7 +1927,6 @@ html[data-theme="dark"] .mrd-set-page { background: var(--mrd-bgDeep); }
 .condiment-custom-remove:hover { background: var(--mrd-surf2); border-color: var(--mrd-aMd); color: var(--mrd-fg2); }
 .condiment-card-row { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; margin-top: 4px; }
 .condiment-card-label { font-size: 11px; font-weight: 600; color: var(--mrd-fg3); white-space: nowrap; padding-top: 4px; }
-.recipe-ingredient-chip-remove { border: none; background: transparent; color: var(--mrd-fg3); font-size: 11px; line-height: 1; padding: 0 2px; min-width: 16px; }
 .recipe-servings-row { display: inline-flex; align-items: center; gap: 8px; width: fit-content; }
 .recipe-servings-btn { width: 34px; height: 34px; border: 1px solid var(--mrd-border); border-radius: 999px; background: var(--mrd-white); color: var(--mrd-fg2); font-size: 18px; line-height: 1; }
 .recipe-servings-value { min-width: 120px; text-align: center; border: 1px solid var(--mrd-borderSoft); border-radius: 999px; background: var(--mrd-surf); padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--mrd-fg); }
@@ -2031,9 +2022,6 @@ html[data-theme="dark"] .shopping-item.purchased .stxt { color: var(--mrd-fg2); 
 html[data-theme="dark"] .shopping-item.purchased .mini { color: var(--mrd-fg2); }
 html[data-theme="dark"] .inventory-pill.quantity { background: var(--mrd-surf2); color: var(--mrd-fg2); }
 html[data-theme="dark"] .inventory-pill.expiry { background: var(--mrd-amberLt); color: var(--mrd-amberDeep); }
-html[data-theme="dark"] .recipe-ingredient-chip { background: var(--mrd-disabledBg); border-color: var(--mrd-border); }
-html[data-theme="dark"] .recipe-ingredient-chip-name { color: var(--mrd-fg); }
-html[data-theme="dark"] .recipe-ingredient-chip-qty { color: var(--mrd-fg2); }
 /* ── Dark : éléments avec couleurs codées en dur ── */
 html[data-theme="dark"] .mrd-ion-tabbar {
   --background: var(--mrd-bgGlass);
@@ -2152,8 +2140,6 @@ html[data-theme="dark"] .seg-btn.on { background: var(--mrd-surf3); color: var(-
 /* Nom du foyer */
 html[data-theme="dark"] .foyer-name-label { color: var(--mrd-fg2); }
 html[data-theme="dark"] .foyer-name-value { color: var(--mrd-fg); }
-html[data-theme="dark"] .recipe-ingredient-chip-kind { background: var(--mrd-amberLt); color: var(--mrd-amberDeep); }
-html[data-theme="dark"] .recipe-ingredient-chip-remove { color: var(--mrd-fg2); }
 html[data-theme="dark"] .condiment-toggle { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg2); }
 html[data-theme="dark"] .condiment-toggle.on { background: var(--mrd-amberLt); border-color: var(--mrd-amberMd); color: var(--mrd-amberDeep); }
 html[data-theme="dark"] .condiment-badge { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg2); }
@@ -2317,12 +2303,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
   .calendar-card-actions { width: 100%; justify-content: space-between; margin-left: 0; }
   .calendar-slot-month { min-height: auto; }
   .calendar-month-slot { min-height: 110px; padding: 7px; }
-  .recipe-ingredient-chip-list { gap: 5px; }
-  .recipe-ingredient-chip { padding: 4px 7px; min-height: 22px; }
-  .recipe-ingredient-chip-name { font-size: 10px; }
-  .recipe-ingredient-chip-qty { font-size: 9px; }
-  .recipe-ingredient-chip-kind { font-size: 8px; padding: 2px 4px; }
-  .recipe-ingredient-chip-remove { font-size: 10px; }
   .recipe-servings-value { min-width: 104px; font-size: 12px; }
 }
 /* ═══════════════════════════════════════════════════════════════
@@ -3117,10 +3097,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 /* Chips filtres (types + contraintes) */
 /* Compteur recettes */
 /* Chips ingrédients */
-.mrd-shell .recipe-ingredient-chip { background: var(--mrd-surf); border-color: var(--mrd-border); }
-.mrd-shell .recipe-ingredient-chip-name { color: var(--mrd-fg); }
-.mrd-shell .recipe-ingredient-chip-qty { color: var(--mrd-fg3); }
-.mrd-shell .recipe-ingredient-chip-kind { background: var(--mrd-surf2); color: var(--mrd-fg2); }
 .mrd-shell .recipe-servings-btn,
 .mrd-shell .recipe-servings-value,
 .mrd-shell .recipe-servings-note { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg); }
@@ -3599,32 +3575,7 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
 }
 /* ── Page création/édition recette — compacte avec menus flottants ── */
 /* Zone photo — mode édition */
-.mrd-shell .recipe-edit-photo-area {
-  width: 110px; height: 110px;
-  border-radius: 14px;
-  border: 2px dashed var(--mrd-borderSoft);
-  background: var(--mrd-surf2);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; margin: 0 auto 8px;
-  overflow: hidden; position: relative;
-  transition: border-color 0.15s, opacity 0.15s;
-}
-.mrd-shell .recipe-edit-photo-area:active { opacity: 0.8; }
-.mrd-shell .recipe-edit-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.mrd-shell .recipe-edit-photo-remove {
-  position: absolute; top: 5px; right: 5px;
-  width: 24px; height: 24px; border-radius: 50%;
-  background: var(--mrd-scrimStrong); color: var(--mrd-white);
-  border: none; cursor: pointer; font-size: 13px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  line-height: 1; z-index: 2;
-}
-.mrd-shell .recipe-edit-photo-loading { font-size: 28px; animation: mrdPhotoSpin 1s linear infinite; }
 @keyframes mrdPhotoSpin { to { transform: rotate(360deg); } }
-.mrd-shell .recipe-edit-photo-error { font-size: 11px; color: var(--primary-color); text-align: center; margin-top: 4px; margin-bottom: 6px; line-height: 1.4; }
-.mrd-shell .recipe-edit-photo-placeholder { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.mrd-shell .recipe-edit-photo-icon { font-size: 32px; }
-.mrd-shell .recipe-edit-photo-hint { font-size: 10px; font-weight: 600; color: var(--mrd-fg3); text-align: center; }
 /* Photo dans la fiche recette */
 .mrd-shell .recipe-sheet-hero-photo {
   width: 100%; max-height: 220px;
@@ -3640,326 +3591,25 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
   object-fit: contain;
   display: block;
 }
-.mrd-shell .recipe-edit-photo-placeholder--drink {
-  width: 100%;
-  height: 100%;
-  gap: 6px;
-  justify-content: center;
-  padding: 8px 6px;
-}
-.mrd-shell .recipe-edit-photo-placeholder--drink .recipe-drink-fallback-svg--edit {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
-  display: block;
-}
-.mrd-shell .recipe-edit-photo-placeholder--drink .recipe-edit-photo-hint {
-  max-width: 84px;
-  line-height: 1.2;
-}
 /* Titre éditable — centré, même style que la fiche lecture */
-.mrd-shell .recipe-sheet-hero-title--input {
-  display: block;
-  width: 100%;
-  font-family: "DM Sans", sans-serif;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--mrd-fg);
-  text-align: center;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  margin: 0 0 var(--mrd-sp);
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 2px 8px 8px;
-  outline: none;
-  transition: border-bottom-color 0.2s;
-  min-height: 0;
-}
-.mrd-shell .recipe-sheet-hero-title--input::placeholder { color: var(--mrd-fg3); font-weight: 500; }
-.mrd-shell .recipe-sheet-hero-title--input:focus { border-bottom-color: var(--mrd-a); box-shadow: none; }
 /* Régime alimentaire — 4 boutons directs dans le formulaire */
-.mrd-shell .recipe-edit-diet-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-  width: 100%;
-  margin-bottom: 8px;
-}
-.mrd-shell .recipe-edit-diet-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; padding: 8px 4px;
-  border-radius: 10px; border: 1.5px solid var(--mrd-borderSoft);
-  background: var(--mrd-surf2); color: var(--mrd-fg2);
-  cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.mrd-shell .recipe-edit-diet-btn.on {
-  background: var(--mrd-aLt); color: var(--mrd-a); border-color: var(--mrd-aMd);
-}
-.mrd-shell .recipe-edit-diet-icon { font-size: 18px; line-height: 1; }
-.mrd-shell .recipe-edit-diet-label { font-size: 10px; font-weight: 600; line-height: 1.2; text-align: center; white-space: normal; }
 /* Rangée de capsules — centrée */
-.mrd-shell .recipe-edit-caps-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  width: 100%;
-  margin-bottom: 14px;
-  justify-content: center;
-}
 /* Wrapper relatif pour chaque dropdown */
-.mrd-shell .recipe-edit-cap-wrap {
-  position: relative;
-  display: inline-flex;
-}
 /* Capsule de base */
-.mrd-shell .recipe-edit-cap {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1.5px solid var(--mrd-borderSoft);
-  background: var(--mrd-surf2);
-  color: var(--mrd-fg2);
-  cursor: pointer;
-  white-space: nowrap;
-  min-height: 0;
-  box-shadow: none;
-  line-height: 1.3;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.mrd-shell .recipe-edit-cap:active { opacity: 0.8; }
-.mrd-shell .recipe-edit-cap--set {
-  background: var(--mrd-aLt);
-  color: var(--mrd-a);
-  border-color: var(--mrd-aMd);
-}
-.mrd-shell .recipe-edit-cap--category.recipe-category--starter {
-  background: var(--recipe-cat-starter-bg);
-  color: var(--recipe-cat-starter);
-  border-color: var(--recipe-cat-starter-line);
-}
-.mrd-shell .recipe-edit-cap--category.recipe-category--main {
-  background: var(--recipe-cat-main-bg);
-  color: var(--recipe-cat-main);
-  border-color: var(--recipe-cat-main-line);
-}
-.mrd-shell .recipe-edit-cap--category.recipe-category--dessert {
-  background: var(--recipe-cat-dessert-bg);
-  color: var(--recipe-cat-dessert);
-  border-color: var(--recipe-cat-dessert-line);
-}
-.mrd-shell .recipe-edit-cap--category.recipe-category--breakfast {
-  background: var(--recipe-cat-breakfast-bg);
-  color: var(--recipe-cat-breakfast);
-  border-color: var(--recipe-cat-breakfast-line);
-}
-.mrd-shell .recipe-edit-cap--category.recipe-category--drink {
-  background: var(--recipe-cat-drink-bg);
-  color: var(--recipe-cat-drink);
-  border-color: var(--recipe-cat-drink-line);
-}
-.mrd-shell .recipe-edit-cap--category.recipe-category--base {
-  background: var(--recipe-cat-base-bg);
-  color: var(--recipe-cat-base);
-  border-color: var(--recipe-cat-base-line);
-}
 /* Backdrop invisible (ferme les dropdowns) */
-.mrd-shell .recipe-edit-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 98;
-  background: transparent;
-}
 /* Menu flottant */
 @keyframes mrdDropFade {
   from { opacity: 0; transform: translateY(-5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.mrd-shell .recipe-edit-float {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 100;
-  background: var(--mrd-surf);
-  border: 1px solid var(--mrd-border);
-  border-radius: 12px;
-  box-shadow: var(--mrd-shadowLg);
-  min-width: 160px;
-  max-width: calc(100vw - 24px);
-  overflow: hidden;
-  animation: mrdDropFade 0.13s ease;
-}
-.mrd-shell .recipe-edit-float--wide {
-  min-width: 240px;
-  max-width: min(300px, calc(100vw - 32px));
-}
 /* Items du menu (liste) */
-.mrd-shell .recipe-edit-float-section { border-bottom: 1px solid var(--mrd-borderSoft); }
-.mrd-shell .recipe-edit-float-item {
-  display: block;
-  width: 100%;
-  padding: 11px 14px;
-  text-align: left;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--mrd-fg);
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--mrd-borderSoft);
-  cursor: pointer;
-  min-height: 0;
-  box-shadow: none;
-  border-radius: 0;
-  line-height: 1.3;
-  transition: background 0.1s;
-}
-.mrd-shell .recipe-edit-float-item:last-child { border-bottom: none; }
 .mrd-shell .recipe-edit-float-item:hover,
-.mrd-shell .recipe-edit-float-item:active { background: var(--mrd-surf2); }
-.mrd-shell .recipe-edit-float-item.on { background: var(--mrd-aLt); color: var(--mrd-a); font-weight: 600; }
-.mrd-shell .recipe-edit-float-item--clear { color: var(--mrd-fg3); font-size: 12px; }
 /* Chips multi-select dans le flottant */
-.mrd-shell .recipe-edit-float-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--mrd-borderSoft);
-}
-.mrd-shell .recipe-edit-float-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-  border: 1.5px solid var(--mrd-border);
-  background: var(--mrd-surf2);
-  color: var(--mrd-fg2);
-  cursor: pointer;
-  min-height: 0;
-  box-shadow: none;
-  line-height: 1.3;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.mrd-shell .recipe-edit-float-chip.on {
-  background: var(--mrd-aLt);
-  color: var(--mrd-a);
-  border-color: var(--mrd-aMd);
-  font-weight: 600;
-}
 /* Bouton Valider en bas du flottant */
-.mrd-shell .recipe-edit-float-close {
-  display: block;
-  width: 100%;
-  padding: 10px 14px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--mrd-a);
-  background: var(--mrd-aLt);
-  border: none;
-  cursor: pointer;
-  min-height: 0;
-  box-shadow: none;
-  border-radius: 0;
-}
-.mrd-shell .recipe-edit-float-close:hover { opacity: 0.85; }
 /* Temps de préparation / cuisson */
-.mrd-shell .recipe-edit-time-row--hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 24px;
-  flex-wrap: wrap;
-  margin-bottom: var(--mrd-sp);
-}
-.mrd-shell .recipe-edit-time-field {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-}
-.mrd-shell .recipe-edit-time-input { width: 72px; min-height: 38px; padding: 6px 8px; font-size: 15px; text-align: center; }
-.mrd-shell .recipe-edit-time-unit { font-size: 11px; color: var(--mrd-fg3); font-weight: 600; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
 /* Panel ingrédients en mode édition */
-.mrd-shell .recipe-sheet-panel-ingredients--edit { overflow: visible; }
-.mrd-shell .recipe-edit-ing-form {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-bottom: 1px solid var(--mrd-borderSoft);
-}
-.mrd-shell .recipe-edit-section-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--mrd-fg3);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
 /* Ligne unique d'ajout : [Nom flex] [Qté] [Unité] [+] */
-.mrd-shell .recipe-edit-ing-add-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.mrd-shell .recipe-edit-ing-name-inp {
-  /* flex:1 via parent inline style */
-  min-width: 0;
-  font-size: 14px;
-}
-.mrd-shell .recipe-edit-ing-qty-inp {
-  width: 56px;
-  flex-shrink: 0;
-  text-align: center;
-  font-size: 14px;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-.mrd-shell .recipe-edit-ing-unit-sel {
-  width: 62px;
-  flex-shrink: 0;
-  font-size: 13px;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-.mrd-shell .recipe-edit-ing-add-btn {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  min-height: 0;
-  font-size: 22px;
-  line-height: 1;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-weight: 400;
-}
 /* Liste ingrédient : nom + quantité empilés */
-.mrd-shell .recipe-edit-ing-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.mrd-shell .recipe-edit-ing-qty-sub {
-  font-size: 12px;
-  color: var(--mrd-fg3);
-  font-weight: 500;
-  line-height: 1.3;
-}
 /* Bouton supprimer ingrédient */
 .mrd-shell .recipe-sheet-ing-remove {
   width: 24px;
@@ -3979,110 +3629,14 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
 }
 .mrd-shell .recipe-sheet-ing-remove:hover { color: var(--mrd-danger); border-color: var(--mrd-dangerMd); }
 /* Condiments : résumé compact (mode édition avec condiments existants) */
-.mrd-shell .recipe-edit-condiments-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--mrd-borderSoft);
-  flex-wrap: wrap;
-}
-.mrd-shell .recipe-edit-condiments-edit-btn {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mrd-a);
-  background: var(--mrd-aLt);
-  border: 1px solid var(--mrd-aMd);
-  border-radius: 999px;
-  padding: 5px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  min-height: 0;
-  box-shadow: none;
-}
 .mrd-shell .condiment-section-box-title--flex {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.mrd-shell .recipe-edit-condiments-collapse-btn {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--mrd-fg3);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0 2px;
-  min-height: 0;
-}
 /* Textarea préparation (mode édition) */
-.mrd-shell .recipe-sheet-method-textarea--edit {
-  min-height: 200px;
-  font-size: 14px;
-  line-height: 1.65;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  width: 100%;
-  resize: vertical;
-}
-.mrd-shell .recipe-sheet-method-textarea--edit:focus { outline: none; box-shadow: none; }
 /* Bouton CTA (remplace le bouton courses de la fiche) */
-.mrd-shell .recipe-sheet-footer--edit {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.mrd-shell .recipe-edit-cta {
-  width: 100%;
-  min-height: 50px;
-  border: none;
-  border-radius: var(--mrd-r);
-  background: var(--mrd-aBtn);
-  color: var(--mrd-white);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: pointer;
-  box-shadow: var(--mrd-glowA);
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.mrd-shell .recipe-edit-cta:active { transform: scale(0.99); box-shadow: var(--mrd-glowA); }
-.mrd-shell .recipe-edit-delete {
-  width: 100%;
-  min-height: 46px;
-  border: 1px solid var(--mrd-dangerMd);
-  border-radius: var(--mrd-r);
-  background: var(--mrd-dangerLt);
-  color: var(--mrd-danger);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
-}
-.mrd-shell .recipe-edit-delete:active {
-  transform: scale(0.99);
-  box-shadow: 0 3px 10px oklch(42% 0.17 17 / 0.12);
-}
 /* Bouton Créer/Enregistrer dans le header */
-.mrd-shell .recipe-edit-hdr-save {
-  min-height: 34px;
-  padding: 0 14px;
-  font-size: 13px;
-  border-radius: 10px;
-}
 /* ── Liens listes/inventaire toggle ──────────────────────── */
 .mrd-shell .inventory-link-toggle { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg2); box-shadow: none; }
 .mrd-shell .inventory-link-toggle.on { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sage); }
@@ -7256,16 +6810,6 @@ html[data-theme="dark"] .ibx-home-hd { border-bottom-color: var(--mrd-surf); }
 html[data-theme="dark"] .ibx-home-row { border-bottom-color: var(--mrd-surf); }
 
 /* ── Import de recette depuis un site ─────────────────────────── */
-.recipe-import-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
-.recipe-import-title { font-size: 13px; font-weight: 700; color: var(--mrd-fg2); }
-.recipe-import-row { display: flex; gap: 8px; align-items: center; }
-.recipe-import-input { flex: 1; min-width: 0; }
-.recipe-import-btn { flex-shrink: 0; padding: 10px 16px; }
-.recipe-import-btn:disabled { opacity: 0.5; }
-.recipe-import-status { font-size: 12.5px; color: var(--mrd-fg3); }
-.recipe-import-status--ok { color: var(--mrd-sage, #5E7A6B); }
-.recipe-import-status--warn { color: #B07D2B; }
-.recipe-import-status--error { color: #B3423A; }
 
 /* ── Groupes d'ingrédients ─────────────────────────────────────── */
 .recipe-sheet-ing-group {
@@ -7276,44 +6820,18 @@ html[data-theme="dark"] .ibx-home-row { border-bottom-color: var(--mrd-surf); }
   border-bottom: 1px solid var(--mrd-borderSoft);
 }
 .recipe-sheet-ing-group:first-child { margin-top: 4px; }
-.recipe-edit-ing-group-inp { margin-top: 8px; width: 100%; font-size: 13px; }
 
 /* ── Modale de progression de l'import ─────────────────────────── */
 /* La boite et le fond viennent d `ion-modal` depuis la phase 8. */
-.mrd-modal.recipe-import-modal::part(content) {
-  padding: 26px 22px 22px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-}
-.recipe-import-modal-icon { font-size: 34px; line-height: 1; }
-.recipe-import-modal-title { font-size: 17px; font-weight: 700; color: var(--mrd-fg); }
 /* `ion-progress-bar` : la piste et le remplissage viennent de ses variables ;
    la largeur etait pilotee en ligne par un `<div>` enfant. */
-.recipe-import-progress {
-  --background: var(--mrd-surf3);
-  --progress-background: var(--mrd-sageBtn);
-  height: 8px;
-  border-radius: 99px;
-  width: 100%;
-}
-.recipe-import-progress--error { --progress-background: var(--mrd-danger); }
-.recipe-import-progress--warn { --progress-background: var(--mrd-amber); }
 /* Le `<div>` de remplissage et son animation de miroitement ont disparu avec
    `ion-progress-bar`, qui gere les deux. Ses deux surcharges de couleur
    ecrivaient `#B3423A` et `#B07D2B` en dur — hors palette, et invisibles pour
    le test de tokens, qui ne surveillait que le JS. Elles passent aux tokens
    dans le bloc de la barre, plus haut. */
-.recipe-import-modal-label { font-size: 13px; color: var(--mrd-fg2); line-height: 1.5; min-height: 20px; }
-.recipe-import-modal-close { width: 100%; margin-top: 4px; }
 /* `#2B241F` / `#40362E` en dur ici aussi : remplaces par les tokens de surface,
    qui basculent seuls. */
-html[data-theme="dark"] .mrd-modal.recipe-import-modal {
-  --background: var(--mrd-surf);
-}
-
 
 /* Icône de catégorie centrée dans la vignette des cartes recettes (fallback sans photo) */
 .mrd-shell .recipes-page .rcard-recipe-thumb { display: flex; align-items: center; justify-content: center; }
@@ -7404,7 +6922,6 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 /* Le sélecteur a son propre pied fixe : la barre d'onglets s'efface. */
 .mrd-shell:has(.mpick) .mrd-ion-tabbar { display: none; }
 
-
 .mrd-week, .mpick { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* Teinte de catégorie propagée aux enfants (vignettes de la grille et du
@@ -7442,8 +6959,8 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 .mrd-week-heads { flex: none; display: grid; grid-template-columns: 44px 1fr 1fr; gap: 6px; padding: 0 14px 6px; }
 .mrd-week-heads span { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-fg3); }
 
-.mrd-week-grid { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 0 14px; display: flex; flex-direction: column; gap: 5px; }
-.mrd-week-row { display: grid; grid-template-columns: 44px 1fr 1fr; gap: 6px; align-items: stretch; }
+.mrd-week-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 14px; display: flex; flex-direction: column; gap: 5px; }
+.mrd-week-row { flex: 1 1 auto; display: grid; grid-template-columns: 44px 1fr 1fr; gap: 6px; align-items: stretch; }
 .mrd-week-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; }
 .mrd-week-rail-abbr { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--mrd-fg3); }
 .mrd-week-rail-num { font-family: var(--mrd-serif); font-size: 16px; font-weight: 600; color: var(--mrd-fg); }
@@ -7470,7 +6987,10 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 /* Manque causé par un autre repas de la semaine, pas par un stock vide. */
 .mrd-week-cell-dot.taken { background: var(--mrd-danger); }
 
-.mrd-week-spacer { flex: 1 1 auto; min-height: 0; }
+/* L espaceur ne pousse plus rien : c est la grille qui prend la place
+   libre (voir `.mrd-week-grid`). Il reste comme garde-fou si la grille
+   venait a etre bornee en hauteur. */
+.mrd-week-spacer { flex: 0 0 auto; min-height: 0; }
 
 /* ── 2a · panneau bas (détail ou feuille de remplissage) ───── */
 .mrd-week-panel { flex: none; margin: 6px 12px 8px; border-radius: 22px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); box-shadow: var(--mrd-shadowSheet); overflow: hidden; animation: mrdWeekPanel .16s ease-out; }
@@ -7531,6 +7051,272 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 .mrd-week-scope.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
 .mrd-week-fill-cta { flex: 1; height: 38px; border: none; border-radius: 13px; background: var(--mrd-aBtn); color: var(--mrd-white); font-family: var(--mrd-sans); font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: var(--mrd-glowA); }
 .mrd-week-fill-cta:disabled { background: var(--mrd-disabledBg); color: var(--mrd-disabledFg); box-shadow: none; cursor: default; }
+
+/* ── Feuille de remplissage, seconde version ────────────────
+   Récupérée depuis le bundle `dist/assets/index-BAt3abYR.css` du 25/08 12:58
+   après que ces règles ont été perdues : le fichier portait des
+   modifications non commitées qu'un `git checkout --` a écrasées. Les
+   déclarations sont intactes (elles n'ont pas été mutées à la
+   construction), les commentaires d'origine, eux, n'ont pas survécu.
+   Elles remplacent `.mrd-week-fill-*` ci-dessus, que `MealsView.js`
+   n'utilise plus. */
+.mrd-week-panel--fill { overflow: visible; }
+.mrd-week-panel--fill .mrd-week-fill-hdr { border-radius: 21px 21px 0 0; }
+.mrd-fill-body {
+  padding: 9px 14px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.mrd-fill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mrd-fill-label {
+  flex: none;
+  width: 46px;
+  font-size: 9px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-fill-seg {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 11px;
+  background: var(--mrd-surf2);
+}
+.mrd-fill-seg-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 27px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mrd-fill-seg-btn.on {
+  background: var(--mrd-surf);
+  color: var(--mrd-fg);
+  font-weight: 600;
+  box-shadow: var(--mrd-shadowXs);
+}
+.mrd-fill-seg--scope { flex: none; }
+.mrd-fill-seg--scope .mrd-fill-seg-btn {
+  flex: none;
+  height: 32px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.mrd-fill-chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+}
+.mrd-fill-chip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 31px;
+  padding: 0 7px;
+  border-radius: 11px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.mrd-fill-chip.on {
+  border-color: var(--mrd-aBtn);
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+}
+.mrd-fill-chip-lbl {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-fill-avoid {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.mrd-fill-avoid-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 11px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mrd-fill-avoid-summary {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-fill-avoid-chevron {
+  flex: none;
+  font-size: 10px;
+  color: var(--mrd-fg3);
+}
+.mrd-fill-menu {
+  position: absolute;
+  bottom: 34px;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border-radius: 13px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
+  box-shadow: var(--mrd-shadowLg);
+  overflow: hidden;
+}
+.mrd-fill-menu-list {
+  max-height: 132px;
+  overflow: auto;
+  padding: 4px;
+}
+.mrd-fill-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.mrd-fill-menu-row.on { background: var(--mrd-aLt); }
+.mrd-fill-menu-box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-white);
+  font-size: 9.5px;
+}
+.mrd-fill-menu-row.on .mrd-fill-menu-box {
+  border-color: var(--mrd-aBtn);
+  background: var(--mrd-aBtn);
+}
+.mrd-fill-menu-lbl {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mrd-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--mrd-fg2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-fill-menu-row.on .mrd-fill-menu-lbl {
+  font-weight: 600;
+  color: var(--mrd-fg);
+}
+.mrd-fill-menu-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  border-top: 1px solid var(--mrd-surf3);
+  background: var(--mrd-bg);
+}
+.mrd-fill-menu-count {
+  font-family: var(--mrd-sans);
+  font-size: 10px;
+  color: var(--mrd-fg3);
+}
+.mrd-fill-menu-acts {
+  display: flex;
+  gap: 5px;
+}
+.mrd-fill-menu-clear {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.mrd-fill-menu-ok {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mrd-aBtn);
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mrd-fill-run {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mrd-fill-cta {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--mrd-glowA);
+}
+.mrd-fill-cta:disabled {
+  background: var(--mrd-disabledBg);
+  color: var(--mrd-disabledFg);
+  box-shadow: none;
+  cursor: default;
+}
 
 /* ── 5a · sélecteur de recettes ────────────────────────────── */
 .mpick-hdr { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 18px; }
@@ -7786,3 +7572,1542 @@ piste maison de la bibliotheque de recettes
 /* Sombre : la pastille sélectionnée se remplit du ton foncé de la catégorie —
    en sombre --recipe-cat-* est clair, une icône blanche dessus tomberait à ~2:1. */
 html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { background: var(--cat-line, var(--mrd-aBtn)); border-color: var(--cat, var(--mrd-aBtn)); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NOUVELLE RECETTE — handoff 7a / 7b / 7c
+   ═══════════════════════════════════════════════════════════════════════
+   Trois écrans qui remplacent l'ancien formulaire à capsules et menus
+   flottants : le choix du point de départ (`rsrc`), l'import d'un lien
+   (`rimp`) et le formulaire lui-même (`nrec`).
+
+   Le préfixe est `nrec-` et non `rform-` : `.rform` est déjà une classe
+   utilitaire de ce fichier (colonne flex, plus haut), la réutiliser aurait
+   posé un `gap: 10px` parasite sur toute la page.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 7a · Le formulaire ─────────────────────────────────────────────── */
+
+.mrd-shell .nrec {
+  background: var(--mrd-bg);
+}
+
+/* En-tête : retour, titre vivant (le nom saisi), bouton d'enregistrement */
+.mrd-shell .nrec-hdr {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px var(--mrd-sp) 10px;
+  border-bottom: 1px solid var(--mrd-border);
+  background: var(--mrd-bg);
+}
+.mrd-shell .nrec-back {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mrd-shell .nrec-back:active { opacity: 0.8; }
+.mrd-shell .nrec-hdr-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mrd-shell .nrec-hdr-title {
+  font-family: var(--mrd-serif);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--mrd-fg);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .nrec-hdr-sub {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-hdr-save {
+  flex: none;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 11px;
+  border: none;
+  background: var(--mrd-surf3);
+  color: var(--mrd-fg3);
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mrd-shell .nrec-hdr-save.on {
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+}
+.mrd-shell .nrec-hdr-save:disabled { cursor: default; }
+
+/* Corps : un seul défilement, quatre sections */
+.mrd-shell .nrec-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px var(--mrd-sp) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.mrd-shell .nrec-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mrd-shell .nrec-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.mrd-shell .nrec-section-num {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-section-note {
+  font-size: 9.5px;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-section-note.ok { color: var(--mrd-sageDeep); }
+.mrd-shell .nrec-section-note.todo { color: var(--mrd-amber); }
+
+/* Rappel affiché quand on arrive par l'import (7c → 7a) */
+.mrd-shell .nrec-import-reminder {
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: var(--mrd-sageLt);
+  border: 1px solid var(--mrd-sageMd);
+  color: var(--mrd-sageDeep);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Photo — une tuile, plus de héros : le repli est l'icône de catégorie */
+.mrd-shell .nrec-photo {
+  height: 104px;
+  border-radius: 16px;
+  border: 1px dashed var(--mrd-border);
+  background: repeating-linear-gradient(135deg, var(--mrd-bg) 0 8px, var(--mrd-canvas) 8px 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+.mrd-shell .nrec-photo:active { opacity: 0.8; }
+.mrd-shell .nrec-photo--set {
+  position: relative;
+  border: 1px solid var(--mrd-borderSoft);
+  background: var(--mrd-surf2);
+  overflow: hidden;
+  cursor: default;
+}
+.mrd-shell .nrec-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mrd-shell .nrec-photo-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--mrd-scrimStrong);
+  color: var(--mrd-white);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mrd-shell .nrec-photo-loading { font-size: 26px; animation: mrdPhotoSpin 1s linear infinite; }
+.mrd-shell .nrec-photo-icon { font-size: 17px; line-height: 1; }
+.mrd-shell .nrec-photo-label { font-family: var(--mrd-sans); font-size: 11.5px; color: var(--mrd-fg2); }
+.mrd-shell .nrec-photo-hint {
+  font-family: var(--mrd-sans);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-photo-error {
+  font-size: 11px;
+  color: var(--mrd-danger);
+  line-height: 1.4;
+}
+
+/* Nom : le seul champ en serif, c'est le titre de la fiche */
+.mrd-shell .nrec-name {
+  height: 46px;
+  padding: 0 13px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  outline: none;
+  font-family: var(--mrd-serif);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--mrd-fg);
+  width: 100%;
+}
+.mrd-shell .nrec-name:focus { border-color: var(--mrd-a); box-shadow: var(--mrd-ringA); }
+.mrd-shell .nrec-name::placeholder { color: var(--mrd-fg3); font-weight: 400; }
+
+.mrd-shell .nrec-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mrd-shell .nrec-label {
+  font-size: 10.5px;
+  color: var(--mrd-fg2);
+}
+.mrd-shell .nrec-label--split {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mrd-shell .nrec-label-value { font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .nrec-label-value.on { color: var(--mrd-a); }
+
+/* Rangée de catégories — remplace le menu flottant « Catégorie ▾ ».
+   La teinte vient d'une variable locale posée par `recipe-category--<id>`,
+   que `CategoryIcon` lit à son tour via `color="var(--cat)"`. */
+.mrd-shell .nrec-cat-rail {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  margin: 0 -4px;
+}
+.mrd-shell .nrec-cat-item {
+  flex: none;
+  width: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  --cat: var(--mrd-fg3);
+  --cat-bg: var(--mrd-surf);
+  --cat-line: var(--mrd-border);
+}
+.mrd-shell .nrec-cat-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--cat-bg);
+  border: 1px solid var(--cat-line);
+  transition: background 0.15s, border-color 0.15s;
+}
+.mrd-shell .nrec-cat-item.on .nrec-cat-dot {
+  background: var(--cat);
+  border-color: var(--cat);
+}
+.mrd-shell .nrec-cat-label {
+  font-family: var(--mrd-sans);
+  font-size: 9.5px;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-cat-item.on .nrec-cat-label { color: var(--mrd-fg); font-weight: 700; }
+
+/* Prépa / cuisson / total — « ⚡ Rapide » ne se coche plus, il se déduit */
+.mrd-shell .nrec-times {
+  display: flex;
+  gap: 7px;
+}
+.mrd-shell .nrec-time {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 9px 9px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .nrec-time--total { background: var(--mrd-bg); }
+.mrd-shell .nrec-time-label {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mrd-shell .nrec-time-value {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mrd-serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--mrd-fg);
+}
+.mrd-shell .nrec-time--total .nrec-time-value { text-align: left; }
+.mrd-shell .nrec-time-note { font-size: 9.5px; color: var(--mrd-fg3); }
+.mrd-shell .nrec-time-note.quick { color: var(--mrd-sageDeep); font-weight: 500; }
+
+/* Stepper partagé par les temps et le nombre de couverts */
+.mrd-shell .nrec-step {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-bg);
+  color: var(--mrd-fg2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mrd-shell .nrec-step:active { background: var(--mrd-surf3); }
+
+.mrd-shell .nrec-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .nrec-row--dashed {
+  border-style: dashed;
+  background: var(--mrd-amberLt);
+}
+.mrd-shell .nrec-row-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mrd-shell .nrec-row-title {
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+}
+.mrd-shell .nrec-row-sub {
+  font-size: 10.5px;
+  color: var(--mrd-fg3);
+  line-height: 1.35;
+}
+.mrd-shell .nrec-row-stepper {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.mrd-shell .nrec-servings {
+  min-width: 52px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+}
+
+/* Tuiles — type alimentaire et saisons, posés à plat */
+.mrd-shell .nrec-tiles { display: grid; gap: 5px; }
+.mrd-shell .nrec-tiles--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mrd-shell .nrec-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 2px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mrd-shell .nrec-tile.on {
+  background: var(--mrd-aLt);
+  border-color: var(--mrd-a);
+}
+.mrd-shell .nrec-tile-icon { font-size: 14px; line-height: 1; }
+.mrd-shell .nrec-tile-label {
+  font-family: var(--mrd-sans);
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: center;
+  color: var(--mrd-fg2);
+}
+.mrd-shell .nrec-tile.on .nrec-tile-label { color: var(--mrd-a); font-weight: 600; }
+
+/* Contraintes — le seul repli qui reste : sept libellés trop longs à plat */
+.mrd-shell .nrec-collapse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 12px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  cursor: pointer;
+  text-align: left;
+}
+.mrd-shell .nrec-collapse.on {
+  border-color: var(--mrd-a);
+  background: var(--mrd-aLt);
+}
+.mrd-shell .nrec-collapse-summary {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  color: var(--mrd-fg3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .nrec-collapse.on .nrec-collapse-summary { color: var(--mrd-a); font-weight: 500; }
+.mrd-shell .nrec-collapse-caret { flex: none; font-size: 10px; color: var(--mrd-fg3); }
+
+.mrd-shell .nrec-checklist {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-bg);
+  overflow: hidden;
+}
+.mrd-shell .nrec-check-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 33px;
+  padding: 0 11px;
+  border: none;
+  border-bottom: 1px solid var(--mrd-borderSoft);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.mrd-shell .nrec-check-row:last-child { border-bottom: none; }
+.mrd-shell .nrec-check-row.on { background: var(--mrd-aLt); }
+.mrd-shell .nrec-check-box {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-white);
+  font-size: 10px;
+  line-height: 1;
+}
+.mrd-shell .nrec-check-row.on .nrec-check-box {
+  background: var(--mrd-a);
+  border-color: var(--mrd-a);
+}
+.mrd-shell .nrec-check-label {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  color: var(--mrd-fg2);
+}
+.mrd-shell .nrec-check-row.on .nrec-check-label { color: var(--mrd-a); font-weight: 500; }
+
+/* Les douze mois — rien de coché vaut « toute l'année » */
+.mrd-shell .nrec-months {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 3px;
+}
+.mrd-shell .nrec-month {
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg3);
+  font-family: var(--mrd-sans);
+  font-size: 10px;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.mrd-shell .nrec-month.on {
+  background: var(--mrd-a);
+  border-color: var(--mrd-a);
+  color: var(--mrd-white);
+  font-weight: 600;
+}
+.mrd-shell .nrec-hint {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--mrd-fg3);
+}
+
+/* Ingrédients */
+.mrd-shell .nrec-ing-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px 11px;
+  border-radius: 16px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .nrec-ing-row { display: flex; gap: 6px; }
+.mrd-shell .nrec-ing-name-wrap { position: relative; flex: 1; min-width: 0; }
+.mrd-shell .nrec-inp {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-bg);
+  outline: none;
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  color: var(--mrd-fg);
+}
+.mrd-shell .nrec-inp:focus { border-color: var(--mrd-a); }
+.mrd-shell .nrec-ing-name { width: 100%; }
+.mrd-shell .nrec-ing-qty { flex: none; width: 52px; padding: 0 8px; }
+.mrd-shell .nrec-ing-unit { flex: none; width: 62px; padding: 0 6px; font-size: 12px; }
+.mrd-shell .nrec-ing-add {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: none;
+  background: var(--mrd-surf3);
+  color: var(--mrd-fg3);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mrd-shell .nrec-ing-add.on { background: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-shell .nrec-ing-group {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--mrd-border);
+  background: transparent;
+  outline: none;
+  font-family: var(--mrd-sans);
+  font-size: 11.5px;
+  color: var(--mrd-fg2);
+  width: 100%;
+}
+.mrd-shell .nrec-ing-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--mrd-amberLt);
+  border: 1px solid var(--mrd-amberMd);
+}
+.mrd-shell .nrec-ing-warning-text { font-size: 11.5px; color: var(--mrd-amberDeep); }
+.mrd-shell .nrec-ing-warning-actions { display: flex; gap: 6px; }
+.mrd-shell .nrec-mini-btn {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mrd-shell .nrec-mini-btn.on {
+  background: var(--mrd-aBtn);
+  border-color: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-weight: 600;
+}
+
+.mrd-shell .nrec-ing-group-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mrd-shell .nrec-ing-group-title {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .nrec-ing-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .nrec-ing-item-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--mrd-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .nrec-ing-item-qty { flex: none; font-size: 11.5px; color: var(--mrd-fg2); }
+.mrd-shell .nrec-ing-item-remove {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--mrd-fg3);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mrd-shell .nrec-empty {
+  padding: 18px 12px;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px dashed var(--mrd-border);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--mrd-fg3);
+}
+
+.mrd-shell .nrec-method {
+  min-height: 96px;
+  padding: 11px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  outline: none;
+  resize: none;
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--mrd-fg);
+  width: 100%;
+}
+.mrd-shell .nrec-method:focus { border-color: var(--mrd-a); }
+
+.mrd-shell .nrec-delete {
+  align-self: center;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 11px;
+  border: 1px solid var(--mrd-dangerMd);
+  background: transparent;
+  color: var(--mrd-danger);
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mrd-shell .nrec-delete:active { background: var(--mrd-dangerLt); }
+
+/* Pied : dit ce qui manque plutôt que de griser un bouton sans explication */
+.mrd-shell .nrec-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--mrd-sp) calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--mrd-bgGlass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--mrd-border);
+}
+.mrd-shell .nrec-foot-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mrd-shell .nrec-foot-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--mrd-amber);
+}
+.mrd-shell .nrec-foot-label.ok { color: var(--mrd-sageDeep); }
+.mrd-shell .nrec-foot-sub {
+  font-size: 10px;
+  color: var(--mrd-fg3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .nrec-cta {
+  flex: none;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none;
+  background: var(--mrd-surf3);
+  color: var(--mrd-fg3);
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.mrd-shell .nrec-cta.on {
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  box-shadow: var(--mrd-glowA);
+}
+.mrd-shell .nrec-cta:disabled { cursor: default; }
+
+/* ── 7b · D'où vient cette recette ? ────────────────────────────────── */
+
+/* La feuille se dimensionne sur son contenu : `sheetBreakpoint` côté JS,
+   les rayons ici — ceux de `.mrd-modal-sheet` visent le plein écran. */
+.rsrc-sheet {
+  --border-radius: 28px 28px 0 0;
+}
+.mrd-shell .rsrc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 18px calc(26px + env(safe-area-inset-bottom, 0px));
+  background: var(--mrd-bg);
+  height: 100%;
+}
+.mrd-shell .rsrc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mrd-shell .rsrc-title {
+  font-family: var(--mrd-serif);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--mrd-fg);
+  letter-spacing: -0.01em;
+}
+.mrd-shell .rsrc-sub {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--mrd-fg2);
+  text-wrap: pretty;
+}
+.mrd-shell .rsrc-option {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  cursor: pointer;
+  text-align: left;
+}
+/* L'import porte l'accent — c'est le chemin le plus rapide depuis une page
+   web. « Créer » reste neutre : le geste par défaut, jamais dévalorisé. */
+.mrd-shell .rsrc-option.accent {
+  border-color: var(--mrd-aMd);
+  background: var(--mrd-aLt);
+}
+.mrd-shell .rsrc-option:active { opacity: 0.85; }
+.mrd-shell .rsrc-option-icon {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: var(--mrd-surf2);
+  font-size: 20px;
+}
+.mrd-shell .rsrc-option.accent .rsrc-option-icon { background: var(--mrd-surf); }
+.mrd-shell .rsrc-option-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mrd-shell .rsrc-option-title {
+  font-family: var(--mrd-sans);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--mrd-fg);
+}
+.mrd-shell .rsrc-option-sub {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--mrd-fg2);
+  text-wrap: pretty;
+}
+.mrd-shell .rsrc-option-meta {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .rsrc-option.accent .rsrc-option-meta { color: var(--mrd-a); }
+.mrd-shell .rsrc-option-caret { flex: none; font-size: 17px; color: var(--mrd-fg3); }
+.mrd-shell .rsrc-cancel {
+  height: 42px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── 7c · Importer, sans quitter la liste ───────────────────────────── */
+
+.rimp-sheet {
+  --border-radius: 28px 28px 0 0;
+}
+.mrd-shell .rimp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--mrd-bg);
+}
+.mrd-shell .rimp-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 18px 10px;
+}
+.mrd-shell .rimp-head-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mrd-shell .rimp-title {
+  font-family: var(--mrd-serif);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--mrd-fg);
+  letter-spacing: -0.01em;
+}
+.mrd-shell .rimp-step {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .rimp-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--mrd-surf2);
+  color: var(--mrd-fg2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mrd-shell .rimp-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mrd-shell .rimp-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mrd-shell .rimp-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 13px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .rimp-field.err { border-color: var(--mrd-aMd); }
+.mrd-shell .rimp-field-icon { flex: none; font-size: 14px; }
+.mrd-shell .rimp-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+  color: var(--mrd-fg);
+}
+.mrd-shell .rimp-field-clear {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--mrd-fg3);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mrd-shell .rimp-paste {
+  align-self: flex-start;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.mrd-shell .rimp-paste:disabled { opacity: 0.5; cursor: default; }
+.mrd-shell .rimp-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--mrd-fg3);
+  text-wrap: pretty;
+}
+.mrd-shell .rimp-hint.err { color: var(--mrd-a); }
+
+/* La lecture se raconte : quatre lignes qui se cochent, pas un rond qui
+   tourne — on comprend ce que l'app est allée chercher, et ce qu'elle n'a
+   pas trouvé. */
+.mrd-shell .rimp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 13px;
+  border-radius: 18px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .rimp-loading-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mrd-shell .rimp-spinner {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid var(--mrd-surf3);
+  border-top-color: var(--mrd-a);
+  animation: mrdPhotoSpin 0.9s linear infinite;
+}
+.mrd-shell .rimp-loading-label {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+}
+.mrd-shell .rimp-step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mrd-shell .rimp-mark {
+  flex: none;
+  width: 15px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .rimp-mark.ok { color: var(--mrd-sageDeep); }
+.mrd-shell .rimp-mark.none { color: var(--mrd-fg3); }
+.mrd-shell .rimp-step-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--mrd-fg2);
+}
+.mrd-shell .rimp-step-label.waiting { color: var(--mrd-fg3); }
+
+.mrd-shell .rimp-result {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.mrd-shell .rimp-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--mrd-sageLt);
+  border: 1px solid var(--mrd-sageMd);
+}
+.mrd-shell .rimp-ok-mark { flex: none; font-size: 13px; color: var(--mrd-sageDeep); }
+.mrd-shell .rimp-ok-label {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mrd-sageDeep);
+}
+.mrd-shell .rimp-found {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 13px;
+  border-radius: 18px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .rimp-found-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mrd-shell .rimp-found-name {
+  font-family: var(--mrd-serif);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.12;
+  color: var(--mrd-fg);
+  text-wrap: pretty;
+}
+.mrd-shell .rimp-found-meta { font-size: 11px; color: var(--mrd-fg2); }
+.mrd-shell .rimp-found-host {
+  font-size: 10.5px;
+  color: var(--mrd-fg3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .rimp-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mrd-shell .rimp-fields-title {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .rimp-field-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+}
+.mrd-shell .rimp-field-row.none { background: var(--mrd-bg); }
+.mrd-shell .rimp-field-label { flex: none; width: 78px; font-size: 11px; color: var(--mrd-fg3); }
+.mrd-shell .rimp-field-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--mrd-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .rimp-field-row.none .rimp-field-value { color: var(--mrd-fg3); }
+.mrd-shell .rimp-gap-note {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--mrd-fg2);
+  text-wrap: pretty;
+}
+
+/* L'échec a une sortie : réessayer, ou basculer en saisie à la main en
+   gardant le lien. Jamais un cul-de-sac. */
+.mrd-shell .rimp-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 13px;
+  border-radius: 18px;
+  border: 1px solid var(--mrd-aMd);
+  background: var(--mrd-aLt);
+}
+.mrd-shell .rimp-failed-title {
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mrd-amber);
+}
+.mrd-shell .rimp-failed-copy {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mrd-fg2);
+  text-wrap: pretty;
+}
+.mrd-shell .rimp-failed-actions { display: flex; gap: 7px; }
+.mrd-shell .rimp-retry,
+.mrd-shell .rimp-manual {
+  flex: 1;
+  height: 34px;
+  border-radius: 11px;
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mrd-shell .rimp-retry {
+  border: 1px solid var(--mrd-aMd);
+  background: var(--mrd-surf);
+  color: var(--mrd-a);
+}
+.mrd-shell .rimp-manual {
+  border: none;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+}
+
+.mrd-shell .rimp-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px calc(26px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--mrd-border);
+  background: var(--mrd-bg);
+}
+.mrd-shell .rimp-foot-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mrd-shell .rimp-foot-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--mrd-fg2);
+}
+.mrd-shell .rimp-foot-label.ok { color: var(--mrd-sageDeep); }
+.mrd-shell .rimp-foot-sub {
+  font-size: 10px;
+  color: var(--mrd-fg3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .rimp-cta {
+  flex: none;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none;
+  background: var(--mrd-surf3);
+  color: var(--mrd-fg3);
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.mrd-shell .rimp-cta.on {
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  box-shadow: var(--mrd-glowA);
+}
+.mrd-shell .rimp-cta:disabled { cursor: default; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PENSE-BÊTE — handoff 9a « La liste datée »
+   ═══════════════════════════════════════════════════════════════════════
+   L'écran empilait un bloc de capture en haut puis des cartes de trois
+   lignes aux quatre boutons de même poids ; cinq items remplissaient
+   l'écran et rien ne disait ce qui traînait depuis trois jours.
+
+   Ici : en-tête collant, groupes d'âge, cartes denses, destination déduite
+   surlignée parmi les trois, et la saisie descendue dans la zone du pouce.
+
+   L'en-tête est `sticky` et la barre de saisie `fixed` plutôt que de
+   refaire la coque en colonne : l'écran vit dans un `ion-content` qui
+   possède déjà le défilement, lui reprendre serait en casser l'élan iOS.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* L'écran prend tout le `.cnt`, comme la grille des repas : la barre
+   d'onglets reste dans le flux sous lui, et la saisie se pose juste
+   au-dessus sans avoir à deviner sa hauteur. Le `display: flex` doit porter
+   sur le conteneur de défilement interne d'Ionic, sinon les enfants ne
+   s'étirent pas. */
+.mrd-shell ion-content.cnt:has(.ibx-view--9a) {
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+}
+.mrd-shell ion-content.cnt:has(.ibx-view--9a)::part(scroll) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.mrd-shell .ibx-view--9a {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* La liste est le seul élément qui défile */
+.mrd-shell .ibx-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px var(--mrd-sp) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mrd-shell .ibx-hdr {
+  flex: none;
+  padding: 12px var(--mrd-sp);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--mrd-bg);
+  border-bottom: 1px solid var(--mrd-borderSoft);
+}
+.mrd-shell .ibx-hdr-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mrd-shell .ibx-hdr-kicker {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .ibx-hdr-title {
+  font-family: var(--mrd-serif);
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--mrd-fg);
+  letter-spacing: -0.02em;
+}
+.mrd-shell .ibx-hdr-count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--mrd-aLt);
+  color: var(--mrd-a);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Groupes d'âge : un intertitre, un filet, un compte */
+.mrd-shell .ibx-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.mrd-shell .ibx-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+.mrd-shell .ibx-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+/* Ce qui traîne depuis plus de trois jours porte l'accent — c'est le seul
+   signal d'urgence de l'écran, il ne doit pas être dilué. */
+.mrd-shell .ibx-group-head--stale .ibx-group-label { color: var(--mrd-a); }
+.mrd-shell .ibx-group-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--mrd-borderSoft);
+}
+.mrd-shell .ibx-group-count {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--mrd-fg3);
+}
+
+/* Carte d'item */
+.mrd-shell .ibx-card {
+  border-radius: 16px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-borderSoft);
+  box-shadow: var(--mrd-shadowXs);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 11px 11px 11px 13px;
+}
+.mrd-shell .ibx-card.is-stale { border-color: var(--mrd-aMd); }
+.mrd-shell .ibx-card.is-sent { background: var(--mrd-bg); }
+.mrd-shell .ibx-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.mrd-shell .ibx-card-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mrd-shell .ibx-card-text {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--mrd-fg);
+  word-break: break-word;
+  text-wrap: pretty;
+}
+.mrd-shell .ibx-card.is-sent .ibx-card-text {
+  color: var(--mrd-fg3);
+  text-decoration: line-through;
+}
+.mrd-shell .ibx-card-age { font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .ibx-card-age.is-stale { color: var(--mrd-a); font-weight: 500; }
+.mrd-shell .ibx-card-del {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid var(--mrd-borderSoft);
+  background: var(--mrd-bg);
+  color: var(--mrd-fg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mrd-shell .ibx-card-del:active { background: var(--mrd-surf3); }
+
+/* Les trois destinations, sous le texte. La déduite est surlignée, mais
+   aucune n'est cachée derrière un menu. */
+.mrd-shell .ibx-card-choices {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.mrd-shell .ibx-choice {
+  flex: 1;
+  min-width: 0;
+  height: 33px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: 11px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.mrd-shell .ibx-choice:active { background: var(--mrd-surf2); }
+.mrd-shell .ibx-choice.on {
+  border-color: var(--mrd-a);
+  background: var(--mrd-aLt);
+  color: var(--mrd-a);
+}
+/* L'emoji porte la destination aussi vite que le mot : il reste à pleine
+   opacité, y compris sur les boutons non surlignés. */
+.mrd-shell .ibx-choice-emoji { font-size: 13px; line-height: 1; }
+
+/* Bandeau de la ligne, après un envoi en note */
+.mrd-shell .ibx-card-sent {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 33px;
+  padding: 0 11px;
+  border-radius: 11px;
+  background: var(--mrd-sageLt);
+}
+.mrd-shell .ibx-card-sent-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--mrd-sageDeep);
+}
+.mrd-shell .ibx-card-undo {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: var(--mrd-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mrd-fg2);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Bandeau flottant — au-dessus de la saisie, sous la liste */
+.mrd-shell .ibx-toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 84px;
+  z-index: 5;
+  height: 46px;
+  padding: 0 8px 0 14px;
+  border-radius: 15px;
+  background: var(--mrd-fg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--mrd-shadowXl);
+  animation: mrdToastIn 0.2s ease;
+}
+.mrd-shell .ibx-toast-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--mrd-sageLt);
+  color: var(--mrd-sageDeep);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.mrd-shell .ibx-toast-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mrd-surf);
+}
+.mrd-shell .ibx-toast-action {
+  flex: none;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: none;
+  background: var(--mrd-onA-mid);
+  color: var(--mrd-surf);
+  font-family: var(--mrd-sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Saisie, dans la zone du pouce */
+.mrd-shell .ibx-capture {
+  flex: none;
+  padding: 10px var(--mrd-sp) 12px;
+  background: var(--mrd-bg);
+  border-top: 1px solid var(--mrd-borderSoft);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mrd-shell .ibx-capture-input {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 15px;
+  border-radius: 23px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
+  outline: none;
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+  color: var(--mrd-fg);
+}
+.mrd-shell .ibx-capture-input::placeholder { color: var(--mrd-fg3); }
+.mrd-shell .ibx-capture-input:focus { border-color: var(--mrd-a); box-shadow: var(--mrd-ringA); }
+.mrd-shell .ibx-capture-send {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: none;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-size: 17px;
+  cursor: pointer;
+  box-shadow: var(--mrd-glowA);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.mrd-shell .ibx-capture-send:disabled {
+  background: var(--mrd-disabledBg);
+  color: var(--mrd-disabledFg);
+  box-shadow: none;
+  cursor: default;
+}

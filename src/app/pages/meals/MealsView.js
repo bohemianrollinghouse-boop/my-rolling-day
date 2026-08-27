@@ -14,8 +14,9 @@ import { html, useEffect, useMemo, useState } from "../../lib.js";
 import { getCurrentAppDate } from "../../utils/date.js";
 import { createMealShell } from "../../utils/state.js";
 import { formatQuantityUnit } from "../../utils/productUtils.js";
-import { buildFillPlan } from "../../utils/mealFill.js";
+import { DEFAULT_FILL_COURSES, buildFillPlan } from "../../utils/mealFill.js";
 import { MONTH_NAMES } from "../../utils/recipeFilters.js";
+import { readMealFillPrefs, storeMealFillPrefs } from "../../utils/storage.js";
 import {
   collectUsedStockItems,
   computeMissingCondiments,
@@ -37,19 +38,40 @@ const SLOTS = ["lunch", "dinner"];
 const SLOT_LABELS = { lunch: "Déjeuner", dinner: "Dîner" };
 const SLOT_SHORT = { lunch: "midi", dinner: "soir" };
 
-/* Feuille « Remplir » : un sous-ensemble volontairement court des filtres du
-   sélecteur — au-delà, la feuille ne tient plus dans le panneau bas. */
+/* Feuille « Remplir » : une décision par ligne, chaque ligne étiquetée à
+   gauche. Le tout doit tenir dans le panneau bas sans défilement — c'est ce qui
+   dicte les tailles serrées des contrôles et la longueur des libellés. */
+
+/** Régimes — mêmes ids que le champ régime des recettes (`RecipeLibrary.js`). */
 const FILL_DIETS = [
-  { id: "omnivore",    label: "Omnivore" },
-  { id: "vegetarian",  label: "Végé" },
-  { id: "vegan",       label: "Végan" },
-  { id: "pescetarian", label: "Pescé" },
+  { id: "omnivore",    label: "Omnivore", icon: "🍖" },
+  { id: "vegetarian",  label: "Végé",     icon: "🥕" },
+  { id: "vegan",       label: "Végan",    icon: "🌱" },
+  { id: "pescetarian", label: "Pescé",    icon: "🐟" },
 ];
 
-const FILL_CONSTRAINTS = [
+/** Services — mêmes ids que les catégories de recettes (`CategoryIcons.js`). */
+const FILL_COURSES = [
+  { id: "starter", label: "Entrée" },
+  { id: "main",    label: "Plat" },
+  { id: "dessert", label: "Dessert" },
+];
+
+const FILL_PREFS = [
+  { id: "quick",  label: "Rapide", icon: "⚡" },
+  { id: "season", label: "Saison", icon: "🍂" },
+  { id: "stock",  label: "Stock",  icon: "🥫" },
+];
+
+/** Règles alimentaires — mêmes ids que les contraintes des recettes. */
+const FILL_RESTRICTIONS = [
   { id: "gluten_free",  label: "Sans gluten" },
   { id: "lactose_free", label: "Sans lactose" },
+  { id: "egg_free",     label: "Sans œufs" },
+  { id: "nut_free",     label: "Sans fruits à coque" },
   { id: "pork_free",    label: "Sans porc" },
+  { id: "halal",        label: "Halal" },
+  { id: "kosher",       label: "Casher" },
 ];
 
 const FILL_SCOPES = [
@@ -57,7 +79,24 @@ const FILL_SCOPES = [
   { id: "all",   label: "Toute la semaine" },
 ];
 
-const EMPTY_FILL = { diet: "", constraints: [], quick: false, season: false, stock: false, scope: "empty" };
+/* « De saison » est coché d'office : sans lui, une semaine d'août se remplit de
+   gratins d'hiver et il faut décocher pour comprendre pourquoi. */
+const DEFAULT_FILL = {
+  diet: "omnivore",
+  courses: DEFAULT_FILL_COURSES,
+  constraints: [],
+  quick: false,
+  season: true,
+  stock: false,
+  scope: "empty",
+};
+
+/** Le champ de `onUpdateMeal` qui porte chaque service. */
+const ROLE_VALUE_KEYS = {
+  starter: "starterRecipeId",
+  main: "recipeId",
+  dessert: "dessertRecipeId",
+};
 
 function dateToKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -129,7 +168,12 @@ export function MealsView({
   });
   const [servings, setServings] = useState(null); // null → le nombre de personnes de la recette
   const [fillOpen, setFillOpen] = useState(false);
-  const [fill, setFill] = useState(EMPTY_FILL);
+  const [fill, setFill] = useState(() => readMealFillPrefs(DEFAULT_FILL));
+  const [fillAvoidOpen, setFillAvoidOpen] = useState(false);
+  // Ce que le dernier tirage a posé : « Vider » n'efface que ça, jamais un
+  // repas choisi à la main. Le planning ne garde aucune trace de provenance,
+  // c'est donc à la vue de la tenir — le temps de la session et de la semaine.
+  const [fillTrace, setFillTrace] = useState({ weekKey: "", entries: [] });
   const [picker, setPicker] = useState(null); // { dayIndex, slot, role }
   const [viewModal, setViewModal] = useState(null);
   const [missingModal, setMissingModal] = useState(null);
@@ -257,11 +301,14 @@ export function MealsView({
   // Changer de créneau (ou de recette) remet les couverts sur la recette.
   useEffect(() => { setServings(null); }, [selected.dayIndex, selected.slot, current.recipeId, targetWeekKey]);
 
+  // La façon de manger ne change pas d'une semaine à l'autre : on la retient.
+  useEffect(() => { storeMealFillPrefs(fill); }, [fill]);
+
   /* ── Actions ── */
 
   function openPicker(dayIndex, slot, role = "main") {
     setSelected({ dayIndex, slot });
-    setFillOpen(false);
+    closeFill();
     setPicker({ dayIndex, slot, role });
   }
 
@@ -308,24 +355,65 @@ export function MealsView({
     if (recipeId) checkInventoryAfterPick(recipeById.get(recipeId), dayIndex, pickedSlot, role);
   }
 
+  function closeFill() {
+    setFillOpen(false);
+    setFillAvoidOpen(false);
+  }
+
   function fillPlanFor(filters) {
     return buildFillPlan({
       recipes: safeRecipes,
-      slots: slotList.map(({ dayIndex, slot, recipeId }) => ({ dayIndex, slot, recipeId })),
+      slots: slotList.map(({ dayIndex, slot, recipeId, text, starter, dessert }) => ({
+        dayIndex,
+        slot,
+        recipeId,
+        text,
+        starterRecipeId: starter?.id || "",
+        dessertRecipeId: dessert?.id || "",
+      })),
       filters,
       currentMonth,
       stockByRecipeId,
     });
   }
 
+  /** Un seul `onUpdateMeal` par créneau : trois services, un seul écrit. */
+  function writeRoles(entries) {
+    const bySlot = new Map();
+    entries.forEach((entry) => {
+      const key = slotKeyOf(entry.dayIndex, entry.slot);
+      const patch = bySlot.get(key) || { dayIndex: entry.dayIndex, slot: entry.slot, values: {} };
+      patch.values[ROLE_VALUE_KEYS[entry.role] || "recipeId"] = entry.recipeId;
+      bySlot.set(key, patch);
+    });
+    bySlot.forEach(({ dayIndex, slot, values }) => {
+      const target = readSlot(dayIndex, slot);
+      onUpdateMeal(target.day, target.slot, values, target.weekKey);
+    });
+  }
+
+  /** Ce que le tirage a posé sur la semaine affichée, et qui peut être repris. */
+  const clearableEntries = fillTrace.weekKey === targetWeekKey ? fillTrace.entries : [];
+
+  /** « Vider » : on retire ce que le tirage a mis, pas ce que l'utilisateur a choisi. */
+  function clearFilledMeals() {
+    writeRoles(clearableEntries.map((entry) => ({ ...entry, recipeId: "" })));
+    setFillTrace({ weekKey: "", entries: [] });
+    closeFill();
+  }
+
   function runFill() {
     const plan = fillPlanFor(fill);
-    plan.entries.forEach((entry) => {
-      const target = readSlot(entry.dayIndex, entry.slot);
-      onUpdateMeal(target.day, target.slot, { recipeId: entry.recipeId }, target.weekKey);
-    });
-    setFillOpen(false);
+    writeRoles(plan.entries);
+    closeFill();
     if (!plan.entries.length) return;
+
+    // Ce tirage remplace le précédent : « Vider » ne doit reprendre que ce qui
+    // est effectivement à l'écran.
+    setFillTrace({
+      weekKey: targetWeekKey,
+      entries: plan.entries.map(({ dayIndex, slot, role }) => ({ dayIndex, slot, role })),
+    });
 
     /* Ce qu'il faudra acheter pour cuisiner la semaine qu'on vient de tirer,
        sans ce qui attend déjà sur la liste. Le compte se fait sur la semaine
@@ -335,10 +423,7 @@ export function MealsView({
        les articles proches et additionne les quantités. */
     const planKeys = new Set(plan.entries.map((entry) => slotKeyOf(entry.dayIndex, entry.slot)));
     const planStock = linkMealsToInventory
-      ? computeWeekStock({
-          slots: buildWeekSlots(plan.entries.map((entry) => ({ ...entry, role: "main" }))),
-          inventory,
-        })
+      ? computeWeekStock({ slots: buildWeekSlots(plan.entries), inventory })
       : new Map();
     const missingSplit = splitAlreadyListed(
       [...planStock.entries()]
@@ -351,7 +436,11 @@ export function MealsView({
     // Bilan : sans lui, « avec mon stock » range silencieusement des recettes
     // qu'il faudra acheter — on dit ce qui a été puisé et ce qui reste à acheter.
     setFillReport({
-      total: plan.entries.length,
+      // Le bilan compte des repas, pas des recettes : un créneau entrée + plat
+      // + dessert reste un repas.
+      total: plan.slotCount,
+      courseCount: plan.entries.length,
+      emptyCourses: plan.emptyCourses,
       stockCount: plan.stockCount,
       otherCount: plan.otherCount,
       stockAsked: plan.stockAsked,
@@ -587,68 +676,149 @@ export function MealsView({
     `;
   }
 
+  /**
+   * Feuille « Remplir la semaine » : une décision par ligne — régime, services,
+   * filtres, règles, portée — puis un seul bouton qui tire dans les recettes.
+   * Elle remplace le panneau de détail : les deux ne coexistent jamais.
+   */
   function renderFillSheet() {
-    // Le compteur annonce ce qui sera vraiment posé, pas le nombre de créneaux
-    // visés : sans assez de recettes filtrées, le tirage en remplit moins.
-    const targetCount = fillPlanFor(fill).entries.length;
-    // Contraintes et options partagent la même rangée : une seule liste, sinon
-    // React voit deux tableaux frères sans clé propre et le prévient en console.
-    const constraintChips = [
-      ...FILL_CONSTRAINTS.map((item) => ({
-        id: item.id,
-        label: item.label,
-        on: fill.constraints.includes(item.id),
-        toggle: () => setFill((prev) => ({
-          ...prev,
-          constraints: prev.constraints.includes(item.id)
-            ? prev.constraints.filter((id) => id !== item.id)
-            : [...prev.constraints, item.id],
-        })),
-      })),
-      { id: "quick",  label: "⚡ Rapide",    on: fill.quick,  toggle: () => setFill((prev) => ({ ...prev, quick: !prev.quick })) },
-      { id: "season", label: "🍂 De saison", on: fill.season, toggle: () => setFill((prev) => ({ ...prev, season: !prev.season })) },
-      ...(linkMealsToInventory
-        ? [{ id: "stock", label: "🥫 Avec mon stock", on: fill.stock, toggle: () => setFill((prev) => ({ ...prev, stock: !prev.stock })) }]
-        : []),
-    ];
+    const plan = fillPlanFor(fill);
+    // Le compteur annonce des repas, pas des recettes : cocher entrée + plat +
+    // dessert ne triple pas le nombre de créneaux touchés.
+    const targetCount = plan.slotCount;
+    // Le filtre stock n'a de sens que si l'inventaire est lié — sinon aucune
+    // recette n'est « faisable » et la puce ne ferait rien.
+    const prefs = FILL_PREFS.filter((pref) => pref.id !== "stock" || linkMealsToInventory);
+    const restrictionSummary = fill.constraints.length
+      ? FILL_RESTRICTIONS
+          .filter((item) => fill.constraints.includes(item.id))
+          .map((item) => item.label.toLowerCase())
+          .join(", ")
+      : "Aucune règle";
+
+    const toggleCourse = (id) => setFill((prev) => {
+      const next = { ...prev.courses, [id]: !prev.courses[id] };
+      // On ne peut pas tout décocher : sans service, le bouton n'aurait rien à
+      // poser. Le plat reprend la main.
+      if (!next.starter && !next.main && !next.dessert) next.main = true;
+      return { ...prev, courses: next };
+    });
+
+    const toggleRestriction = (id) => setFill((prev) => ({
+      ...prev,
+      constraints: prev.constraints.includes(id)
+        ? prev.constraints.filter((entry) => entry !== id)
+        : [...prev.constraints, id],
+    }));
 
     return html`
-      <div className="mrd-week-panel">
+      <div className="mrd-week-panel mrd-week-panel--fill">
         <div className="mrd-week-fill-hdr">
           <span className="mrd-week-fill-title">Remplir la semaine</span>
           <span className="mrd-week-fill-hdr-btns">
-            <button type="button" className="mrd-week-fill-reset" onClick=${() => setFill(EMPTY_FILL)}>Vider</button>
-            <button type="button" className="mrd-week-fill-close" onClick=${() => setFillOpen(false)} aria-label="Fermer">✕</button>
+            <button type="button" className="mrd-week-fill-reset"
+              disabled=${!clearableEntries.length} onClick=${clearFilledMeals}>Vider</button>
+            <button type="button" className="mrd-week-fill-close" onClick=${closeFill} aria-label="Fermer">✕</button>
           </span>
         </div>
-        <div className="mrd-week-fill-body">
-          <div className="mrd-week-fill-chips">
-            ${FILL_DIETS.map((diet) => html`
-              <button type="button" key=${diet.id}
-                className=${`mrd-week-chip${fill.diet === diet.id ? " on" : ""}`}
-                onClick=${() => setFill((prev) => ({ ...prev, diet: prev.diet === diet.id ? "" : diet.id }))}>
-                ${diet.label}
-              </button>
-            `)}
+
+        <div className="mrd-fill-body">
+          <div className="mrd-fill-row">
+            <span className="mrd-fill-label">Régime</span>
+            <span className="mrd-fill-seg">
+              ${FILL_DIETS.map((diet) => html`
+                <button type="button" key=${diet.id}
+                  className=${`mrd-fill-seg-btn${fill.diet === diet.id ? " on" : ""}`}
+                  aria-pressed=${fill.diet === diet.id ? "true" : "false"}
+                  onClick=${() => setFill((prev) => ({ ...prev, diet: diet.id }))}>
+                  <span aria-hidden="true">${diet.icon}</span>${diet.label}
+                </button>
+              `)}
+            </span>
           </div>
-          <div className="mrd-week-fill-chips">
-            ${constraintChips.map((item) => html`
-              <button type="button" key=${item.id} className=${`mrd-week-chip${item.on ? " on" : ""}`} onClick=${item.toggle}>
-                ${item.label}
-              </button>
-            `)}
+
+          <div className="mrd-fill-row">
+            <span className="mrd-fill-label">Services</span>
+            <span className="mrd-fill-chips">
+              ${FILL_COURSES.map((course) => html`
+                <button type="button" key=${course.id}
+                  className=${`mrd-fill-chip${fill.courses[course.id] ? " on" : ""}`}
+                  aria-pressed=${fill.courses[course.id] ? "true" : "false"}
+                  onClick=${() => toggleCourse(course.id)}>
+                  ${course.label}
+                </button>
+              `)}
+            </span>
           </div>
-          <div className="mrd-week-fill-run">
-            <span className="mrd-week-fill-scope">
+
+          <div className="mrd-fill-row">
+            <span className="mrd-fill-label">Filtres</span>
+            <span className="mrd-fill-chips">
+              ${prefs.map((pref) => html`
+                <button type="button" key=${pref.id}
+                  className=${`mrd-fill-chip${fill[pref.id] ? " on" : ""}`}
+                  aria-pressed=${fill[pref.id] ? "true" : "false"}
+                  onClick=${() => setFill((prev) => ({ ...prev, [pref.id]: !prev[pref.id] }))}>
+                  <span className="mrd-fill-chip-lbl"><span aria-hidden="true">${pref.icon}</span> ${pref.label}</span>
+                </button>
+              `)}
+            </span>
+          </div>
+
+          <div className="mrd-fill-row">
+            <span className="mrd-fill-label">Règles</span>
+            <span className="mrd-fill-avoid">
+              <button type="button" className="mrd-fill-avoid-btn"
+                aria-expanded=${fillAvoidOpen ? "true" : "false"}
+                onClick=${() => setFillAvoidOpen((open) => !open)}>
+                <span className="mrd-fill-avoid-summary">${restrictionSummary}</span>
+                <span className="mrd-fill-avoid-chevron" aria-hidden="true">${fillAvoidOpen ? "⌃" : "⌄"}</span>
+              </button>
+              ${/* Le menu s'ouvre vers le haut : la feuille est déjà en bas de l'écran. */null}
+              ${fillAvoidOpen ? html`
+                <div className="mrd-fill-menu">
+                  <div className="mrd-fill-menu-list">
+                    ${FILL_RESTRICTIONS.map((item) => {
+                      const on = fill.constraints.includes(item.id);
+                      return html`
+                        <button type="button" key=${item.id}
+                          className=${`mrd-fill-menu-row${on ? " on" : ""}`}
+                          aria-pressed=${on ? "true" : "false"}
+                          onClick=${() => toggleRestriction(item.id)}>
+                          <span className="mrd-fill-menu-box" aria-hidden="true">${on ? "✓" : ""}</span>
+                          <span className="mrd-fill-menu-lbl">${item.label}</span>
+                        </button>
+                      `;
+                    })}
+                  </div>
+                  <div className="mrd-fill-menu-foot">
+                    <span className="mrd-fill-menu-count">
+                      ${fill.constraints.length ? `${fill.constraints.length} sélectionnées` : ""}
+                    </span>
+                    <span className="mrd-fill-menu-acts">
+                      <button type="button" className="mrd-fill-menu-clear"
+                        onClick=${() => setFill((prev) => ({ ...prev, constraints: [] }))}>Tout décocher</button>
+                      <button type="button" className="mrd-fill-menu-ok"
+                        onClick=${() => setFillAvoidOpen(false)}>OK</button>
+                    </span>
+                  </div>
+                </div>
+              ` : null}
+            </span>
+          </div>
+
+          <div className="mrd-fill-run">
+            <span className="mrd-fill-seg mrd-fill-seg--scope">
               ${FILL_SCOPES.map((scope) => html`
                 <button type="button" key=${scope.id}
-                  className=${`mrd-week-scope${fill.scope === scope.id ? " on" : ""}`}
+                  className=${`mrd-fill-seg-btn${fill.scope === scope.id ? " on" : ""}`}
+                  aria-pressed=${fill.scope === scope.id ? "true" : "false"}
                   onClick=${() => setFill((prev) => ({ ...prev, scope: scope.id }))}>
                   ${scope.label}
                 </button>
               `)}
             </span>
-            <button type="button" className="mrd-week-fill-cta" disabled=${!targetCount} onClick=${runFill}>
+            <button type="button" className="mrd-fill-cta" disabled=${!targetCount} onClick=${runFill}>
               Remplir ${targetCount} repas
             </button>
           </div>
@@ -660,8 +830,14 @@ export function MealsView({
   /** Bilan du tirage : ce qui vient du stock, ce qu'il reste à acheter. */
   function renderFillReport() {
     if (!fillReport) return null;
-    const { total, stockCount, otherCount, stockAsked, items, missingCount, alreadyListedCount } = fillReport;
+    const { total, stockCount, otherCount, stockAsked, items, missingCount, alreadyListedCount, emptyCourses } = fillReport;
     const meals = (count) => `${count} repas`;
+    // Le partage stock / courses se compte en recettes : un créneau entrée +
+    // plat peut avoir une moitié en stock et l'autre à acheter.
+    const dishes = (count) => `${count} recette${count > 1 ? "s" : ""}`;
+    const missingCourseLabels = (emptyCourses || [])
+      .map((id) => FILL_COURSES.find((course) => course.id === id)?.label.toLowerCase())
+      .filter(Boolean);
 
     return html`
       <${MrdModal} isOpen=${true} onClose=${() => setFillReport(null)} className="task-modal">
@@ -679,7 +855,7 @@ export function MealsView({
               ${stockCount ? html`
                 <div className="mrd-fill-report-line ok">
                   <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                  <span><strong>${meals(stockCount)}</strong> avec ce que tu as déjà : ${items.length} article${items.length > 1 ? "s" : ""} du stock</span>
+                  <span><strong>${dishes(stockCount)}</strong> avec ce que tu as déjà : ${items.length} article${items.length > 1 ? "s" : ""} du stock</span>
                 </div>
                 ${items.length ? html`
                   <div className="mrd-fill-report-items">
@@ -695,9 +871,20 @@ export function MealsView({
               ${otherCount ? html`
                 <div className="mrd-fill-report-line miss">
                   <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                  <span><strong>${meals(otherCount)}</strong> demande${otherCount > 1 ? "nt" : ""} des courses.</span>
+                  <span><strong>${dishes(otherCount)}</strong> demande${otherCount > 1 ? "nt" : ""} des courses.</span>
                 </div>
               ` : null}
+            </div>
+          ` : null}
+
+          ${/* Un service coché dont aucune recette ne passe les filtres reste
+                vide : le dire, sinon la case « Dessert » a l'air de ne rien faire. */null}
+          ${missingCourseLabels.length ? html`
+            <div className="mrd-fill-report">
+              <div className="mrd-fill-report-line miss">
+                <span className="mrd-fill-report-dot" aria-hidden="true"></span>
+                <span>Aucune recette de ${missingCourseLabels.join(", ")} ne passe tes filtres : ce service est resté vide.</span>
+              </div>
             </div>
           ` : null}
 
@@ -832,7 +1019,8 @@ export function MealsView({
         <button
           type="button"
           className=${`mrd-week-pill mrd-week-pill--fill${fillOpen ? " on" : ""}`}
-          onClick=${() => setFillOpen((open) => !open)}
+          aria-expanded=${fillOpen ? "true" : "false"}
+          onClick=${() => (fillOpen ? closeFill() : setFillOpen(true))}
         >✨ Remplir</button>
       </div>
 

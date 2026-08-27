@@ -29,12 +29,17 @@ import { IonModal } from "@ionic/react";
  *   recette, panneau des repas).
  * @param {boolean} [backdropDismiss]  false pour un formulaire en cours de
  *   saisie, où un tap à côté ne doit pas jeter le travail.
+ * @param {number} [sheetBreakpoint]  hauteur d'ouverture de la feuille, en
+ *   fraction de l'écran. 0.92 (défaut) pour les écrans pleine hauteur ; une
+ *   valeur plus basse pour une feuille dimensionnée par son contenu, comme le
+ *   choix de départ d'une recette.
  */
 export function MrdModal({
   isOpen,
   onClose,
   className = "",
   sheet = false,
+  sheetBreakpoint = 0.92,
   backdropDismiss = true,
   children,
 }) {
@@ -61,8 +66,8 @@ export function MrdModal({
         onDidDismiss=${onClose}
         className=${classes}
         backdropDismiss=${backdropDismiss}
-        initialBreakpoint=${0.92}
-        breakpoints=${[0, 0.92, 1]}
+        initialBreakpoint=${sheetBreakpoint}
+        breakpoints=${sheetBreakpoint >= 1 ? [0, 1] : [0, sheetBreakpoint, 1]}
         handle=${true}
       >
         ${inner}

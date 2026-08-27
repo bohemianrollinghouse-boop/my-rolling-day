@@ -4,7 +4,7 @@
 > Lis ce fichier en entier avant de toucher au code. Il est écrit pour éviter
 > de réanalyser le projet à chaque session.
 >
-> Dernière mise à jour : **23 août 2026** · branche `feat/ionic` · commit `4300b3e`
+> Dernière mise à jour : **25 août 2026** · branche `main` · commit `6a54687`
 
 ---
 
@@ -236,8 +236,8 @@ natives ne lisent pas les variables CSS) et refléter exactement `--mrd-bg`.
 | `units.js` | 123 | `toBaseQuantity`/`fromBaseQuantity`, `addStockQuantities`, `productMatchKey`, `PRODUCT_STOPWORDS`. |
 | `recipeFilters.js` | 121 | Saisons, mois, durée, régime, contraintes, recherche texte. |
 | `productUtils.js` | 114 | **Mémoire produit** : `normalizeProductName`, `findSimilarItem`, `suggestItems`, `collectKnownProducts`, `formatQuantityUnit`. |
-| `mealFill.js` | 105 | `buildFillPlan` — tirage automatique de la semaine de repas. |
-| `storage.js` | 96 | `parseImportedState` (import JSON) + gestion de l'invite de notifications. |
+| `mealFill.js` | 180 | `buildFillPlan` — tirage automatique de la semaine de repas, service par service (entrée / plat / dessert). |
+| `storage.js` | 134 | `parseImportedState` (import JSON), invite de notifications, préférences de la feuille « Remplir ». |
 | `dialogs.js` | 87 | `confirmDialog`, `promptDialog` — contrôleur impératif `ion-alert`. |
 | `theme.js` | ~40 | `readStoredTheme`, `applyTheme` — pose `data-theme` **et** `.ion-palette-dark`. |
 | `staleTasks.js` | ~40 | `getStaleTaskAlerts` — relance « tâche non faite ». |
@@ -306,7 +306,7 @@ fichiers de l'app importent toujours depuis `providers/client.js`.
 | `tasks/TaskCard.js` | 182 | Carte tâche partagée (Tâches **et** Agenda). Exporte aussi `urgencyBadge`, `isPastDue`, `daysLeft`, `recurrenceLabel`. |
 | `tasks/EmojiPicker.js` | 897 | Sélecteur d'emoji, réutilisé par Tâches, Agenda, Listes, Inventaire, Pense-bête. |
 | `agenda/AgendaView.js` | 1607 | Calendrier + rappels. |
-| `meals/MealsView.js` | 878 | Grille semaine (14 créneaux sans défilement) + panneau bas permanent. |
+| `meals/MealsView.js` | 1066 | Grille semaine (14 créneaux sans défilement) + panneau bas permanent (détail **ou** feuille « Remplir la semaine »). |
 | `meals/RecipePicker.js` | 431 | Sélecteur de recette d'un créneau ; remplace la grille pendant la sélection. |
 | `recipes/RecipesView.js` | 1186 | Fiche + formulaire de recette + import depuis une URL. |
 | `recipes/RecipeLibrary.js` | 635 | Bibliothèque : recherche, filtres, cartes, favoris. |
@@ -650,6 +650,26 @@ Une recette contient : `ingredients` structurés (`name`, `quantity`, `unit`),
 - La grille Repas tient **14 créneaux dans un écran sans défilement** ; le détail
   du créneau vit dans un panneau bas permanent, **jamais dans une modale**, pour
   que la semaine reste lisible pendant qu'on remplit un trou.
+- **Feuille « Remplir la semaine »** (`renderFillSheet` + `utils/mealFill.js`) :
+  une décision par ligne — régime, services, filtres, règles, portée — puis un
+  seul bouton. Elle occupe le même panneau bas que le détail : **les deux ne
+  coexistent jamais**. Règles du tirage :
+  - **« Omnivore » ne filtre rien.** C'est l'absence de contrainte, et c'est le
+    régime par défaut : le traiter comme un label rendrait une semaine vide à
+    tous ceux qui n'ont pas coché « omnivore » sur leurs recettes.
+  - **Chaque service pioche dans sa catégorie** (`starter` / `main` / `dessert`).
+    Le plat accepte aussi les recettes **sans catégorie** ; les boissons,
+    petits-déjeuners et bases ne sortent jamais.
+  - **Pas de doublon tant que la bibliothèque tient**, puis on recycle dans le
+    même ordre — le compteur du bouton a promis N repas, il en pose N.
+  - Un service dont le pool est vide **n'est pas rempli au hasard** : il remonte
+    dans `emptyCourses`, et le bilan le dit.
+  - **« Vider » n'efface que ce que le tirage a posé**, jamais un repas choisi à
+    la main : `fillTrace` garde la trace du dernier tirage, pour la semaine
+    affichée et le temps de la session.
+  - Les préférences (régime / services / filtres / règles) sont **persistées**
+    en localStorage (`mrd-meal-fill`) ; portée et état ouvert/fermé sont
+    éphémères.
 
 ### Import de recettes depuis une URL
 
@@ -900,6 +920,7 @@ normal, c'est un journal historique, ne le réécris pas.**
 |---|---|---|
 | 2026-08-23 | agent (analyse initiale) | Création. Analyse complète du projet à `4300b3e` sur `feat/ionic` : arborescence, 90 fichiers `src/`, modèle de données, routage, boot, règles produit, notifications, thème. Suite de tests lancée et vérifiée : 213 pass / 0 fail / 0 skipped. Relevé les écarts de `docs/PROJECT_MAP.md`, `docs/DEV_NOTES.md`, `README.md` et `docs/AGENT.md` (§11). Identifié `components/Header.js` comme fichier mort, en plus de `FamilyPanel.js`. |
 | 2026-08-23 | agent | Suppression de `docs/AGENT.md`, `docs/PROJECT_MAP.md` et `docs/DEV_NOTES.md` (demande de Steve). Contenu exact replié ici avant suppression : sections de réglages (§6), mise à l'échelle par portions et réutilisation de la carte tâche côté calendrier (§8). Deux affirmations de `DEV_NOTES` vérifiées **fausses** et écartées, documentées en §11 pour éviter qu'on les ressuscite. `README.md` garde deux renvois vers l'ancien `AGENT.md` (l. 25 et 251) — Steve s'en occupe. |
+| 2026-08-25 | agent | Feuille « Remplir la semaine » refaite d'après le handoff design (`design_handoff_remplir_semaine`) : segmented control de régime, chips de services, chips de filtres, menu de règles alimentaires, portée + CTA. Mis à jour ici : tailles de `mealFill.js` (105 → 180), `storage.js` (96 → 134) et `MealsView.js` (878 → 1066), plus six invariants de tirage ajoutés en §8. Changements de comportement volontaires, non couverts par l'ancien code : « omnivore » ne filtre plus rien, chaque service pioche dans sa catégorie, le tirage recycle sa bibliothèque au lieu de s'arrêter, et « Vider » efface les repas tirés au lieu de remettre les filtres à zéro. 98 tests unitaires verts, build Vite OK. |
 | 2026-08-23 | agent | `README.md` réécrit (254 → 163 l.). Corrigés : chemins Windows d'une machine précédente, lancement `npx serve`/`python -m http.server` (faux — l'app a besoin de Vite), `.claude/launch.json` inexistant, bloc PowerShell `run-tests.ps1`, et **trois commandes de test avec un flag invalide** (`--test-isolation=none` → `node: bad option` ; le vrai est `--experimental-test-isolation=none`). Supprimée la section « Cache busting » qui contredisait le même fichier 175 lignes plus haut. L'inventaire des fichiers a été retiré du README plutôt que corrigé : le dupliquer ici est ce qui l'avait périmé. |
 
 ---
