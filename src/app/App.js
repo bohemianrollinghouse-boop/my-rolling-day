@@ -1,19 +1,8 @@
 import { DEFAULT_MEMBER_COLOR } from "./config/constants.js";
 import { BottomNav, QUICK_MENU_ITEMS } from "./components/nav/BottomNav.js";
-import { InboxView } from "./pages/inbox/InboxView.js";
 import { FeedbackWidget } from "./components/FeedbackWidget.js";
 import { HomeView } from "./pages/home/HomeView.js";
-import { InventoryView } from "./pages/inventory/InventoryView.js";
-import { ListsView } from "./pages/lists/ListsView.js";
-import { AgendaView } from "./pages/agenda/AgendaView.js";
 import { AuthScreen } from "./pages/auth/AuthScreen.js";
-import { OnboardingFlow } from "./pages/auth/OnboardingFlow.js";
-import { HistoryView } from "./pages/history/HistoryView.js";
-import { MealsView } from "./pages/meals/MealsView.js";
-import { NotesView } from "./pages/notes/NotesView.js";
-import { RecipesView } from "./pages/recipes/RecipesView.js";
-import { SettingsView } from "./pages/settings/SettingsView.js";
-import { TasksView } from "./pages/tasks/TasksView.js";
 import { SegmentedTabs } from "./components/SegmentedTabs.js";
 import { ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal, NotificationModal, StaleTaskModal } from "./modals/AppModals.js";
 import {
@@ -27,8 +16,43 @@ import {
   signUpWithEmail,
   updateFamilyPerson,
 } from "./providers/client.js";
-import { PremiumLockScreen } from "./pages/premium/PremiumLockScreen.js";
-import { html, useEffect, useMemo, useRef, useState } from "./lib.js";
+import { html, lazy, Suspense, useEffect, useMemo, useRef, useState } from "./lib.js";
+
+/* ── Vues chargees a la demande ─────────────────────────────────────────
+   Chaque vue devient son propre fichier, telecharge au premier affichage
+   de l'ecran plutot qu'au demarrage.
+
+   Deux vues restent volontairement statiques : `HomeView` et
+   `AuthScreen`. Ce sont les deux ecrans d'arrivee — l'un pour une session
+   ouverte, l'autre pour une session fermee. Les rendre paresseux
+   ajouterait une attente au demarrage au lieu d'en retirer une.
+
+   `lazy()` attend un export par defaut ; toutes les vues du depot sont des
+   exports nommes, d'ou le `.then()` qui reemballe. C'est la seule raison
+   de cette forme, il n'y a rien de subtil derriere.
+
+   Chaque site de rendu est enveloppe dans un `Suspense` — voir
+   `screenPage` et le retour anticipe des reglages. */
+/* Repli affiche pendant le telechargement d'une vue.
+
+   Volontairement vide plutot qu'un spinner : en natif, les chunks sont
+   servis depuis le systeme de fichiers et l'attente dure une image ou
+   deux — un spinner ne ferait que clignoter. Le conteneur garde la classe
+   d'ecran pour que la zone ne se replie pas pendant l'echange. */
+const SCREEN_FALLBACK = html`<div className="mrd-screen mrd-screen--loading" />`;
+
+const InboxView = lazy(() => import("./pages/inbox/InboxView.js").then((m) => ({ default: m.InboxView })));
+const InventoryView = lazy(() => import("./pages/inventory/InventoryView.js").then((m) => ({ default: m.InventoryView })));
+const ListsView = lazy(() => import("./pages/lists/ListsView.js").then((m) => ({ default: m.ListsView })));
+const AgendaView = lazy(() => import("./pages/agenda/AgendaView.js").then((m) => ({ default: m.AgendaView })));
+const OnboardingFlow = lazy(() => import("./pages/auth/OnboardingFlow.js").then((m) => ({ default: m.OnboardingFlow })));
+const HistoryView = lazy(() => import("./pages/history/HistoryView.js").then((m) => ({ default: m.HistoryView })));
+const MealsView = lazy(() => import("./pages/meals/MealsView.js").then((m) => ({ default: m.MealsView })));
+const NotesView = lazy(() => import("./pages/notes/NotesView.js").then((m) => ({ default: m.NotesView })));
+const RecipesView = lazy(() => import("./pages/recipes/RecipesView.js").then((m) => ({ default: m.RecipesView })));
+const SettingsView = lazy(() => import("./pages/settings/SettingsView.js").then((m) => ({ default: m.SettingsView })));
+const TasksView = lazy(() => import("./pages/tasks/TasksView.js").then((m) => ({ default: m.TasksView })));
+const PremiumLockScreen = lazy(() => import("./pages/premium/PremiumLockScreen.js").then((m) => ({ default: m.PremiumLockScreen })));
 import { collectKnownProducts } from "./utils/productUtils.js";
 import { readStoredActivePerson, storeActivePerson, readDeviceMode, storeDeviceMode } from "./utils/personStorage.js";
 import {
@@ -748,7 +772,7 @@ function AppShell() {
 
   if (profileGuardActive) {
     return html`
-      <${OnboardingFlow}
+      <${Suspense} fallback=${SCREEN_FALLBACK}><${OnboardingFlow}
         user=${user}
         userProfile=${userProfile}
         currentFamily=${currentFamily}
@@ -794,7 +818,7 @@ function AppShell() {
           setPendingSignupSetup(false);
           return runFamilyAction(() => handleCancelProfileSetup({ discardDraft }));
         }}
-      />
+      /><//>
     `;
   }
 
@@ -1035,6 +1059,7 @@ function AppShell() {
           onDispatchToTask=${handleDispatchToTask}
           onDispatchToAgenda=${handleDispatchToAgenda}
           onDispatchToNote=${handleDispatchToNote}
+          onOpenNotes=${() => setActiveTab("notes")}
         />
       `;
     }
@@ -1194,6 +1219,7 @@ function AppShell() {
         ${renderPageHeader(tab)}
         <${IonContent} className="cnt">
           ${renderPageBanners()}
+          <${Suspense} fallback=${SCREEN_FALLBACK}>
           ${tab === "home"
             ? html`
                 <${HomeView}
@@ -1229,6 +1255,7 @@ function AppShell() {
                   } : null}
                 />`
             : renderScreen(tab)}
+          <//>
         <//>
         ${renderPageFab(tab)}
       <//>
@@ -1279,7 +1306,7 @@ function AppShell() {
         ` : null}
         <${IonContent} className="cnt cnt--settings">
           ${renderPageBanners()}
-<${SettingsView}
+<${Suspense} fallback=${SCREEN_FALLBACK}><${SettingsView}
             isOnboarding=${!plannerUnlocked}
             currentFamily=${currentFamily}
             families=${safeFamilies}
@@ -1357,7 +1384,7 @@ function AppShell() {
               setAuthEntryPage("welcome");
               return signOutUser();
             }}
-          />
+          /><//>
         <//>
       <//>
     `;

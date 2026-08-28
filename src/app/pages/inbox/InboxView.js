@@ -1,15 +1,68 @@
 import { DEFAULT_MEMBER_COLOR } from "../../config/constants.js";
-import { html, useState } from "../../lib.js";
+import { html, useEffect, useRef, useState } from "../../lib.js";
 import { localDateKey, getCurrentAppDate, addMinutesToTime } from "../../utils/date.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
 import { MrdModal } from "../../components/MrdModal.js";
 
 /* ─── CONSTANTS ──────────────────────────────────────────── */
-const HINTS = [
-  { id: "task",  label: "Tâche",      emoji: "✅" },
-  { id: "event", label: "Événement",  emoji: "📅" },
-  { id: "note",  label: "Note",       emoji: "📝" },
+/* Les trois destinations, proposées sous chaque item. Celle que le texte
+   laisse deviner (`item.hint`) est surlignée, mais les trois restent à un
+   tap : plus de pastille indicative séparée des boutons (handoff 9a). */
+const DESTINATIONS = [
+  { id: "task",  emoji: "✅", label: "Tâche" },
+  { id: "event", emoji: "📅", label: "Agenda" },
+  { id: "note",  emoji: "📝", label: "Note" },
 ];
+
+/* Trois paliers d'âge, du plus vieux au plus récent : ce qui traîne remonte
+   en tête de liste au lieu de se perdre au fond. Le groupe des retards porte
+   l'âge de son plus vieil item — « Depuis 3 jours » dit mieux ce qui attend
+   qu'un intitulé fixe. */
+const AGE_BUCKETS = [
+  { id: "stale",     label: "", min: 2 },
+  { id: "yesterday", label: "Hier", min: 1 },
+  { id: "today",     label: "Aujourd'hui", min: 0 },
+];
+
+/* Combien de jours pleins depuis la capture. `createdAt` s'écrit
+   « AAAA-MM-JJ HH:MM » (voir `handleAddInboxItem` dans App.js). */
+function inboxAgeDays(createdAt) {
+  const dayPart = String(createdAt || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayPart)) return 0;
+  const created = new Date(`${dayPart}T00:00`);
+  const today = new Date(`${localDateKey(getCurrentAppDate())}T00:00`);
+  const diff = Math.round((today - created) / 86400000);
+  return diff > 0 ? diff : 0;
+}
+
+function inboxAgeLabel(days) {
+  if (days <= 0) return "aujourd'hui";
+  if (days === 1) return "hier";
+  return `il y a ${days} jours`;
+}
+
+function groupInboxByAge(items) {
+  return AGE_BUCKETS
+    .map((bucket, index) => {
+      const previous = AGE_BUCKETS[index - 1];
+      const max = previous ? previous.min - 1 : Infinity;
+      const bucketItems = items
+        .filter((item) => {
+          const days = inboxAgeDays(item.createdAt);
+          return days >= bucket.min && days <= max;
+        })
+        /* Le plus ancien d'abord à l'intérieur du groupe : la liste se lit
+           de ce qui attend le plus vers ce qui vient d'arriver. */
+        .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+      const oldest = bucketItems.length ? inboxAgeDays(bucketItems[0].createdAt) : 0;
+      return {
+        ...bucket,
+        items: bucketItems,
+        label: bucket.label || `Depuis ${oldest} jours`,
+      };
+    })
+    .filter((bucket) => bucket.items.length > 0);
+}
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 function timeToMinutes(value) {
@@ -70,22 +123,6 @@ function defaultAgendaForm(text) {
   };
 }
 
-function defaultNoteForm(text) {
-  return {
-    text: text || "",
-    visibility: "household",
-    sharedWith: [],
-  };
-}
-
-/* ─── HINT BADGE ─────────────────────────────────────────── */
-function HintBadge({ hint }) {
-  if (!hint) return null;
-  const h = HINTS.find((item) => item.id === hint);
-  if (!h) return null;
-  return html`<span className=${`ibx-hint-badge ibx-hint-badge--${hint}`}>${h.emoji} ${h.label}</span>`;
-}
-
 /* ─── MAIN COMPONENT ─────────────────────────────────────── */
 export function InboxView({
   inbox,
@@ -97,6 +134,7 @@ export function InboxView({
   onDispatchToTask,
   onDispatchToAgenda,
   onDispatchToNote,
+  onOpenNotes = null,
 }) {
   const [inputText, setInputText]     = useState("");
 
@@ -113,8 +151,14 @@ export function InboxView({
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [showConcernedPicker, setShowConcernedPicker] = useState(false);
 
-  /* ── Note form ── */
-  const [noteForm, setNoteForm]           = useState(() => defaultNoteForm(""));
+  /* ── Envoi direct en note (handoff 9a) ──────────────────────
+     « Note » ne passe plus par une feuille : l'item part tout de suite. Pour
+     que « Annuler » reste possible, l'envoi réel est différé — la ligne
+     affiche « Envoyé dans les notes » et le bandeau du bas propose de se
+     dédire pendant ce temps. */
+  const [sentNotes, setSentNotes] = useState({});
+  const [toast, setToast] = useState(null);
+  const pendingNotesRef = useRef(new Map());
 
   const safeInbox    = Array.isArray(inbox) ? inbox : [];
   const safePeople   = Array.isArray(people) ? people.filter((p) => p.active !== false) : [];
@@ -154,11 +198,74 @@ export function InboxView({
     setDispatchMode("agenda");
   }
 
-  function openNoteDispatch(item) {
-    setDispatchItem(item);
-    setNoteForm(defaultNoteForm(item.text));
-    setDispatchMode("note");
+  function pickDestination(destinationId, item) {
+    if (destinationId === "task") { openTaskDispatch(item); return; }
+    if (destinationId === "event") { openAgendaDispatch(item); return; }
+    sendToNote(item);
   }
+
+  /* Délai avant l'envoi réel. Assez long pour se dédire, assez court pour
+     que la note existe quand on part la consulter. */
+  const NOTE_UNDO_MS = 5000;
+
+  function sendToNote(item) {
+    if (pendingNotesRef.current.has(item.id)) return;
+    const timer = setTimeout(() => commitNote(item), NOTE_UNDO_MS);
+    pendingNotesRef.current.set(item.id, { item, timer });
+    setSentNotes((previous) => ({ ...previous, [item.id]: true }));
+    setToast({ id: item.id, label: "Envoyé dans les notes" });
+  }
+
+  function commitNote(item) {
+    const pending = pendingNotesRef.current.get(item.id);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingNotesRef.current.delete(item.id);
+    onDispatchToNote(item, {
+      text: String(item.text || "").trim(),
+      visibility: "household",
+      sharedWith: [],
+    });
+    setSentNotes((previous) => {
+      const next = { ...previous };
+      delete next[item.id];
+      return next;
+    });
+    setToast((current) => (current && current.id === item.id ? null : current));
+  }
+
+  function undoNote(item) {
+    const pending = pendingNotesRef.current.get(item.id);
+    if (pending) clearTimeout(pending.timer);
+    pendingNotesRef.current.delete(item.id);
+    setSentNotes((previous) => {
+      const next = { ...previous };
+      delete next[item.id];
+      return next;
+    });
+    setToast((current) => (current && current.id === item.id ? null : current));
+  }
+
+  /* Quitter l'écran ne doit pas avaler un envoi en cours : on le confirme. */
+  function flushPendingNotes() {
+    [...pendingNotesRef.current.values()].forEach(({ item }) => commitNote(item));
+  }
+
+  useEffect(() => {
+    const pending = pendingNotesRef.current;
+    return () => {
+      [...pending.values()].forEach(({ item, timer }) => {
+        clearTimeout(timer);
+        onDispatchToNote(item, {
+          text: String(item.text || "").trim(),
+          visibility: "household",
+          sharedWith: [],
+        });
+      });
+      pending.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function closeModal() {
     setDispatchItem(null);
@@ -218,20 +325,6 @@ export function InboxView({
   }
 
   /* ── Submit note ── */
-  function submitNote(e) {
-    e.preventDefault();
-    if (!noteForm.text.trim()) return;
-    const finalVisibility = noteForm.visibility === "private" && noteForm.sharedWith.length > 0
-      ? "shared"
-      : noteForm.visibility;
-    onDispatchToNote(dispatchItem, {
-      text: noteForm.text.trim(),
-      visibility: finalVisibility,
-      sharedWith: noteForm.sharedWith,
-    });
-    closeModal();
-  }
-
   /* ── Task form helpers ── */
   function updateTaskForm(key, value) {
     setTaskForm((prev) => ({ ...prev, [key]: value }));
@@ -271,15 +364,6 @@ export function InboxView({
   }
 
   /* ── Note form helpers ── */
-  function toggleNoteSharedWith(personId) {
-    setNoteForm((prev) => ({
-      ...prev,
-      sharedWith: prev.sharedWith.includes(personId)
-        ? prev.sharedWith.filter((id) => id !== personId)
-        : [...prev.sharedWith, personId],
-    }));
-  }
-
   /* ── Task dispatch modal ── */
   function renderTaskModal() {
     const PILL_STACK = {
@@ -633,172 +717,130 @@ export function InboxView({
   }
 
   /* ── Note dispatch modal ── */
-  function renderNoteModal() {
-    const formValid = Boolean(noteForm.text.trim());
+  /* ── Render — la liste datée (handoff 9a) ─────────────────────
+     L'écran empilait un gros bloc de capture en haut puis des cartes de
+     trois lignes aux quatre boutons de même poids. La liste reste, mais
+     dense, datée et pré-triée : les groupes d'âge font remonter ce qui
+     traîne, la destination déduite est surlignée parmi les trois, et la
+     saisie descend dans la zone du pouce. */
+  const groups = groupInboxByAge(safeInbox);
+  const leftLabel = safeInbox.length === 1 ? "1 à trier" : `${safeInbox.length} à trier`;
 
-    return html`
-      <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
-
-
-          <div className="mrd-mhd">
-            <span className="mrd-mtitle">Créer une note</span>
-            <button type="button" onClick=${closeModal} className="mrd-mclose">✕</button>
-          </div>
-
-          <form onSubmit=${submitNote} className="mrd-mbody">
-
-            <!-- 1. Texte -->
-            <div>
-              <span className="mrd-mlbl">Contenu</span>
-              <textarea
-                value=${noteForm.text}
-                onInput=${(e) => setNoteForm((prev) => ({ ...prev, text: e.currentTarget.value }))}
-                placeholder="Écris ta note ici…"
-                rows="5"
-                autoFocus
-                style=${{ width: "100%", background: "var(--mrd-surf2)", border: "1.5px solid var(--mrd-border)", borderRadius: 14, padding: "12px 14px", fontSize: 14, color: "var(--mrd-fg)", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
-              ></textarea>
-            </div>
-
-            <!-- 2. Visibilité -->
-            <div>
-              <span className="mrd-mlbl">Visibilité</span>
-              <div className="segmented">
-                <button type="button"
-                  className=${`seg-btn ${noteForm.visibility === "household" ? "on" : ""}`}
-                  onClick=${() => setNoteForm((prev) => ({ ...prev, visibility: "household", sharedWith: [] }))}>
-                  🏠 Foyer
-                </button>
-                <button type="button"
-                  className=${`seg-btn ${noteForm.visibility === "private" ? "on" : ""}`}
-                  onClick=${() => setNoteForm((prev) => ({ ...prev, visibility: "private" }))}>
-                  🔒 Privée
-                </button>
-              </div>
-              ${noteForm.visibility === "private" ? html`
-                <div style=${{ marginTop: 8 }}>
-                  <div className="mini" style=${{ marginBottom: 6 }}>
-                    ${noteForm.sharedWith.length ? "Visible seulement avec :" : "Visible seulement par toi, ou partager avec :"}
-                  </div>
-                  <div style=${{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    ${shareableMembers.map((person) => html`
-                      <button key=${person.id} type="button"
-                        className=${`task-choice ${noteForm.sharedWith.includes(person.id) ? "on" : ""}`}
-                        onClick=${() => toggleNoteSharedWith(person.id)}>
-                        ${person.label || person.displayName}
-                      </button>
-                    `)}
-                  </div>
-                </div>
-              ` : null}
-            </div>
-
-            <!-- 3. Actions -->
-            <div style=${{ display: "flex", gap: 10, paddingTop: 4 }}>
-              <button type="button" onClick=${closeModal}
-                style=${{ flex: "0 0 auto", padding: "13px 20px", borderRadius: "var(--mrd-r)", background: "var(--mrd-surf2)", color: "var(--mrd-fg2)", fontSize: 14, fontWeight: 600, cursor: "pointer", border: "1px solid var(--mrd-border)", transition: "all 0.15s", fontFamily: "inherit" }}>
-                Annuler
-              </button>
-              <button type="submit"
-                disabled=${!formValid}
-                style=${{ flex: 1, padding: "13px 0", borderRadius: "var(--mrd-r)", background: formValid ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)", color: formValid ? "var(--mrd-white)" : "var(--mrd-disabledFg)", fontSize: 15, fontWeight: 700, cursor: formValid ? "pointer" : "default", border: "none", boxShadow: formValid ? "var(--mrd-glowA)" : "none", transition: "all 0.2s", fontFamily: "inherit" }}>
-                Enregistrer la note →
-              </button>
-            </div>
-
-          </form>
-      <//>
-    `;
-  }
-
-  /* ── Render ── */
   return html`
-    <div className="ibx-view">
+    <div className="ibx-view ibx-view--9a">
 
-      ${/* ── Ajout rapide ── */null}
-      <div className="ibx-add-card">
-        <textarea
-          className="ibx-textarea"
-          placeholder="Une idée, quelque chose à faire, un rappel… capture tout en vrac !"
-          value=${inputText}
-          onInput=${(e) => setInputText(e.currentTarget.value)}
-          onKeyDown=${handleKeyDown}
-          rows="3"
-          aria-label="Saisir un item d'inbox"
-        />
+      <header className="ibx-hdr">
+        <span className="ibx-hdr-titles">
+          <span className="ibx-hdr-kicker">pense-bête</span>
+          <span className="ibx-hdr-title">À trier</span>
+        </span>
+        ${safeInbox.length ? html`<span className="ibx-hdr-count">${leftLabel}</span>` : null}
+      </header>
 
-        <div className="ibx-add-row">
-          <button
-            type="button"
-            className="ibx-add-btn"
-            onClick=${handleAdd}
-            disabled=${!inputText.trim()}
-          >+ Capturer</button>
-        </div>
-      </div>
-
-      ${/* ── Liste vide ── */null}
+      <div className="ibx-scroll">
       ${safeInbox.length === 0 ? html`
         <div className="ibx-empty">
           <div className="ibx-empty-icon">📥</div>
-          <div className="ibx-empty-title">Rien à trier pour l'instant</div>
+          <div className="ibx-empty-title">Rien à trier</div>
           <div className="ibx-empty-sub">
-            Toutes tes idées et choses à faire<br/>
-            sont capturées ici. Trie-les vers les tâches,<br/>
-            l'agenda ou les notes quand tu es prêt.
+            Note ce qui te passe par la tête —
+            tu trieras vers les tâches, l'agenda ou les notes plus tard.
           </div>
         </div>
       ` : null}
 
-      ${/* ── Items ── */null}
-      ${safeInbox.length > 0 ? html`
-        <div className="ibx-list">
-          ${safeInbox.map((item) => html`
-            <div key=${item.id} className="ibx-item">
+      ${groups.map((group) => html`
+        <section className="ibx-group" key=${group.id}>
+          <div className=${`ibx-group-head ibx-group-head--${group.id}`}>
+            <span className="ibx-group-label">${group.label}</span>
+            <span className="ibx-group-rule"></span>
+            <span className="ibx-group-count">${group.items.length}</span>
+          </div>
 
-              <div className="ibx-item-body">
-                <div className="ibx-item-text">${item.text}</div>
-                ${item.hint ? html`<${HintBadge} hint=${item.hint} />` : null}
-              </div>
+          ${group.items.map((item) => {
+            const days = inboxAgeDays(item.createdAt);
+            const sent = Boolean(sentNotes[item.id]);
+            return html`
+              <article key=${item.id} className=${`ibx-card ${sent ? "is-sent" : ""} ${group.id === "stale" ? "is-stale" : ""}`}>
+                <div className="ibx-card-head">
+                  <span className="ibx-card-copy">
+                    <span className="ibx-card-text">${item.text}</span>
+                    <span className=${`ibx-card-age ${group.id === "stale" ? "is-stale" : ""}`}>${inboxAgeLabel(days)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="ibx-card-del"
+                    onClick=${() => onDeleteInboxItem(item.id)}
+                    aria-label=${`Supprimer « ${item.text} »`}
+                    title="Supprimer"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
 
-              <div className="ibx-item-actions">
-                <button
-                  type="button"
-                  className="ibx-dbtn"
-                  onClick=${() => openTaskDispatch(item)}
-                >✅ Tâche</button>
-                <button
-                  type="button"
-                  className="ibx-dbtn"
-                  onClick=${() => openAgendaDispatch(item)}
-                >📅 Agenda</button>
-                <button
-                  type="button"
-                  className="ibx-dbtn ibx-dbtn--note"
-                  onClick=${() => openNoteDispatch(item)}
-                >📝 Note</button>
-                <button
-                  type="button"
-                  className="ibx-del-btn"
-                  onClick=${() => onDeleteInboxItem(item.id)}
-                  aria-label="Supprimer cet item"
-                  title="Supprimer"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-              </div>
+                ${sent ? html`
+                  <div className="ibx-card-sent">
+                    <span className="ibx-card-sent-label">Envoyé dans les notes</span>
+                    <button type="button" className="ibx-card-undo" onClick=${() => undoNote(item)}>Annuler</button>
+                  </div>
+                ` : html`
+                  <div className="ibx-card-choices">
+                    ${DESTINATIONS.map((dest) => html`
+                      <button
+                        type="button"
+                        key=${dest.id}
+                        className=${`ibx-choice ibx-choice--${dest.id} ${item.hint === dest.id ? "on" : ""}`}
+                        onClick=${() => pickDestination(dest.id, item)}
+                      ><span className="ibx-choice-emoji" aria-hidden="true">${dest.emoji}</span>${dest.label}</button>
+                    `)}
+                  </div>
+                `}
+              </article>
+            `;
+          })}
+        </section>
+      `)}
+      </div>
 
-            </div>
-          `)}
+      ${/* Bandeau de confirmation : l'envoi en note ne quitte pas l'écran,
+           il se défait depuis la ligne ou depuis ici. */null}
+      ${toast ? html`
+        <div className="ibx-toast" role="status">
+          <span className="ibx-toast-mark">✓</span>
+          <span className="ibx-toast-label">${toast.label}</span>
+          ${onOpenNotes ? html`
+            <button type="button" className="ibx-toast-action" onClick=${() => { flushPendingNotes(); onOpenNotes(); }}>Voir</button>
+          ` : null}
         </div>
       ` : null}
 
-      ${/* ── Dispatch modals ── */null}
+      ${/* Saisie en bas : le pouce y arrive, contrairement au bloc de
+           capture qui occupait le haut de l'écran. */null}
+      <div className="ibx-capture">
+        <input
+          className="ibx-capture-input"
+          type="text"
+          placeholder="Note tout, trie plus tard…"
+          value=${inputText}
+          onInput=${(e) => setInputText(e.currentTarget.value)}
+          onKeyDown=${handleKeyDown}
+          aria-label="Noter quelque chose"
+        />
+        <button
+          type="button"
+          className="ibx-capture-send"
+          onClick=${handleAdd}
+          disabled=${!inputText.trim()}
+          aria-label="Ajouter au pense-bête"
+        >↑</button>
+      </div>
+
+      ${/* Tâche et Agenda ouvrent la feuille de création pré-remplie ;
+           Note part directement. */null}
       ${dispatchMode === "task"   && dispatchItem ? renderTaskModal()   : null}
       ${dispatchMode === "agenda" && dispatchItem ? renderAgendaModal() : null}
-      ${dispatchMode === "note"   && dispatchItem ? renderNoteModal()   : null}
 
     </div>
   `;

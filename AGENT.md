@@ -4,7 +4,8 @@
 > Lis ce fichier en entier avant de toucher au code. Il est écrit pour éviter
 > de réanalyser le projet à chaque session.
 >
-> Dernière mise à jour : **23 août 2026** · branche `feat/ionic` · commit `4300b3e`
+> Dernière mise à jour : **28 août 2026** · branche `main` — après la fusion du
+> dégraissage d'`App.js` et du chargement paresseux des vues.
 
 ---
 
@@ -236,8 +237,8 @@ natives ne lisent pas les variables CSS) et refléter exactement `--mrd-bg`.
 | `units.js` | 123 | `toBaseQuantity`/`fromBaseQuantity`, `addStockQuantities`, `productMatchKey`, `PRODUCT_STOPWORDS`. |
 | `recipeFilters.js` | 121 | Saisons, mois, durée, régime, contraintes, recherche texte. |
 | `productUtils.js` | 114 | **Mémoire produit** : `normalizeProductName`, `findSimilarItem`, `suggestItems`, `collectKnownProducts`, `formatQuantityUnit`. |
-| `mealFill.js` | 105 | `buildFillPlan` — tirage automatique de la semaine de repas. |
-| `storage.js` | 96 | `parseImportedState` (import JSON) + gestion de l'invite de notifications. |
+| `mealFill.js` | 180 | `buildFillPlan` — tirage automatique de la semaine de repas, service par service (entrée / plat / dessert). |
+| `storage.js` | 134 | `parseImportedState` (import JSON), invite de notifications, préférences de la feuille « Remplir ». |
 | `dialogs.js` | 87 | `confirmDialog`, `promptDialog` — contrôleur impératif `ion-alert`. |
 | `theme.js` | ~40 | `readStoredTheme`, `applyTheme` — pose `data-theme` **et** `.ion-palette-dark`. |
 | `staleTasks.js` | ~40 | `getStaleTaskAlerts` — relance « tâche non faite ». |
@@ -311,7 +312,7 @@ fichiers de l'app importent toujours depuis `providers/client.js`.
 | `tasks/TaskCard.js` | 182 | Carte tâche partagée (Tâches **et** Agenda). Exporte aussi `urgencyBadge`, `isPastDue`, `daysLeft`, `recurrenceLabel`. |
 | `tasks/EmojiPicker.js` | 897 | Sélecteur d'emoji, réutilisé par Tâches, Agenda, Listes, Inventaire, Pense-bête. |
 | `agenda/AgendaView.js` | 1607 | Calendrier + rappels. |
-| `meals/MealsView.js` | 878 | Grille semaine (14 créneaux sans défilement) + panneau bas permanent. |
+| `meals/MealsView.js` | 1066 | Grille semaine (14 créneaux sans défilement) + panneau bas permanent (détail **ou** feuille « Remplir la semaine »). |
 | `meals/RecipePicker.js` | 431 | Sélecteur de recette d'un créneau ; remplace la grille pendant la sélection. |
 | `recipes/RecipesView.js` | 1186 | Fiche + formulaire de recette + import depuis une URL. |
 | `recipes/RecipeLibrary.js` | 635 | Bibliothèque : recherche, filtres, cartes, favoris. |
@@ -655,6 +656,26 @@ Une recette contient : `ingredients` structurés (`name`, `quantity`, `unit`),
 - La grille Repas tient **14 créneaux dans un écran sans défilement** ; le détail
   du créneau vit dans un panneau bas permanent, **jamais dans une modale**, pour
   que la semaine reste lisible pendant qu'on remplit un trou.
+- **Feuille « Remplir la semaine »** (`renderFillSheet` + `utils/mealFill.js`) :
+  une décision par ligne — régime, services, filtres, règles, portée — puis un
+  seul bouton. Elle occupe le même panneau bas que le détail : **les deux ne
+  coexistent jamais**. Règles du tirage :
+  - **« Omnivore » ne filtre rien.** C'est l'absence de contrainte, et c'est le
+    régime par défaut : le traiter comme un label rendrait une semaine vide à
+    tous ceux qui n'ont pas coché « omnivore » sur leurs recettes.
+  - **Chaque service pioche dans sa catégorie** (`starter` / `main` / `dessert`).
+    Le plat accepte aussi les recettes **sans catégorie** ; les boissons,
+    petits-déjeuners et bases ne sortent jamais.
+  - **Pas de doublon tant que la bibliothèque tient**, puis on recycle dans le
+    même ordre — le compteur du bouton a promis N repas, il en pose N.
+  - Un service dont le pool est vide **n'est pas rempli au hasard** : il remonte
+    dans `emptyCourses`, et le bilan le dit.
+  - **« Vider » n'efface que ce que le tirage a posé**, jamais un repas choisi à
+    la main : `fillTrace` garde la trace du dernier tirage, pour la semaine
+    affichée et le temps de la session.
+  - Les préférences (régime / services / filtres / règles) sont **persistées**
+    en localStorage (`mrd-meal-fill`) ; portée et état ouvert/fermé sont
+    éphémères.
 
 ### Import de recettes depuis une URL
 
@@ -905,8 +926,10 @@ normal, c'est un journal historique, ne le réécris pas.**
 |---|---|---|
 | 2026-08-23 | agent (analyse initiale) | Création. Analyse complète du projet à `4300b3e` sur `feat/ionic` : arborescence, 90 fichiers `src/`, modèle de données, routage, boot, règles produit, notifications, thème. Suite de tests lancée et vérifiée : 213 pass / 0 fail / 0 skipped. Relevé les écarts de `docs/PROJECT_MAP.md`, `docs/DEV_NOTES.md`, `README.md` et `docs/AGENT.md` (§11). Identifié `components/Header.js` comme fichier mort, en plus de `FamilyPanel.js`. |
 | 2026-08-23 | agent | Suppression de `docs/AGENT.md`, `docs/PROJECT_MAP.md` et `docs/DEV_NOTES.md` (demande de Steve). Contenu exact replié ici avant suppression : sections de réglages (§6), mise à l'échelle par portions et réutilisation de la carte tâche côté calendrier (§8). Deux affirmations de `DEV_NOTES` vérifiées **fausses** et écartées, documentées en §11 pour éviter qu'on les ressuscite. `README.md` garde deux renvois vers l'ancien `AGENT.md` (l. 25 et 251) — Steve s'en occupe. |
+| 2026-08-25 | agent | Feuille « Remplir la semaine » refaite d'après le handoff design (`design_handoff_remplir_semaine`) : segmented control de régime, chips de services, chips de filtres, menu de règles alimentaires, portée + CTA. Mis à jour ici : tailles de `mealFill.js` (105 → 180), `storage.js` (96 → 134) et `MealsView.js` (878 → 1066), plus six invariants de tirage ajoutés en §8. Changements de comportement volontaires, non couverts par l'ancien code : « omnivore » ne filtre plus rien, chaque service pioche dans sa catégorie, le tirage recycle sa bibliothèque au lieu de s'arrêter, et « Vider » efface les repas tirés au lieu de remettre les filtres à zéro. 98 tests unitaires verts, build Vite OK. |
 | 2026-08-23 | agent | `README.md` réécrit (254 → 163 l.). Corrigés : chemins Windows d'une machine précédente, lancement `npx serve`/`python -m http.server` (faux — l'app a besoin de Vite), `.claude/launch.json` inexistant, bloc PowerShell `run-tests.ps1`, et **trois commandes de test avec un flag invalide** (`--test-isolation=none` → `node: bad option` ; le vrai est `--experimental-test-isolation=none`). Supprimée la section « Cache busting » qui contredisait le même fichier 175 lignes plus haut. L'inventaire des fichiers a été retiré du README plutôt que corrigé : le dupliquer ici est ce qui l'avait périmé. |
 | 2026-08-23 | agent | **`App.js` dégraissé : 1890 → 1526 l. (−19 %), 28 → 7 handlers métier.** 5 hooks créés (`useMealCooking` 241 l., `usePlannerData` 101, `useInbox` 92, `useAppTime` 92, `useNotes` 46) ; condiments rapatriés dans `useMeals`, `handleReorderStorageLocations` dans `useLists`. `computeMealCookState` et `deductionToastMessage` sont désormais purs et exportés, donc testables : **16 tests ajoutés** (`tests/unit/meal-cooking.test.js`), un par règle produit de §8 — suite passée de 213 à **229 pass / 0 fail / 0 skipped**. Non extraits volontairement : `handleSetActivePerson` / `handleSetDeviceMode`, voir §15. Sections §4, §14, §15, §16 mises à jour. |
+| 2026-08-28 | agent | **Fusion de `605a33b` (dégraissage d'`App.js`) et `e34ed54` (chargement paresseux des vues).** Un seul conflit, le bloc d'imports d'`App.js` : les deux commits l'avaient restructuré pour des raisons opposées — eux pour poser 12 `lazy()`, moi pour retirer les imports partis dans `useMealCooking`. Résolu en gardant leur bloc `lazy`/`Suspense` et en y appliquant mes retraits. Les deux jeux de changements sont complémentaires (coque vs métier), vérifiés présents des deux côtés. Suite : **234 pass / 0 fail / 0 skipped**. Corrigé au passage deux faits devenus faux : l'en-tête, et §16 qui listait encore le code-splitting comme dette alors que `e34ed54` venait de le faire. À noter : `node_modules` avait disparu du poste (`vite: command not found`), réinstallé par `npm ci` — sans rapport avec la fusion. |
 
 ---
 
@@ -980,7 +1003,7 @@ forcer un JDK, le déclarer dans `~/.gradle/gradle.properties`, **jamais** dans
 npm test          # unitaires + e2e
 ```
 
-État au 23 août 2026, vérifié : **229 pass · 0 fail · 0 skipped**, en 7 min 39 s
+État au 28 août 2026, vérifié : **234 pass · 0 fail · 0 skipped**, en 7 min 40 s
 (la lenteur est normale : chaque suite e2e refait un build Vite et pilote un
 Chrome headless). Les `0 skipped` sont la partie importante — voir les trois
 pièges ci-dessous.
@@ -1115,9 +1138,24 @@ pas changé.
 
 ### 🟠 Fonctionnalités et dette
 
-- **Code-splitting par route.** Le bundle est passé de 1 505 kB à **2 524 kB**
-  (gzip 380 → 605) avec la migration. Le routeur rend enfin le découpage
-  naturel : c'est le point de dette le plus net que laisse la migration.
+- ~~**Code-splitting par route.**~~ **Fait le 27 août 2026** (commit `e34ed54`).
+  Deux mécanismes complémentaires, à ne pas confondre :
+  - **chargement paresseux des vues** (`App.js`) — 12 vues passent par `lazy()`
+    + `Suspense`. `HomeView` et `AuthScreen` restent statiques **exprès** : ce
+    sont les deux écrans d'arrivée, les rendre paresseux ajouterait une attente
+    au démarrage au lieu d'en retirer une.
+  - **découpage des dépendances** (`vite.config.js`, `manualChunks`) —
+    `vendor-ionic`, `vendor-firebase`, `vendor-react` séparés du code applicatif.
+    Le total téléchargé est le même ; ce qu'on gagne est le cache navigateur
+    (une correction d'une ligne n'invalide plus 2,5 Mo) et le téléchargement
+    parallèle.
+
+  Mesuré après fusion : **35 chunks, 2 711 kB au total**, mais le point d'entrée
+  ne fait plus que **274 kB** (contre 2 525 kB en un seul bloc). `vendor-ionic`
+  1 182 kB, `vendor-firebase` 582 kB, `vendor-react` 158 kB, puis une vue par
+  chunk (`SettingsView` 80 kB, `RecipesView` 57 kB…). Le total **augmente** de
+  ~190 kB — c'est le prix des frontières de modules, et il est payé une fois
+  contre un démarrage bien plus léger.
 - **Finir de dégraisser `App.js`.** Fait en grande partie le 23 août 2026
   (1890 → 1526 l., 21 handlers déplacés). Restent `handleSetActivePerson` et
   `handleSetDeviceMode`, laissés exprès : voir §15 pour la raison. Le préalable
@@ -1183,7 +1221,7 @@ pas changé.
    liste → inventaire · inventaire → à racheter · tâche → calendrier ·
    invitation → foyer → profil lié.
 6. **Lance `npm test`** (compte ~8 min) et vérifie que `skipped` est à 0 et que
-   `# tests` a bougé si tu as ajouté un fichier de test. Référence : 229 pass.
+   `# tests` a bougé si tu as ajouté un fichier de test. Référence : 234 pass.
 7. **Pour une question de marge haute ou basse**, lance
    `tests/screenshots/safe-area.mjs` — les captures ordinaires sont aveugles.
 8. **Mets ce fichier à jour** (§0) et consigne dans `docs/PROJECT_LOG.md`.

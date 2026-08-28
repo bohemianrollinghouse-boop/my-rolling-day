@@ -94,3 +94,41 @@ export function parseImportedState(rawText) {
   const candidate = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
   return normalizeState(candidate);
 }
+
+// ── Préférences de la feuille « Remplir la semaine » ──────────────────────────
+// Régime, services, filtres et règles alimentaires décrivent une façon de
+// manger, pas une semaine : les redemander à chaque ouverture serait faire
+// resaisir la même chose indéfiniment. La portée et l'état ouvert/fermé de la
+// feuille, eux, restent éphémères.
+
+const MEAL_FILL_KEY = "mrd-meal-fill";
+
+export function readMealFillPrefs(defaults) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MEAL_FILL_KEY) || "null");
+    if (!parsed || typeof parsed !== "object") return defaults;
+    return {
+      ...defaults,
+      diet: typeof parsed.diet === "string" && parsed.diet ? parsed.diet : defaults.diet,
+      courses: parsed.courses && typeof parsed.courses === "object"
+        ? { ...defaults.courses, ...parsed.courses }
+        : defaults.courses,
+      constraints: Array.isArray(parsed.constraints)
+        ? parsed.constraints.filter((id) => typeof id === "string" && id)
+        : defaults.constraints,
+      quick: Boolean(parsed.quick),
+      season: Boolean(parsed.season),
+      stock: Boolean(parsed.stock),
+    };
+  } catch (_error) {
+    return defaults;
+  }
+}
+
+export function storeMealFillPrefs({ diet, courses, constraints, quick, season, stock }) {
+  try {
+    localStorage.setItem(MEAL_FILL_KEY, JSON.stringify({ diet, courses, constraints, quick, season, stock }));
+  } catch (_error) {
+    // Stockage plein ou refusé : la feuille marche quand même, sans mémoire.
+  }
+}

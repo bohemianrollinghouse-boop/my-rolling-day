@@ -2,6 +2,48 @@
 
 ---
 
+## [2026-08-25] — Feuille « Remplir la semaine » refaite d'après le handoff design
+
+L'ancienne feuille était une rangée de puces en vrac : régime, contraintes et options se ressemblaient toutes, et rien ne disait ce qu'on décidait. Le handoff (`design_handoff_remplir_semaine`) impose **une décision par ligne**, chaque ligne étiquetée à gauche, le tout dans ~200 px au-dessus de la barre d'onglets.
+
+Cinq lignes : **Régime** (segmented control, choix unique) · **Services** (entrée / plat / dessert, multi) · **Filtres** (⚡ Rapide, 🍂 Saison, 🥫 Stock) · **Règles** (menu déroulant multi-sélection, ouvert vers le haut) · **Portée + bouton**.
+
+### Ce que le tirage fait maintenant, et pourquoi
+
+Quatre changements de comportement, tous voulus par le handoff — ce ne sont pas des corrections de bug :
+
+| Avant | Après | Pourquoi |
+|---|---|---|
+| `diet: ""` par défaut, « omnivore » filtrait sur le label `omnivore` | `omnivore` par défaut et **ne filtre rien** | Un omnivore mange aussi les plats végé. Le handoff impose « omnivore » comme défaut ; le filtrer comme un label rendait une semaine vide à tous ceux qui n'ont jamais coché ce badge — c'est-à-dire presque tout le monde. |
+| Un seul plat par créneau, les boissons acceptées puis reléguées en fin de liste | Un service = une catégorie (`starter` / `main` / `dessert`), la boisson ne sort jamais | Sans ça, cocher « Dessert » ne faisait rien. Le plat accepte encore les recettes **sans catégorie** : beaucoup de recettes importées n'en portent pas. |
+| Bibliothèque épuisée → créneaux laissés vides, et le bouton annonçait le nombre réellement posé | Bibliothèque épuisée → on **recycle** dans le même ordre, le bouton annonce les créneaux visés | « Remplir 14 repas » doit en remplir 14. Le « pas de doublon » tient tant que le pool tient, ce que le handoff demande explicitement. |
+| « Vider » remettait les filtres à zéro | « Vider » **efface les repas issus du tirage** et ferme la feuille | Formulation du handoff. Le planning ne garde aucune trace de provenance : `fillTrace` (état de vue, semaine affichée, durée de session) mémorise ce que le dernier tirage a posé, pour ne jamais toucher un repas choisi à la main. Le bouton est désactivé quand il n'y a rien à reprendre. |
+
+Un service dont le pool est vide n'est **pas** rempli au hasard : il remonte dans `emptyCourses` et le bilan de fin de tirage le nomme, sinon la case « Dessert » a l'air de ne rien faire.
+
+### Fichiers
+
+| Fichier | Changement |
+|---|---|
+| `src/app/utils/mealFill.js` | Réécrit (105 → 180 l.). `buildFillPlan` renvoie des entrées `{ dayIndex, slot, role, recipeId, fromStock }` — le `role` est nouveau — plus `slotCount` (des repas, pas des recettes) et `emptyCourses`. Exporte `FILL_COURSES`, `DEFAULT_FILL_COURSES`, `normalizeCourses`. Le classement `PREFERRED_CATEGORIES` disparaît : le filtrage par catégorie le remplace. La portée « cases vides » respecte aussi le **texte libre**, et une entrée ou un dessert déjà choisi reste en place. |
+| `src/app/pages/meals/MealsView.js` | `renderFillSheet` refait (878 → 1066 l.). État : `fill` ({ diet, courses, constraints, quick, season, stock, scope }), `fillAvoidOpen`, `fillTrace`. `writeRoles` groupe les trois services d'un créneau en **un seul** `onUpdateMeal`. `closeFill` ferme feuille et menu ensemble. Le bilan compte des repas en tête et des recettes pour le partage stock / courses. |
+| `src/app/utils/storage.js` | `readMealFillPrefs` / `storeMealFillPrefs` — clé `mrd-meal-fill`. Régime, services, filtres et règles décrivent une façon de manger, pas une semaine : les redemander à chaque ouverture ferait resaisir la même chose indéfiniment. Portée et état ouvert/fermé restent éphémères. |
+| `src/theme/styles.css` | Bloc « 2a · feuille de remplissage » remplacé : `.mrd-fill-*` (body, row, label, seg, chip, avoid, menu, run, cta). `.mrd-week-panel--fill` passe en `overflow: visible` — le menu des règles s'ouvre vers le haut et dépasse la feuille de ~2 px — d'où l'arrondi d'en-tête posé à la main. Aucune couleur littérale : tous les `oklch()` du handoff avaient déjà leur token (`--mrd-surf2` pour la piste, `--mrd-bg` pour le pied de menu, `--mrd-surf3` pour son filet, `--mrd-aLt` pour l'en-tête). Les aplats sous texte blanc passent par `--mrd-aBtn` et non `--mrd-a`, comme l'exige `design-tokens.test.js`. |
+| `tests/unit/meal-fill.test.js` | Réécrit pour le nouveau contrat, 11 → 17 tests : catégorie par service, « omnivore » ne filtre rien, recyclage, texte libre respecté, entrée déjà choisie préservée, `emptyCourses`, `normalizeCourses`. |
+
+### Écarts assumés par rapport au handoff
+
+- **La puce « 🥫 Stock » reste masquée quand l'inventaire n'est pas lié** (règle produit existante : sans liaison, aucune recette n'est « faisable », la puce ne ferait rien). La ligne Filtres tombe alors à deux puces.
+- **« Vider » est désactivé quand aucun tirage n'est à reprendre**, plutôt que d'être un bouton qui ne fait que fermer la feuille.
+- **Les aplats accent utilisent `--mrd-aBtn` (55 %) et non `--mrd-a` (58 %)** : en thème sombre `--mrd-a` est clair, et le contraste sous texte blanc tomberait à ~2:1.
+
+### Vérifié
+
+98 tests unitaires verts, `npm run build` OK. Rendu contrôlé dans le navigateur sur un montage isolé de `MealsView` (l'app demande une authentification) : hauteurs et rayons conformes au handoff au pixel près (étiquette 46 px, segments 27 px r9 sur piste r11, chips 31 px r11, déclencheur de règles 30 px, CTA 36 px r12, corps `9px 14px 11px` gap 7), menu des règles 170 px ouvert vers le haut sans rognage, résumé « sans gluten, halal », pied « 2 sélectionnées ». Parcours complet : le dernier service ne peut pas être décoché, « Remplir 14 repas » passe la semaine à 14/14 et le bilan annonce « 14 repas ajoutés » (et non 42 recettes), « Vider » la ramène à 0/14, les préférences survivent dans `localStorage`.
+
+---
+
+
 ## [2026-08-23] — Piles par onglet, zones sûres, audit natif iOS, icônes régénérées
 
 Quatre signalements à l'usage sur device, plus un audit natif demandé. Les trois premiers avaient une cause commune : **rien dans l'outillage de test ne pouvait les voir**.

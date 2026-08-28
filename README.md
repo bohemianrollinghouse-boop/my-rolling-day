@@ -61,7 +61,7 @@ npm run test:unit
 npm run test:e2e
 ```
 
-Référence au 23 août 2026 : **229 tests, 0 échec, 0 ignoré**.
+Référence au 28 août 2026 : **234 tests, 0 échec, 0 ignoré**.
 
 Le runner est `node:test` (intégré à Node), pas Jest. Les suites e2e pilotent un
 Chrome headless par CDP sur un vrai build Vite, avec Firebase remplacé par des

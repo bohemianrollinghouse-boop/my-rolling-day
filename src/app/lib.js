@@ -1,4 +1,6 @@
 import React, {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -7,5 +9,5 @@ import React, {
 import { createRoot } from "react-dom/client";
 import htm from "htm";
 
-export { React, createRoot, useEffect, useMemo, useRef, useState };
+export { React, createRoot, lazy, Suspense, useEffect, useMemo, useRef, useState };
 export const html = htm.bind(React.createElement);
