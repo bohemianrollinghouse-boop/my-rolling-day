@@ -4952,6 +4952,92 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
   text-decoration: underline;
   cursor: pointer;
 }
+.premium-lock-cta:disabled,
+.premium-lock-secondary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Écran d'abonnement (/premium) ────────────────────────────────
+   Reprend les briques de la carte de vente (.premium-lock-*) : ce sont les
+   mêmes objets — un bénéfice, une formule, un bouton d'achat. Seule
+   l'enveloppe change, une page pleine plutôt qu'un encart. */
+.premium-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  max-width: 420px;
+  margin: 8px auto 32px;
+  padding: 24px 20px;
+}
+.premium-page-icon { font-size: 38px; line-height: 1; }
+.premium-page-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--mrd-fg);
+}
+.premium-page-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--mrd-fg2);
+}
+.premium-page-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+}
+/* Trois formules l'une sous l'autre : « À vie » porte un libellé plus long que
+   « Mensuel », et une rangée horizontale les compressait à l'illisible sur un
+   écran étroit. */
+.premium-page-plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--mrd-surf2);
+  border: 1.5px solid var(--mrd-border);
+  border-radius: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.premium-page-plan.on {
+  border-color: var(--mrd-a);
+  background: var(--mrd-surf);
+  box-shadow: var(--mrd-glowA);
+}
+.premium-page-plan.is-skeleton {
+  cursor: default;
+  opacity: 0.6;
+}
+.premium-page-plan-skeleton {
+  width: 96px;
+  height: 18px;
+  margin-top: 4px;
+  border-radius: 6px;
+  background: var(--mrd-border);
+}
+.premium-page-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--mrd-fg3);
+}
+.premium-page-note-warn { color: var(--mrd-dangerMd); }
+.premium-page-legal {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--mrd-fg3);
+}
+.premium-page-active { gap: 12px; }
 /* ── Agenda modal — inline styles via task-modal-redesign base ── */
 /* Le modal agenda réutilise .task-create-backdrop + .task-modal-redesign.
    Les styles spécifiques sont appliqués en inline pour rester au niveau

@@ -52,6 +52,7 @@ const NotesView = lazy(() => import("./pages/notes/NotesView.js").then((m) => ({
 const RecipesView = lazy(() => import("./pages/recipes/RecipesView.js").then((m) => ({ default: m.RecipesView })));
 const SettingsView = lazy(() => import("./pages/settings/SettingsView.js").then((m) => ({ default: m.SettingsView })));
 const TasksView = lazy(() => import("./pages/tasks/TasksView.js").then((m) => ({ default: m.TasksView })));
+const SubscriptionPage = lazy(() => import("./pages/premium/SubscriptionPage.js").then((m) => ({ default: m.SubscriptionPage })));
 const PremiumLockScreen = lazy(() => import("./pages/premium/PremiumLockScreen.js").then((m) => ({ default: m.PremiumLockScreen })));
 import { collectKnownProducts } from "./utils/productUtils.js";
 import { readStoredActivePerson, storeActivePerson, readDeviceMode, storeDeviceMode } from "./utils/personStorage.js";
@@ -295,7 +296,19 @@ function AppShell() {
   const [settingsAutoOpenAddPersonSignal, setSettingsAutoOpenAddPersonSignal] = useState(0);
   const isPremium = Boolean(currentFamily?.premiumOverride);
   const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
+  const openSubscriptionPage = () => setActiveTab("premium");
+
+  /* Interrupteur de test des reglages — a retirer quand le webhook RevenueCat
+     ecrira l'entitlement sur le foyer (MRD-36). */
   const handleActivatePremium = () => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
+
+  /* Achat abouti : le SDK confirme l'entitlement cote client, mais la verite
+     appartient au foyer. En attendant le webhook (MRD-36), on ecrit l'acces
+     depuis le client et on revient a l'ecran d'ou l'on venait. */
+  const handlePremiumPurchased = () => {
+    runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
+    setActiveTab("home", { replace: true });
+  };
 
   // Guard : ouvre le setup à la connexion si l'user n'a pas encore de foyer.
   // Une fois activé, seul onDone() le ferme (évite la fermeture prématurée quand Firebase répond).
@@ -919,7 +932,7 @@ function AppShell() {
     if (tab === "meals") {
       const shoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
       return !isPremium ? html`
-        <${PremiumLockScreen} feature="meals" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
+        <${PremiumLockScreen} feature="meals" onActivatePremium=${openSubscriptionPage} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`
         <${MealsView}
           meals=${state.meals}
@@ -974,7 +987,7 @@ function AppShell() {
     }
     if (tab === "inventory") {
       return !isPremium ? html`
-        <${PremiumLockScreen} feature="inventory" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
+        <${PremiumLockScreen} feature="inventory" onActivatePremium=${openSubscriptionPage} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`
         <${InventoryView}
           inventory=${state.inventory}
@@ -1000,7 +1013,7 @@ function AppShell() {
     if (tab === "recipes") {
       const recipesShoppingList = ensureShoppingList(state.lists).find((list) => list.isShoppingList);
       return !isPremium ? html`
-        <${PremiumLockScreen} feature="recipes" onActivatePremium=${handleActivatePremium} onOpenPremiumSettings=${openPremiumSettings} />
+        <${PremiumLockScreen} feature="recipes" onActivatePremium=${openSubscriptionPage} onOpenPremiumSettings=${openPremiumSettings} />
       ` : html`<${RecipesView}
         recipes=${state.recipes}
         inventory=${state.inventory}
@@ -1042,6 +1055,13 @@ function AppShell() {
         onAddNote=${(text, vis, shared) => { handleAddNote(text, vis, shared); showToast("✓ Note enregistrée"); }}
         onDeleteNote=${(id) => { handleDeleteNote(id); showToast("Note supprimée"); }}
         onUpdateNote=${(id, updates) => { handleUpdateNote(id, updates); showToast("✓ Note mise à jour"); }}
+      />`;
+    }
+    if (tab === "premium") {
+      return html`<${SubscriptionPage}
+        isPremium=${isPremium}
+        onPurchased=${handlePremiumPurchased}
+        onClose=${() => setActiveTab("home", { replace: true })}
       />`;
     }
     if (tab === "history") {
@@ -1096,7 +1116,7 @@ function AppShell() {
   };
   const SECONDARY_TITLES = {
     notes: "Notes", inventory: "Inventaire", recipes: "Recettes",
-    history: "Historique", inbox: "Pense-bête 📥",
+    history: "Historique", inbox: "Pense-bête 📥", premium: "Premium",
   };
 
   function renderPageHeader(tab) {
@@ -1433,6 +1453,7 @@ function AppShell() {
             <${IonRoute} path="/recipes" element=${screenPage("recipes")} />
             <${IonRoute} path="/history" element=${screenPage("history")} />
             <${IonRoute} path="/inbox" element=${screenPage("inbox")} />
+            <${IonRoute} path="/premium" element=${screenPage("premium")} />
             <${IonRoute} path="/tasks" element=${screenPage(taskPeriodForPage)} />
             <${IonRoute} path="/tasks/:period" element=${screenPage(taskPeriodForPage)} />
             <${IonRoute} path="*" element=${homeRedirect} />

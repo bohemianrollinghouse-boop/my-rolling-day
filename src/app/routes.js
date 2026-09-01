@@ -28,8 +28,11 @@ export const QUICK_SCREENS = ["lists", "notes", "inventory", "recipes", "history
  *    captures : le bouton retour était apparu au-dessus de « Listes ».)
  *  - `inbox` est secondaire sans être au menu « Plus » : on y arrive depuis
  *    l'accueil.
+ *  - `premium` est l'écran d'abonnement. Il s'ouvre depuis un écran verrouillé
+ *    ou depuis les réglages, et doit pouvoir se fermer par le bouton retour
+ *    sans quitter l'onglet d'où l'on vient.
  */
-export const SECONDARY_SCREENS = ["notes", "inventory", "recipes", "history", "inbox"];
+export const SECONDARY_SCREENS = ["notes", "inventory", "recipes", "history", "inbox", "premium"];
 
 export const SETTINGS_PATH = "/settings";
 export const HOME_PATH = "/home";
@@ -78,6 +81,7 @@ const SIMPLE_PATHS = {
   recipes: "/recipes",
   history: "/history",
   inbox: "/inbox",
+  premium: "/premium",
 };
 
 /**

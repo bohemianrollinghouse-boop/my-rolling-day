@@ -90,7 +90,7 @@ test("routes : lists est au menu « Plus » mais n'est pas un écran secondaire"
    effet de bord d'un refactor sur QUICK_SCREENS. */
 test("routes : la liste des écrans secondaires est exactement celle d'avant", () => {
   assert.deepEqual([...SECONDARY_SCREENS].sort(),
-    ["history", "inbox", "inventory", "notes", "recipes"]);
+    ["history", "inbox", "inventory", "notes", "premium", "recipes"]);
 });
 
 test("routes : les onglets principaux ne sont pas des écrans secondaires", () => {
@@ -110,7 +110,7 @@ test("routes : les réglages sont reconnus, sous-pages incluses", () => {
 /* Chaque écran doit avoir une route déclarée, sinon IonRouterOutlet ne rend
    rien du tout — écran blanc, sans erreur. */
 test("routes : chaque écran a une route déclarée dans le routeur", () => {
-  const screens = ["home", "agenda", "meals", "lists", "notes", "inventory", "recipes", "history", "inbox"];
+  const screens = ["home", "agenda", "meals", "lists", "notes", "inventory", "recipes", "history", "inbox", "premium"];
   for (const screen of screens) {
     assert.ok(ROUTE_PATHS.includes(pathForTab(screen)), `route absente pour « ${screen} »`);
   }

@@ -41,6 +41,24 @@ export const environment = {
     appId: "1:543367828677:web:6ff53808141b506ca30cac",
     measurementId: "G-VXTWHBKRNC",
   },
+  // Cles PUBLIQUES du SDK RevenueCat, une par plateforme (tableau de bord
+  // RevenueCat > Project settings > API keys > public app-specific keys).
+  //
+  // Publiques par conception, comme la cle Firebase au-dessus : elles
+  // identifient l'app, elles n'autorisent rien. La securite vient de la
+  // validation des recus par RevenueCat.
+  //
+  // ⚠️ NE JAMAIS y mettre la cle secrete `sk_` : elle donne un acces total au
+  // projet par l'API REST. Elle vit hors du depot, dans .env.revenuecat, et ne
+  // sert qu'a l'outillage.
+  //
+  // A REMPLIR : le projet n'a pour l'instant qu'une app « Test Store ».
+  revenueCat: {
+    ios: "",
+    android: "",
+    default: "",
+  },
+
   // Cle publique VAPID du Web Push (console Firebase > Cloud Messaging).
   firebaseWebVapidKey:
     "BKuKE9dA60y85KVR2cYuZ4PwNe3vBJSaeNO9wkEyk69baMYcclUSaXoqtb2FzmVwe27pIS9vyB00pxvunHUL99w",
