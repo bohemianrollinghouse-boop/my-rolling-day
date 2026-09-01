@@ -11,7 +11,17 @@ export function normalizeProductName(name) {
   n = n.replace(/\s+/g, " ").trim();
   n = n.replace(/([a-z])\1+/g, "$1");
   n = n.replace(/([a-z]+)eaux\b/g, "$1eau");
-  n = n.replace(/\b([a-z]{4,}[^s])s\b/g, "$1");
+  // Garde a 3 et non 4 : la deduplication des lettres doublees, juste au-dessus,
+  // RACCOURCIT le radical avant qu'on mesure. « pommes » devient « pomes »
+  // (5 lettres), et un garde a 4 exigeait 6 caracteres — le pluriel n'etait donc
+  // jamais retire, alors que « pomme » donnait « pome ». Les deux ne fusionnaient
+  // pas. Meme defaut pour gomme(s) et « pommes de terre ».
+  //
+  // Effet de bord assume : quelques singuliers en -s de 5 lettres perdent leur s
+  // (repas -> repa, poids -> poid). Sans consequence, parce que cette fonction ne
+  // sert qu'a COMPARER deux noms : les deux cotes subissent la meme regle, et
+  // aucun produit reel ne vient collisionner avec ces radicaux.
+  n = n.replace(/\b([a-z]{3,}[^s])s\b/g, "$1");
   return n;
 }
 
