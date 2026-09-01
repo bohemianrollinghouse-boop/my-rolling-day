@@ -6,6 +6,7 @@ import {
   findSimilarItem,
   formatQuantityUnit,
   normalizeProductName,
+  suggestItems,
 } from "../../src/app/utils/productUtils.js";
 
 test("normalizeProductName harmonise accents, pluriels et variantes simples", () => {
@@ -41,4 +42,120 @@ test("formatQuantityUnit affiche correctement les quantites", () => {
   assert.equal(formatQuantityUnit("500", "g"), "500 g");
   assert.equal(formatQuantityUnit("3", ""), "3");
   assert.equal(formatQuantityUnit("", "kg"), "kg");
+});
+
+test("normalizeProductName : entrees vides et ponctuation seule", () => {
+  assert.equal(normalizeProductName(""), "");
+  assert.equal(normalizeProductName(null), "");
+  assert.equal(normalizeProductName(undefined), "");
+  assert.equal(normalizeProductName("!!!"), "");
+  assert.equal(normalizeProductName("   "), "");
+});
+
+test("normalizeProductName : les mots courts ne sont pas depluralises a tort", () => {
+  assert.equal(normalizeProductName("ail"), "ail");
+  assert.equal(normalizeProductName("riz"), "riz");
+  assert.equal(normalizeProductName("oeufs"), "oeufs", "moins de 5 lettres : le s est conserve");
+});
+
+test("normalizeProductName : les finales en -eaux deviennent -eau", () => {
+  assert.equal(normalizeProductName("Poireaux"), normalizeProductName("poireau"));
+});
+
+test("findSimilarItem : une saisie trop courte ne matche jamais", () => {
+  assert.equal(findSimilarItem("a", [{ id: "1", name: "a" }]), null);
+  assert.equal(findSimilarItem("", [{ id: "1", name: "Pomme" }]), null);
+});
+
+test("findSimilarItem : sans correspondance ou sans liste, on renvoie null", () => {
+  assert.equal(findSimilarItem("Kiwi", [{ id: "1", name: "Pomme" }]), null);
+  assert.equal(findSimilarItem("Kiwi", []), null);
+  assert.equal(findSimilarItem("Kiwi", null), null);
+});
+
+test("findSimilarItem : l article en cours d edition est ignore", () => {
+  const items = [{ id: "1", name: "Courgette" }, { id: "2", name: "courgettes" }];
+  assert.equal(findSimilarItem("Courgette", items, "1").item.id, "2");
+  assert.equal(findSimilarItem("Courgette", [items[0]], "1"), null);
+});
+
+test("suggestItems : correspondance partielle, insensible a la casse et aux accents", () => {
+  const items = [
+    { id: "1", name: "Pâtes complètes" },
+    { id: "2", name: "Pain de mie" },
+    { id: "3", name: "Compote" },
+  ];
+  assert.deepEqual(suggestItems("pate", items).map((item) => item.id), ["1"]);
+  assert.deepEqual(suggestItems("PA", items).map((item) => item.id), ["1", "2"]);
+  assert.deepEqual(suggestItems("com", items).map((item) => item.id), ["1", "3"]);
+});
+
+test("suggestItems : une saisie vide ne propose rien", () => {
+  const items = [{ id: "1", name: "Pomme" }];
+  assert.deepEqual(suggestItems("", items), []);
+  assert.deepEqual(suggestItems("   ", items), []);
+  assert.deepEqual(suggestItems(null, items), []);
+});
+
+test("suggestItems : la liste est plafonnee et l article edite est exclu", () => {
+  const items = Array.from({ length: 10 }, (_, index) => ({ id: String(index), name: `Pomme ${index}` }));
+  assert.equal(suggestItems("pomme", items).length, 6, "6 suggestions par defaut");
+  assert.equal(suggestItems("pomme", items, null, 3).length, 3);
+  assert.equal(suggestItems("pomme", items, "0").some((item) => item.id === "0"), false);
+});
+
+test("suggestItems : sans liste, on renvoie un tableau vide", () => {
+  assert.deepEqual(suggestItems("pomme", null), []);
+  assert.deepEqual(suggestItems("pomme", undefined), []);
+});
+
+test("collectKnownProducts : sans rien, la base est vide", () => {
+  assert.deepEqual(collectKnownProducts(), []);
+  assert.deepEqual(collectKnownProducts({}), []);
+  assert.deepEqual(collectKnownProducts({ inventory: null, lists: "x", recipes: 3 }), []);
+});
+
+test("collectKnownProducts : les entrees sans nom exploitable sont ignorees", () => {
+  const known = collectKnownProducts({
+    inventory: [{ id: "a", name: "  " }, { id: "b" }, { id: "c", name: "!!!" }, { id: "d", name: "Sel" }],
+  });
+  assert.deepEqual(known.map((item) => item.id), ["d"]);
+});
+
+test("collectKnownProducts : le premier vu gagne, l inventaire avant les listes puis les recettes", () => {
+  const known = collectKnownProducts({
+    lists: [{ id: "l1", items: [{ id: "item-1", text: "Sel", quantity: "1", unit: "kg" }] }],
+    recipes: [{ id: "r1", ingredients: [{ id: "ing-1", name: "sel" }] }],
+  });
+  assert.equal(known.length, 1);
+  assert.equal(known[0].source, "list");
+  assert.equal(known[0].unit, "kg");
+});
+
+test("collectKnownProducts : un identifiant est fabrique quand l entree n en a pas", () => {
+  const [product] = collectKnownProducts({ inventory: [{ name: "Sel" }] });
+  assert.equal(product.id, "inventory-sel");
+  assert.equal(product.normalizedName, "sel");
+});
+
+test("collectKnownProducts : les listes sans items ne font pas planter", () => {
+  assert.deepEqual(collectKnownProducts({ lists: [{ id: "l1" }, { id: "l2", items: null }] }), []);
+  assert.deepEqual(collectKnownProducts({ recipes: [{ id: "r1" }, { id: "r2", ingredients: "x" }] }), []);
+});
+
+test("formatQuantityUnit : le pluriel d unite suit la quantite", () => {
+  assert.equal(formatQuantityUnit("1", "unité"), "1 unité");
+  assert.equal(formatQuantityUnit("2", "unité"), "2 unités");
+});
+
+test("formatQuantityUnit : une quantite nulle ou absente s efface", () => {
+  assert.equal(formatQuantityUnit("", ""), "");
+  assert.equal(formatQuantityUnit(null, null), "");
+  assert.equal(formatQuantityUnit("0", "g"), "g", "0 g n a pas de sens : on n affiche que l unite");
+  assert.equal(formatQuantityUnit("0", ""), "");
+});
+
+test("formatQuantityUnit : une quantite non numerique est affichee telle quelle", () => {
+  assert.equal(formatQuantityUnit("un peu", "sel"), "un peu sel");
+  assert.equal(formatQuantityUnit("  3  ", "g"), "3 g", "les espaces sont rognes");
 });
