@@ -63,3 +63,9 @@ android/.idea/
 # Fichiers de metadonnees Finder (macOS) — le projet se developpe sur Mac
 # et Windows, ceux-ci n ont rien a faire dans le depot.
 .DS_Store
+
+# Sauvegardes locales (.bak-AAAAMMJJ) — jamais versionnees.
+# android/keystore.properties.bak-* contient les mots de passe du keystore EN CLAIR
+# et le depot est public : la ligne `android/keystore.properties` ne couvrait pas
+# les copies suffixees.
+*.bak-*

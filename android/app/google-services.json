@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "543367828677-nh5eo6dhchijnv131kekrj9mlbpjn2c8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fr.myrollingday.app",
+            "certificate_hash": "2c1775d8d8a22fb2fe217d69b032d14d4ffd975c"
+          }
+        },
+        {
           "client_id": "543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com",
           "client_type": 3
         }
