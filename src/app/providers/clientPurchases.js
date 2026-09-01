@@ -5,11 +5,19 @@
 // de lever. Une PWA doit pouvoir afficher l'écran de vente et expliquer que
 // l'achat se fait depuis l'app, pas planter dessus.
 
+// L'identifiant RevenueCat (`appUserID`) est l'IDENTIFIANT DU FOYER, pas celui
+// de l'utilisateur. C'est le choix structurant de tout le dispositif : le
+// premium est un etat de foyer (App.js lit currentFamily), l'abonnement en est
+// un aussi. Le webhook recoit donc directement le document a mettre a jour,
+// sans avoir a deviner quel foyer derriere quel compte — et deux membres du
+// meme foyer partagent naturellement le meme abonnement.
+
 import { Capacitor } from "@capacitor/core";
 import { PREMIUM_ENTITLEMENT, PREMIUM_PLANS } from "../config/premiumPlans.js";
 import { environment } from "../../environments/environment.js";
 
 let configured = null;
+let currentAppUserId = "";
 
 /** Clé publique du SDK pour la plateforme courante, ou "" si non renseignée. */
 export function publicSdkKeyForPlatform(platform = Capacitor.getPlatform()) {
@@ -29,14 +37,37 @@ export async function initPurchases(appUserId = "") {
   if (!Capacitor.isNativePlatform()) return { ok: false, reason: "web" };
   const apiKey = publicSdkKeyForPlatform();
   if (!apiKey) return { ok: false, reason: "missing-key" };
-  if (configured) return configured;
 
+  // Deja configure sur le meme identifiant : rien a faire.
+  if (configured && currentAppUserId === appUserId) return configured;
+
+  // Deja configure sur un AUTRE identifiant — l'utilisateur a change de foyer.
+  // `configure()` ne se rejoue pas : c'est `logIn()` qui bascule l'identite, et
+  // c'est aussi lui qui declenche l'evenement TRANSFER cote RevenueCat si un
+  // achat suit le changement.
+  if (configured) {
+    const previous = configured;
+    configured = (async () => {
+      await previous;
+      const { Purchases } = await import("@revenuecat/purchases-capacitor");
+      await Purchases.logIn({ appUserID: appUserId });
+      currentAppUserId = appUserId;
+      return { ok: true };
+    })().catch((error) => {
+      console.error("[achats] changement d identifiant RevenueCat echoue", error?.message, error);
+      return { ok: false, reason: "error", error };
+    });
+    return configured;
+  }
+
+  currentAppUserId = appUserId;
   configured = (async () => {
     const { Purchases } = await import("@revenuecat/purchases-capacitor");
     await Purchases.configure({ apiKey, appUserID: appUserId || undefined });
     return { ok: true };
   })().catch((error) => {
     configured = null; // laisse une nouvelle tentative possible
+    currentAppUserId = "";
     console.error("[achats] configuration RevenueCat echouee", error?.message, error);
     return { ok: false, reason: "error", error };
   });

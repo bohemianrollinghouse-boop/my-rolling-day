@@ -52,11 +52,15 @@ export const environment = {
   // projet par l'API REST. Elle vit hors du depot, dans .env.revenuecat, et ne
   // sert qu'a l'outillage.
   //
-  // A REMPLIR : le projet n'a pour l'instant qu'une app « Test Store ».
+  // Le projet n'a pour l'instant qu'une app « Test Store », dont la cle est
+  // commune aux plateformes — d'ou `default` renseigne et `ios`/`android`
+  // vides. Ils prendront les cles `appl_…` et `goog_…` quand les apps App Store
+  // et Play Store existeront ; `publicSdkKeyForPlatform()` les preferera alors
+  // automatiquement.
   revenueCat: {
     ios: "",
     android: "",
-    default: "",
+    default: "test_fRGwygIKFvEXvoKEQmSOssjYHRB",
   },
 
   // Cle publique VAPID du Web Push (console Firebase > Cloud Messaging).

@@ -103,6 +103,7 @@ import {
 import { IonReactRouter } from "@ionic/react-router";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { isPremiumTab } from "./utils/premium.js";
+import { initPurchases } from "./providers/clientPurchases.js";
 import {
   HOME_PATH,
   SETTINGS_PATH,
@@ -297,6 +298,15 @@ function AppShell() {
   const isPremium = Boolean(currentFamily?.premiumOverride);
   const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
   const openSubscriptionPage = () => setActiveTab("premium");
+
+  /* Configure RevenueCat sur le foyer courant. L'identifiant RevenueCat est le
+     familyId et non l'uid : le premium est un etat de foyer, et c'est ce que le
+     webhook recevra pour savoir quel document mettre a jour. Rejoue au
+     changement de foyer, ou `initPurchases` bascule par logIn(). */
+  useEffect(() => {
+    if (!currentFamilyId) return;
+    initPurchases(currentFamilyId);
+  }, [currentFamilyId]);
 
   /* Interrupteur de test des reglages — a retirer quand le webhook RevenueCat
      ecrira l'entitlement sur le foyer (MRD-36). */
