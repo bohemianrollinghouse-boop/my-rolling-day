@@ -95,12 +95,10 @@ test("taches : sans priorite, on retombe sur normal", () => {
   assert.equal(byId.d.priority, "normal");
 });
 
-// BUG connu — normalizeTask fait `task.priority || legacyPriority || "normal"` :
-// legacyPriority n'est calcule que lorsque task.priority est renseigne, donc il
-// est toujours masque. Une tache enregistree avec l'ancien "high" garde "high",
-// alors que HomeView, TaskCard et useTaskNotifications ne testent que "urgent" :
-// la tache perd son badge, son tri prioritaire et sa notification.
-test("taches : les priorites historiques high/medium/low sont converties", { todo: "legacyPriority est du code mort dans normalizeTask" }, () => {
+// Regression garde : ces valeurs venaient d'avant urgent/normal/deadline. Tant
+// qu'elles ne sont pas traduites, HomeView, TaskCard et useTaskNotifications —
+// qui ne testent que "urgent" — les traitent comme normales.
+test("taches : les priorites historiques high/medium/low sont converties", () => {
   const state = normalizeState({
     tasks: [
       { id: "a", type: "daily", priority: "high" },
@@ -535,13 +533,10 @@ test("listes : la somme accepte les decimales et la virgule francaise", () => {
   assert.equal(state.lists[0].items[0].quantity, "1,75");
 });
 
-// BUG connu — normalizeProductName deduplique les lettres doublees AVANT de
-// depluraliser : "pommes" devient "pomes" (5 lettres), et la regle de pluriel
-// exige `[a-z]{4,}` + une lettre non-s + "s", ce que "pomes" ne satisfait plus.
-// Resultat : "Pommes" -> "pomes" et "pomme" -> "pome", donc pas de fusion.
-// Touche pomme(s), gomme(s), "pommes de terre"... et vaut aussi pour
-// findSimilarItem (doublon a la saisie) et collectKnownProducts.
-test("listes : pluriel et singulier fusionnent meme avec une consonne doublee", { todo: "normalizeProductName depluralise apres avoir raccourci le radical" }, () => {
+// Regression garde : la deduplication des lettres doublees raccourcit le radical
+// avant la regle de pluriel. Avec un garde trop haut, « Pommes » et « pomme »
+// tombaient sur deux valeurs differentes et la liste gardait un doublon.
+test("listes : pluriel et singulier fusionnent meme avec une consonne doublee", () => {
   const state = normalizeState({
     lists: [
       {

@@ -91,16 +91,29 @@ function normalizeTaskNotification(notification, task) {
   return { reminder: "none" };
 }
 
+/** Anciennes valeurs de priorite -> valeurs actuelles (urgent | normal). */
+const LEGACY_PRIORITIES = {
+  high: "urgent",
+  urgent: "urgent",
+  medium: "normal",
+  important: "normal",
+  low: "normal",
+  normal: "normal",
+};
+
 function normalizeTask(task, index) {
   const legacyDoneBy = Array.isArray(task.doneBy) ? task.doneBy : [];
-  const legacyPriority =
-    task.priority === "high" || task.priority === "urgent"
-      ? "urgent"
-      : task.priority === "medium" || task.priority === "important"
-        ? "normal"
-        : task.priority === "low" || task.priority === "normal"
-          ? "normal"
-          : "";
+  // Priorites d'avant le passage a urgent/normal/deadline. La table les traduit ;
+  // une valeur absente de la table (« deadline », ou une valeur inconnue) passe
+  // telle quelle.
+  //
+  // Le code precedent calculait bien cette traduction, mais l'appliquait par
+  // `task.priority || legacyPriority` : le premier terme est renseigne des que le
+  // second l'est, donc la traduction etait toujours masquee. Une tache enregistree
+  // en « high » gardait « high », or URGENCY_META ne connait que
+  // urgent/normal/deadline — elle perdait son badge, son tri prioritaire et sa
+  // notification urgente, silencieusement.
+  const priority = LEGACY_PRIORITIES[task.priority] || task.priority || "normal";
   const recurrenceFrequency =
     task.recurrenceFrequency || (task.recur === "daily" || task.recur === "weekly" || task.recur === "monthly" ? task.recur : task.type || "daily");
   const taskKind = task.taskKind || (task.recur && task.recur !== "none" ? "recurring" : "single");
@@ -118,7 +131,7 @@ function normalizeTask(task, index) {
     icon: task.icon || "",
     doneBy: Array.isArray(task.doneBy) ? task.doneBy.filter(Boolean) : task.completedByPersonId ? [task.completedByPersonId] : [],
     recur: task.recur || "none",
-    priority: task.priority || legacyPriority || "normal",
+    priority,
     critical: Boolean(task.critical),
     overdue: taskKind === "recurring" ? false : Boolean(task.overdue),
     order: typeof task.order === "number" ? task.order : index,
