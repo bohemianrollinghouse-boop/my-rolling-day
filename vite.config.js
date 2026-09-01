@@ -13,12 +13,22 @@ export default defineConfig({
     // Ces valeurs sont celles de la cible `modules` par defaut de Vite 5, donc
     // le bundle emis est inchange ; elles sont ecrites pour etre visibles.
     //
-    // ATTENTION : ios/App a IPHONEOS_DEPLOYMENT_TARGET = 13.0, alors que la
-    // cible ci-dessous suppose Safari 14. Les WebView iOS 13.0 a 13.3 n'ont ni
-    // `??=` ni les champs de classe. C'est un ecart preexistant, pas introduit
-    // ici : le corriger veut dire soit monter la cible Xcode a 14.0, soit
-    // descendre `safari14` a `safari13` (et re-verifier le bundle).
-    target: ["es2020", "edge88", "firefox78", "chrome87", "safari14"],
+    // Alignee sur IPHONEOS_DEPLOYMENT_TARGET = 13.0 (ios/App). L'ecart etait
+    // reel : la cible annoncait Safari 14 alors que l'app se deploie sur des
+    // WebView iOS 13.0 a 13.3, qui n'ont ni `??=` ni les champs de classe.
+    //
+    // Mesure avant de trancher (1er septembre 2026) : le bundle emis en
+    // `safari14` ne contenait deja AUCUNE de ces syntaxes — esbuild transpile
+    // l'optional chaining meme en safari14 (forme `==null?void 0:` dans les
+    // chunks). Le risque decrit etait donc theorique. Passer a `safari13` coute
+    // 3 Ko sur 2748 (0,1 %) et supprime le piege pour de bon : desormais, une
+    // dependance qui introduirait `??=` sera transpilee au lieu de casser a
+    // l'execution sur un appareil, sans rien signaler au build.
+    //
+    // L'autre sortie — monter Xcode a 14.0 — n'est pas prise ici : elle
+    // exclurait des utilisateurs sans benefice mesurable aujourd'hui. Elle
+    // redeviendra necessaire a la montee vers Capacitor 7/8, qui exige iOS 14+.
+    target: ["es2020", "edge88", "firefox78", "chrome87", "safari13"],
     rollupOptions: {
       output: {
         /* ── Decoupage des dependances ──────────────────────────────────

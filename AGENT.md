@@ -1176,10 +1176,15 @@ pas changé.
 
 - `aps-environment` vaut `development` dans `ios/App/App/App.entitlements` — à
   passer en `production` pour l'App Store, ou laisser Xcode le faire à l'archive.
-- Écart de cible connu : `vite.config.js` suppose Safari 14, mais
-  `IPHONEOS_DEPLOYMENT_TARGET = 13.0`. Les WebView iOS 13.0–13.3 n'ont ni `??=`
-  ni les champs de classe. Écart **préexistant** : le corriger veut dire monter
-  la cible Xcode à 14.0, ou descendre à `safari13` et re-vérifier le bundle.
+- ~~Écart de cible `vite.config.js` / `IPHONEOS_DEPLOYMENT_TARGET`.~~ **Réglé le
+  1er septembre 2026** en descendant la cible Vite à `safari13`, alignée sur
+  `IPHONEOS_DEPLOYMENT_TARGET = 13.0`. Mesuré avant de trancher : le bundle émis
+  en `safari14` ne contenait déjà aucune des syntaxes incriminées (esbuild
+  transpile l'optional chaining même en safari14), le risque était donc
+  théorique — mais la cible mentait, et une dépendance introduisant `??=` aurait
+  cassé sur appareil sans rien signaler au build. Coût : 3 Ko sur 2748 (0,1 %).
+  L'autre sortie, monter Xcode à 14.0, exclurait des utilisateurs sans bénéfice
+  mesurable aujourd'hui ; elle redeviendra nécessaire pour Capacitor 7/8.
 - `UIRequiredDeviceCapabilities: armv7` (valeur du gabarit Capacitor, obsolète
   depuis iOS 11) — laissé en l'état volontairement : le changer juste avant une
   release toucherait au filtrage d'appareils de l'App Store pour rien.
