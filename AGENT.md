@@ -262,7 +262,7 @@ fichiers de l'app importent toujours depuis `providers/client.js`.
 | Fichier | Lignes | Rôle |
 |---|---|---|
 | `core.js` | 132 | **Le seul endroit où `initializeApp()` est appelé.** Exporte `auth`, `db`, `functions` (région `europe-west1`), `googleProvider`. Utilitaires : `randomCode`, `colorForUser`, `getOrCreateDeviceId`, `formatAuthError`, `formatFirestoreError`. |
-| `clientAuth.js` | 272 | Google + email/mot de passe, persistance, redirect PWA, changement d'email/mot de passe, réauthentification. |
+| `clientAuth.js` | 280 | Google (natif via `@capacitor-firebase/authentication`, `skipNativeAuth`) + email/mot de passe, persistance, redirect PWA, changement d'email/mot de passe, réauthentification. |
 | `clientFamily.js` | 776 | Foyer, membres, personnes, invitations, profils liés, suppression de compte/foyer, multi-foyers. |
 | `clientPlanner.js` | 24 | `watchFamilyPlanner`, `saveFamilyPlanner`. |
 | `clientMessaging.js` | 113 | Tokens FCM (`registerFcmDeviceToken`, `saveMessagingToken`). |

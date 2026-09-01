@@ -19,7 +19,7 @@ import {
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { Capacitor } from "@capacitor/core";
-import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { auth, functions, googleProvider } from "./core.js";
 
 let persistenceReady = false;
@@ -55,36 +55,31 @@ export function isStandalonePwa() {
 
 // ── Connexion Google ──────────────────────────────────────────────────────
 
-let googleAuthInit = null;
-
 /**
- * Le plugin GoogleAuth ne configure RIEN dans son load() natif : le client
- * Google n'existe qu'après initialize(). Appeler signIn() sans initialize()
- * déréférence un client nil → crash natif (iOS Plugin.swift:74
- * "Unexpectedly found nil", NullPointerException côté Android).
+ * Aucune initialisation manuelle n'est nécessaire.
  *
- * Sans argument, chaque plateforme lit sa propre clé dans capacitor.config.json :
- * iosClientId côté iOS, androidClientId (= client web, il sert de requestIdToken)
- * côté Android.
+ * Le plugin précédent (@codetrix-studio/capacitor-google-auth, abandonné en
+ * 2024) ne configurait rien dans son `load()` natif : appeler `signIn()` sans
+ * `initialize()` préalable déréférençait un client nil et faisait crasher le
+ * natif. D'où l'ancien `ensureGoogleAuthInitialized()`, supprimé ici.
+ *
+ * @capacitor-firebase/authentication se configure lui-même au démarrage à
+ * partir de `plugins.FirebaseAuthentication.providers` dans capacitor.config.ts,
+ * de `GoogleService-Info.plist` (iOS) et de `google-services.json` (Android).
+ * Il n'y a donc plus de client à amorcer côté JS.
+ *
+ * `skipNativeAuth: true` est ce qui préserve l'architecture existante : le
+ * plugin se contente d'ouvrir le dialogue Google et de rendre la credential,
+ * sans authentifier la couche native. Le SDK JS Firebase reste la seule source
+ * de vérité de la session — c'est lui qu'écoute `onAuthStateChanged`.
  */
-async function ensureGoogleAuthInitialized() {
-  if (!googleAuthInit) {
-    googleAuthInit = GoogleAuth.initialize().catch((error) => {
-      googleAuthInit = null; // permet un nouvel essai au prochain tap
-      throw error;
-    });
-  }
-  return googleAuthInit;
-}
-
 export async function signInWithGoogle() {
   // Sur Android/iOS natif (Capacitor) : dialog Google natif via le plugin.
   if (Capacitor.isNativePlatform()) {
-    console.log("[auth] signInWithGoogle → native GoogleAuth");
+    console.log("[auth] signInWithGoogle → native FirebaseAuthentication");
     try {
-      await ensureGoogleAuthInitialized();
-      const googleUser = await GoogleAuth.signIn();
-      const idToken = googleUser?.authentication?.idToken;
+      const { credential } = await FirebaseAuthentication.signInWithGoogle();
+      const idToken = credential?.idToken;
       if (!idToken) throw new Error("Google Sign-In: idToken manquant");
       const firebaseCredential = GoogleAuthProvider.credential(idToken);
       const result = await signInWithCredential(auth, firebaseCredential);
@@ -198,7 +193,20 @@ export async function resetPassword(email) {
   }
 }
 
-export function signOutUser() {
+export async function signOutUser() {
+  // En natif, deconnecter aussi la couche du plugin : le SDK Google garde sa
+  // propre session, et sans ca le dialogue rouvre directement sur le dernier
+  // compte utilise — impossible d'en changer. `skipNativeAuth` n'y change rien,
+  // il ne concerne que l'authentification Firebase native.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await FirebaseAuthentication.signOut();
+    } catch (error) {
+      // Non bloquant : la deconnexion Firebase ci-dessous reste la seule qui
+      // compte pour l'etat de l'app.
+      console.warn("[auth] signOut natif echoue", error?.message, error);
+    }
+  }
   return signOut(auth);
 }
 

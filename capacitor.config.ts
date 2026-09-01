@@ -27,20 +27,20 @@ const config: CapacitorConfig = {
     backgroundColor: SPLASH_BACKGROUND,
   },
   plugins: {
-    GoogleAuth: {
-      scopes: ['profile', 'email'],
-      // Trois identifiants distincts : Google exige un client OAuth par
-      // plateforme. Le `serverClientId` (type Web) est celui que Firebase
-      // valide cote serveur, il vaut donc le client Android ici.
-      serverClientId:
-        '543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com',
-      iosClientId:
-        '543367828677-3ehl9p5tftqfn343cspvrt108s7ckglv.apps.googleusercontent.com',
-      androidClientId:
-        '543367828677-oiu5v3kgh38g3go24drolk79ceq6ctna.apps.googleusercontent.com',
-      // Sans ca, pas de refresh token : la session Google expire au bout d'une
-      // heure et l'utilisateur est deconnecte en pleine utilisation.
-      forceCodeForRefreshToken: true,
+    // Remplace @codetrix-studio/capacitor-google-auth, abandonne (derniere
+    // publication mai 2024, jamais sorti de la release candidate).
+    //
+    // Plus aucun identifiant OAuth ici : le plugin les lit dans les fichiers
+    // Firebase de chaque plateforme — GoogleService-Info.plist cote iOS,
+    // google-services.json cote Android. Les trois clientId de l'ancienne
+    // configuration etaient une recopie manuelle de ces memes fichiers, donc
+    // une source de divergence en moins.
+    FirebaseAuthentication: {
+      // Le plugin ouvre le dialogue Google et rend la credential, sans
+      // authentifier la couche native : le SDK JS Firebase reste la seule
+      // source de verite de la session (cf. src/app/providers/clientAuth.js).
+      skipNativeAuth: true,
+      providers: ['google.com'],
     },
   },
 };
