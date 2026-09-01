@@ -543,14 +543,11 @@ export function renameFamily(familyId, name) {
   });
 }
 
-// Interrupteur premium de test — en attendant le vrai statut d'abonnement
-// (RevenueCat/Stripe), écrit directement sur le foyer.
-export function setFamilyPremiumOverride(familyId, value) {
-  return updateDoc(doc(db, "families", familyId), {
-    premiumOverride: Boolean(value),
-    updatedAt: serverTimestamp(),
-  });
-}
+// Le statut premium n'est plus ecrit depuis le client : `families/{id}.premium`
+// appartient au webhook RevenueCat (functions/index.js), et firestore.rules
+// refuse desormais toute ecriture cliente sur les champs `premium*`. Une
+// fonction setFamilyPremiumOverride() vivait ici ; la garder aurait produit
+// une erreur de permission a chaque appel.
 
 export function watchFamilyMembers(familyId, callback, onError) {
   return onSnapshot(

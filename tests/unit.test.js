@@ -16,5 +16,6 @@ import "./unit/families.test.js";
 import "./unit/multi-family-source.test.js";
 import "./unit/design-tokens.test.js";
 import "./unit/purchases.test.js";
+import "./unit/revenuecat-webhook.test.js";
 import "./unit/routes.test.js";
 import "./unit/structure.test.js";

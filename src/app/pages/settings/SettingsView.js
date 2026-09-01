@@ -45,7 +45,7 @@ export function SettingsView({
   onSwitchFamily,
   onRenameFamily,
   isPremium = false,
-  onSetPremiumOverride,
+  onOpenSubscription,
   onAddPerson,
   onUpdatePerson,
   onUpdateMemberRole = async () => {},
@@ -1260,12 +1260,11 @@ export function SettingsView({
             open=${openSections.includes("premium")}
             onToggle=${toggleSection}
           >
-            <${SettingsToggleRow}
+            <${SettingsRow}
               icon="⭐"
-              label="Premium actif (test)"
-              sub="Interrupteur de test en attendant le vrai paiement (RevenueCat/Stripe). Débloque Inventaire, Recettes, Repas et le lien inventaire des listes."
-              value=${isPremium}
-              onChange=${(value) => onSetPremiumOverride?.(value)}
+              label=${isPremium ? "Gérer mon abonnement" : "Passer en Premium"}
+              value=${isPremium ? "Actif" : ""}
+              onClick=${() => onOpenSubscription?.()}
               last=${true}
             />
           <//>

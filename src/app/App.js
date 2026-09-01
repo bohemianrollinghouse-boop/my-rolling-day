@@ -9,7 +9,6 @@ import {
   canChangePassword,
   getCurrentAuthMode,
   renameFamily,
-  setFamilyPremiumOverride,
   signInWithEmail,
   signInWithGoogle,
   signOutUser,
@@ -295,7 +294,7 @@ function AppShell() {
   // de notifications une fois le foyer chargé.
   const justLoggedInRef = useRef(false);
   const [settingsAutoOpenAddPersonSignal, setSettingsAutoOpenAddPersonSignal] = useState(0);
-  const isPremium = Boolean(currentFamily?.premiumOverride);
+  const isPremium = Boolean(currentFamily?.premium);
   const openPremiumSettings = () => { setSettingsSubPage("main"); setShowSettings(true); };
   const openSubscriptionPage = () => setActiveTab("premium");
 
@@ -308,16 +307,13 @@ function AppShell() {
     initPurchases(currentFamilyId);
   }, [currentFamilyId]);
 
-  /* Interrupteur de test des reglages — a retirer quand le webhook RevenueCat
-     ecrira l'entitlement sur le foyer (MRD-36). */
-  const handleActivatePremium = () => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
-
-  /* Achat abouti : le SDK confirme l'entitlement cote client, mais la verite
-     appartient au foyer. En attendant le webhook (MRD-36), on ecrit l'acces
-     depuis le client et on revient a l'ecran d'ou l'on venait. */
+  /* Achat abouti. Le client n'ecrit RIEN : `families/{id}.premium` appartient au
+     webhook RevenueCat, et firestore.rules refuse desormais toute ecriture
+     cliente sur ce champ. Le foyer est deja ecoute en temps reel, l'acces
+     arrivera donc tout seul — d'ou le message d'attente plutot qu'une
+     redirection immediate qui afficherait un ecran encore verrouille. */
   const handlePremiumPurchased = () => {
-    runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, true));
-    setActiveTab("home", { replace: true });
+    showToast("Merci ! Ton acces Premium s'active dans quelques secondes.");
   };
 
   // Guard : ouvre le setup à la connexion si l'user n'a pas encore de foyer.
@@ -1367,7 +1363,7 @@ function AppShell() {
             onSwitchFamily=${(familyId) => runFamilyAction(() => handleSwitchFamily(familyId))}
             onRenameFamily=${(name) => runFamilyAction(() => renameFamily(currentFamilyId, name))}
             isPremium=${isPremium}
-            onSetPremiumOverride=${(value) => runFamilyAction(() => setFamilyPremiumOverride(currentFamilyId, value))}
+            onOpenSubscription=${() => { setShowSettings(false); openSubscriptionPage(); }}
             onAddPerson=${(person) => runFamilyAction(() => handleAddPerson(person))}
             onUpdatePerson=${(personId, updates) => runFamilyAction(() => handleUpdatePerson(personId, updates))}
             onUpdateMemberRole=${(uid, role) => runFamilyAction(() => handleUpdateMemberRole(uid, role))}

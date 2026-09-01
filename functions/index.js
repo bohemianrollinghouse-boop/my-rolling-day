@@ -11,7 +11,9 @@
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const { decidePremiumFromEvent, premiumFieldsFor } = require("./revenuecat.js");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -931,4 +933,89 @@ exports.requestPasswordReset = onCall(
     console.log(`[requestPasswordReset] e-mail de réinitialisation mis en file pour ${email}`);
     return { ok: true };
   }
+);
+
+// ---------------------------------------------------------------------------
+// Webhook RevenueCat — statut premium du foyer
+//
+// Le premium est un etat de FOYER, l'achat un fait UTILISATEUR. Le pont est
+// `app_user_id` : l'app configure RevenueCat avec l'identifiant du foyer
+// (src/app/providers/clientPurchases.js), le webhook recoit donc directement le
+// document a mettre a jour.
+//
+// L'ecriture passe par l'Admin SDK, qui contourne les regles Firestore. Les
+// clients, eux, ne peuvent pas toucher aux champs `premium*` (firestore.rules) :
+// c'est ce qui rend l'acces infalsifiable. Sans cette regle, ce webhook ne
+// servirait a rien.
+//
+// Configuration : RevenueCat > Integrations > Webhooks
+//   URL    https://europe-west1-my-rolling-day.cloudfunctions.net/revenueCatWebhook
+//   Header Authorization = la valeur du secret REVENUECAT_WEBHOOK_TOKEN
+//   firebase functions:secrets:set REVENUECAT_WEBHOOK_TOKEN
+// ---------------------------------------------------------------------------
+
+const revenueCatWebhookToken = defineSecret("REVENUECAT_WEBHOOK_TOKEN");
+
+exports.revenueCatWebhook = onRequest(
+  { region: "europe-west1", secrets: [revenueCatWebhookToken], cors: false },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).send("method not allowed");
+      return;
+    }
+
+    // Sans cette verification, n'importe qui connaissant l'URL s'offre le
+    // premium sur le foyer de son choix.
+    const expected = revenueCatWebhookToken.value();
+    if (!expected || req.get("Authorization") !== expected) {
+      console.warn("[revenuecat] webhook refuse : Authorization invalide");
+      res.status(401).send("unauthorized");
+      return;
+    }
+
+    const decision = decidePremiumFromEvent(req.body && req.body.event);
+
+    // 200 meme quand on ne fait rien : un code d'erreur ferait rejouer
+    // l'evenement par RevenueCat, en boucle, pour un evenement qui ne nous
+    // concerne pas.
+    if (!decision) {
+      res.status(200).send("ignored");
+      return;
+    }
+
+    try {
+      if (decision.kind === "transfer") {
+        // Le seul cas a deux ecritures : l'ancien foyer perd l'acces, le
+        // nouveau le recoit. L'ordre importe peu, mais les deux doivent partir.
+        const batch = db.batch();
+        if (decision.from) {
+          batch.set(db.doc(`families/${decision.from}`), {
+            premium: false, premiumSource: "revenuecat", premiumProductId: "",
+            premiumExpiresAt: null, premiumLastEvent: "TRANSFER_OUT",
+            premiumUpdatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+        batch.set(db.doc(`families/${decision.to}`), {
+          premium: true, premiumSource: "revenuecat", premiumLastEvent: "TRANSFER_IN",
+          premiumUpdatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        await batch.commit();
+        console.log("[revenuecat] transfert", decision.from, "->", decision.to);
+        res.status(200).send("ok");
+        return;
+      }
+
+      await db.doc(`families/${decision.familyId}`).set({
+        ...premiumFieldsFor(decision),
+        premiumUpdatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.log("[revenuecat]", decision.type, "->", decision.familyId, "premium =", decision.active);
+      res.status(200).send("ok");
+    } catch (error) {
+      // 500 ici est VOULU : l'evenement est valide mais l'ecriture a echoue,
+      // on veut que RevenueCat le rejoue.
+      console.error("[revenuecat] ecriture echouee", error);
+      res.status(500).send("write failed");
+    }
+  },
 );

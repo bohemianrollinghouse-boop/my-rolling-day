@@ -28,10 +28,28 @@ service cloud.firestore {
       }
     }
 
+    // Champs du statut premium : ecrits UNIQUEMENT par le webhook RevenueCat,
+    // via l'Admin SDK qui contourne ces regles (functions/index.js).
+    //
+    // Sans ce verrou, l'abonnement ne vaut rien : `allow write: if
+    // isFamilyMember` laissait n'importe quel membre poser `premium: true` sur
+    // son propre foyer depuis un client modifie.
+    function touchePremium() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['premium', 'premiumSource', 'premiumProductId',
+                 'premiumExpiresAt', 'premiumLastEvent', 'premiumUpdatedAt']);
+    }
+
     // ── Families ───────────────────────────────────────────────────────────
     match /families/{familyId} {
       allow read: if isFamilyMember(familyId);
-      allow write: if isFamilyMember(familyId);
+      // create : un foyer neuf n'a pas de champ premium a proteger, et
+      // `resource` n'existe pas encore — d'ou la separation d'avec update.
+      allow create: if isFamilyMember(familyId)
+        && !request.resource.data.keys().hasAny(['premium', 'premiumSource',
+             'premiumProductId', 'premiumExpiresAt', 'premiumLastEvent', 'premiumUpdatedAt']);
+      allow update: if isFamilyMember(familyId) && !touchePremium();
+      allow delete: if isFamilyMember(familyId);
 
       match /members/{uid} {
         allow read: if isFamilyMember(familyId);
