@@ -332,17 +332,19 @@ fichiers de l'app importent toujours depuis `providers/client.js`.
 | `auth/OnboardingFlow.js` | 939 | 3 flux : CREATE, JOIN, EXISTING-PROFILE (voir §7). |
 | `premium/PremiumLockScreen.js` | 74 | Écran de vente Premium (mensuel 4,99 € / annuel 39,99 €). |
 
-### ⚠️ Fichiers morts — ne pas utiliser, ne pas maintenir
+### Fichiers morts — supprimés
 
-| Fichier | Lignes | Statut |
+Plus aucun fichier mort connu. Supprimés le 1er septembre 2026, après
+vérification par grep qu'aucun n'était importé :
+
+| Fichier | Lignes | Remplacé par |
 |---|---|---|
-| `src/app/components/FamilyPanel.js` | 236 | Jamais importé. Remplacé par `SettingsView`. |
-| `src/app/components/Header.js` | ~30 | Jamais importé. Remplacé par les en-têtes Ionic. |
-| `scripts/run-tests.ps1` | — | Reliquat Windows. |
+| `src/app/components/FamilyPanel.js` | 236 | `SettingsView` |
+| `src/app/components/Header.js` | ~30 | les en-têtes Ionic |
+| `scripts/run-tests.ps1` | 31 | `npm test` (le script codait en dur un chemin Node d'une machine Windows disparue) |
 
-Vérifié par grep le 23 août 2026. (`src/components/Tabs.js`, listé comme mort
-dans les anciennes docs, **n'existe plus du tout**.) Les deux fichiers restants
-sont suppressibles dans un commit de nettoyage.
+(`src/components/Tabs.js`, listé comme mort dans les anciennes docs, avait déjà
+disparu au passage à Ionic — la barre du bas est `ion-tab-bar` depuis la phase 2.)
 
 ---
 
@@ -1174,7 +1176,6 @@ pas changé.
 
 - `aps-environment` vaut `development` dans `ios/App/App/App.entitlements` — à
   passer en `production` pour l'App Store, ou laisser Xcode le faire à l'archive.
-- Supprimer les fichiers morts (§4) et `scripts/run-tests.ps1`.
 - Écart de cible connu : `vite.config.js` suppose Safari 14, mais
   `IPHONEOS_DEPLOYMENT_TARGET = 13.0`. Les WebView iOS 13.0–13.3 n'ont ni `??=`
   ni les champs de classe. Écart **préexistant** : le corriger veut dire monter

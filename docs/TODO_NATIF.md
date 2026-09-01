@@ -50,7 +50,7 @@ resteraient utiles un jour pour les invitations, mais rien d'ouvert.)
 - [ ] Bundle JS 1,46 Mo en un chunk — code-splitting à envisager.
 - [ ] 2 tests smoke (cache-buster `?v=` disparu avec Vite) + 1 test Settings en
       échec — préexistants, sans lien avec le natif.
-- [ ] `scripts/run-tests.ps1` : reliquat Windows à supprimer.
+- [x] `scripts/run-tests.ps1` : reliquat Windows — supprimé le 1er septembre 2026.
 
 ---
 
