@@ -627,6 +627,62 @@ test("agenda : la notification est nulle si absente, normalisee sinon", () => {
   });
 });
 
+test("agenda : les cles anti-doublon sont purgees au-dela de 7 jours", () => {
+  pinAppDate(); // 2026-04-20
+  const state = normalizeState({
+    agenda: [
+      {
+        id: "e1",
+        notification: {
+          enabled: true,
+          sentKeys: [
+            "agenda-1755000000000-0-2026-04-19-09:00-30",  // hier → garde
+            "agenda-1755000000000-0-2026-04-19-09:00-30",  // doublon → retire
+            "agenda-1755000000000-0-2026-04-14-08:00-15",  // J-6, limite → garde
+            "agenda-1755000000000-0-2026-04-12-08:00-15",  // J-8 → retire
+            "recur-agenda-42-2026-04-18-07:30-0",          // recurrent recent → garde
+            "recur-agenda-42-2026-03-01-07:30-0",          // recurrent vieux → retire
+            "cle-sans-date",                               // illisible → garde
+            "   ",                                          // vide → retire
+          ],
+        },
+      },
+    ],
+  });
+  assert.deepEqual(state.agenda[0].notification.sentKeys, [
+    "agenda-1755000000000-0-2026-04-19-09:00-30",
+    "agenda-1755000000000-0-2026-04-14-08:00-15",
+    "recur-agenda-42-2026-04-18-07:30-0",
+    "cle-sans-date",
+  ]);
+});
+
+test("agenda : un identifiant numerique n est pas confondu avec une date", () => {
+  pinAppDate();
+  // `1755000000000` ne doit pas etre lu comme une date : la cle n'a pas la queue
+  // `-HH:MM-<minutes>`, donc elle est conservee telle quelle.
+  const state = normalizeState({
+    agenda: [{ id: "e1", notification: { enabled: true, sentKeys: ["agenda-1755000000000-0"] } }],
+  });
+  assert.deepEqual(state.agenda[0].notification.sentKeys, ["agenda-1755000000000-0"]);
+});
+
+test("agenda : les cles des evenements recurrents suivent la meme purge", () => {
+  pinAppDate();
+  const state = normalizeState({
+    recurringEvents: [
+      {
+        id: "r1",
+        notification: {
+          enabled: true,
+          sentKeys: ["recur-r1-2026-04-20-07:30-10", "recur-r1-2026-01-05-07:30-10"],
+        },
+      },
+    ],
+  });
+  assert.deepEqual(state.recurringEvents[0].notification.sentKeys, ["recur-r1-2026-04-20-07:30-10"]);
+});
+
 test("recurrents : le jour de semaine et le jour du mois sont normalises", () => {
   const state = normalizeState({
     recurringEvents: [

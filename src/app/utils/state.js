@@ -29,21 +29,53 @@ export function createMealShell(day, index, weekKey) {
   };
 }
 
-function normalizeTaskNotificationLog(entries) {
+/** Fenêtre de rétention des clés anti-doublon de notification, en jours. */
+const NOTIFICATION_KEY_RETENTION_DAYS = 7;
+
+/**
+ * Purge les clés anti-doublon plus vieilles que la fenêtre de rétention.
+ *
+ * Ces listes ne servent qu'à ne pas notifier deux fois la même occurrence.
+ * Passé quelques jours l'occurrence est derrière nous, la clé ne protège plus
+ * rien, et elle ne fait que gonfler le document de foyer dans Firestore — le
+ * même document que l'app relit à chaque démarrage.
+ *
+ * Une clé dont la date est absente ou illisible est **conservée** : mieux vaut
+ * un document un peu plus gros qu'une notification renvoyée en double.
+ *
+ * @param {string[]} entries clés brutes
+ * @param {RegExp} datePattern motif capturant la date `YYYY-MM-DD` de la clé
+ */
+function pruneDatedNotificationKeys(entries, datePattern) {
   const safeEntries = Array.isArray(entries)
     ? [...new Set(entries.map((entry) => String(entry || "").trim()).filter(Boolean))]
     : [];
   if (!safeEntries.length) return [];
   const today = getCurrentAppDate();
   const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  cutoff.setDate(cutoff.getDate() - 7);
+  cutoff.setDate(cutoff.getDate() - NOTIFICATION_KEY_RETENTION_DAYS);
   return safeEntries.filter((entry) => {
-    const match = entry.match(/(\d{4}-\d{2}-\d{2})$/);
+    const match = entry.match(datePattern);
     if (!match) return true;
     const parsed = new Date(`${match[1]}T00:00`);
     if (Number.isNaN(parsed.getTime())) return true;
     return parsed >= cutoff;
   });
+}
+
+/** Journal des tâches : `<taskId>-<type>-<YYYY-MM-DD>` — la date termine la clé. */
+const TASK_LOG_DATE_PATTERN = /(\d{4}-\d{2}-\d{2})$/;
+
+/**
+ * Agenda : `<id>-<YYYY-MM-DD>-<HH:MM>-<minutesBefore>`, préfixé `recur-` pour
+ * les récurrents (cf. AgendaView.js). La date est **au milieu** de la clé, pas
+ * à la fin : on l'ancre donc par la queue (heure + délai), sinon un identifiant
+ * comme `agenda-1755000000000-3` pourrait fournir un faux positif.
+ */
+const AGENDA_SENT_KEY_DATE_PATTERN = /(\d{4}-\d{2}-\d{2})-\d{1,2}:\d{2}-\d+$/;
+
+function normalizeTaskNotificationLog(entries) {
+  return pruneDatedNotificationKeys(entries, TASK_LOG_DATE_PATTERN);
 }
 
 function normalizeTaskNotification(notification, task) {
@@ -450,9 +482,9 @@ function normalizeAgendaNotification(notification) {
     enabled: Boolean(notification.enabled),
     minutesBefore: Math.max(0, Number(notification.minutesBefore) || 0),
     customMessage: String(notification.customMessage || "").trim(),
-    sentKeys: Array.isArray(notification.sentKeys)
-      ? [...new Set(notification.sentKeys.map((value) => String(value || "").trim()).filter(Boolean))]
-      : [],
+    // Même purge que le journal des tâches : sans elle, sentKeys ne fait que
+    // croître (une entrée par notification envoyée, à vie).
+    sentKeys: pruneDatedNotificationKeys(notification.sentKeys, AGENDA_SENT_KEY_DATE_PATTERN),
   };
 }
 
