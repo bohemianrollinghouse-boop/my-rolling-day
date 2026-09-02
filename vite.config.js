@@ -13,22 +13,18 @@ export default defineConfig({
     // Ces valeurs sont celles de la cible `modules` par defaut de Vite 5, donc
     // le bundle emis est inchange ; elles sont ecrites pour etre visibles.
     //
-    // Alignee sur IPHONEOS_DEPLOYMENT_TARGET = 13.0 (ios/App). L'ecart etait
-    // reel : la cible annoncait Safari 14 alors que l'app se deploie sur des
-    // WebView iOS 13.0 a 13.3, qui n'ont ni `??=` ni les champs de classe.
+    // Alignee sur IPHONEOS_DEPLOYMENT_TARGET, qui vaut 15.0 depuis la montee
+    // vers Capacitor 8 (Cap 8 exige iOS 15 minimum).
     //
-    // Mesure avant de trancher (1er septembre 2026) : le bundle emis en
-    // `safari14` ne contenait deja AUCUNE de ces syntaxes — esbuild transpile
-    // l'optional chaining meme en safari14 (forme `==null?void 0:` dans les
-    // chunks). Le risque decrit etait donc theorique. Passer a `safari13` coute
-    // 3 Ko sur 2748 (0,1 %) et supprime le piege pour de bon : desormais, une
-    // dependance qui introduirait `??=` sera transpilee au lieu de casser a
-    // l'execution sur un appareil, sans rien signaler au build.
+    // La regle a tenir est simple : cette liste ne doit jamais annoncer un
+    // support plus large que ce que l'app installe reellement. Sinon une
+    // dependance introduisant une syntaxe recente passe le build et casse a
+    // l'execution sur l'appareil, sans que rien ne le signale.
     //
-    // L'autre sortie — monter Xcode a 14.0 — n'est pas prise ici : elle
-    // exclurait des utilisateurs sans benefice mesurable aujourd'hui. Elle
-    // redeviendra necessaire a la montee vers Capacitor 7/8, qui exige iOS 14+.
-    target: ["es2020", "edge88", "firefox78", "chrome87", "safari13"],
+    // Historique : la cible disait `safari14` alors que Xcode deployait en
+    // 13.0 (MRD-26). Corrigee en `safari13` le 1er septembre, puis remontee ici
+    // avec le plancher iOS.
+    target: ["es2020", "edge88", "firefox78", "chrome87", "safari15"],
     rollupOptions: {
       output: {
         /* ── Decoupage des dependances ──────────────────────────────────
