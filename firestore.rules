@@ -40,6 +40,16 @@ service cloud.firestore {
                  'premiumExpiresAt', 'premiumLastEvent', 'premiumUpdatedAt']);
     }
 
+    // ── Catalogue de recettes ──────────────────────────────────────────────
+    // Collection globale alimentee par la console d'administration, via
+    // l'Admin SDK qui contourne ces regles. Lisible par tout compte connecte —
+    // c'est le catalogue propose aux foyers — et ecrite par personne d'autre
+    // que le serveur.
+    match /recipes/{recipeId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
     // ── Families ───────────────────────────────────────────────────────────
     match /families/{familyId} {
       allow read: if isFamilyMember(familyId);

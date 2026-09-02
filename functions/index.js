@@ -14,6 +14,7 @@ const { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } = require("fir
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { decidePremiumFromEvent, premiumFieldsFor } = require("./revenuecat.js");
+const { createAdminHandler } = require("./admin/index.js");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -1017,5 +1018,30 @@ exports.revenueCatWebhook = onRequest(
       console.error("[revenuecat] ecriture echouee", error);
       res.status(500).send("write failed");
     }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Console d'administration
+//
+// Sert la page et son API sous /admin. Mot de passe unique (secret
+// ADMIN_PASSWORD) echange contre un cookie de session signe — voir
+// admin/auth.js pour le detail des protections du cookie.
+//
+// ATTENTION : toutes les lectures de cette console passent par l'Admin SDK et
+// ignorent donc les regles Firestore. L'authentification de cette fonction est
+// la seule barriere entre le web et les donnees de tous les foyers.
+//
+//   firebase functions:secrets:set ADMIN_PASSWORD
+//   https://europe-west1-my-rolling-day.cloudfunctions.net/admin
+// ---------------------------------------------------------------------------
+
+const adminPassword = defineSecret("ADMIN_PASSWORD");
+
+exports.admin = onRequest(
+  { region: "europe-west1", secrets: [adminPassword], cors: false },
+  async (req, res) => {
+    const handler = createAdminHandler({ db, password: adminPassword.value() });
+    return handler(req, res);
   },
 );
