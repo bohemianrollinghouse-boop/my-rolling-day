@@ -113,3 +113,30 @@ test("purchaseErrorMessage : un echec inconnu reste comprehensible", () => {
   assert.match(message, /Réessaie/);
   assert.equal(purchaseErrorMessage(undefined), message);
 });
+
+// ── Séparation des deux écrans premium ────────────────────────────────────
+
+test("ecran verrouille : ne propose ni prix ni formule, seulement l'acces a l'abonnement", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../src/app/pages/premium/PremiumLockScreen.js", import.meta.url), "utf8");
+  // On retire les commentaires : ils citent volontairement les anciens prix
+  // pour expliquer pourquoi ils ne sont plus la.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  assert.doesNotMatch(code, /\d+[.,]\d{2}\s*€/,
+    "aucun montant ne doit etre ecrit en dur : les prix vivent dans l'offering RevenueCat");
+  assert.doesNotMatch(code, /priceString|PREMIUM_PLANS|availablePackages/,
+    "l'ecran verrouille ne doit pas connaitre les formules — c'est le role de SubscriptionPage");
+  assert.doesNotMatch(code, /const\s+BENEFITS\s*=/,
+    "les benefices viennent de config/premiumPlans.js, ils ne doivent pas etre recopies");
+  assert.match(code, /PREMIUM_BENEFITS/, "les benefices doivent venir de la config partagee");
+});
+
+test("ecran d'abonnement : c'est lui, et lui seul, qui porte les formules", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../src/app/pages/premium/SubscriptionPage.js", import.meta.url), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  assert.match(code, /selectPlansFromOffering/, "les formules viennent de l'offering");
+  assert.doesNotMatch(code, /\d+[.,]\d{2}\s*€/, "aucun montant en dur ici non plus");
+});

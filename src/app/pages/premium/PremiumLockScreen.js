@@ -1,37 +1,52 @@
-import { html, useState } from "../../lib.js";
+import { html } from "../../lib.js";
+import { PREMIUM_BENEFITS } from "../../config/premiumPlans.js";
 
+/**
+ * Encart affiché à la place d'un écran verrouillé (Repas, Inventaire, Recettes).
+ *
+ * Il ne montre NI prix NI formules, volontairement : c'est le premier des deux
+ * temps. Ici on explique ce que Premium débloque, et on emmène vers l'écran
+ * d'abonnement (/premium) qui, lui, présente les trois formules. Proposer le
+ * choix aux deux endroits obligeait à le refaire deux fois de suite.
+ *
+ * L'autre raison est plus dure : les prix affichés ici étaient écrits en dur
+ * (4,99 € / 39,99 €) alors que l'écran d'abonnement les lit dans l'offering
+ * RevenueCat. Deux sources pour un même chiffre, dont une qui ne connaît ni la
+ * devise ni les tarifs régionaux — elles auraient fini par se contredire.
+ */
 const FEATURE_INFO = {
   meals: {
-    title: "Débloque les Repas Premium",
+    title: "Les Repas sont dans Premium",
     text: "Planifie tes repas de la semaine et relie-les à tes recettes.",
+    // Les bénéfices les plus parlants depuis cet écran-là, en premier.
+    highlights: ["🍽️", "🔗", "👨‍👩‍👧‍👦"],
   },
   inventory: {
-    title: "Débloque l'Inventaire Premium",
+    title: "L'Inventaire est dans Premium",
     text: "Suis ton stock, tes dates de péremption et tes emplacements de rangement.",
+    highlights: ["📦", "🔗", "👨‍👩‍👧‍👦"],
   },
   recipes: {
-    title: "Débloque les Recettes Premium",
+    title: "Les Recettes sont dans Premium",
     text: "Enregistre et organise toutes tes recettes, avec suggestions.",
+    highlights: ["📖", "🍽️", "👨‍👩‍👧‍👦"],
   },
 };
 
-const BENEFITS = [
-  { icon: "🍽️", text: "Planification des repas de la semaine, liée à tes recettes" },
-  { icon: "📦", text: "Inventaire complet : stock, péremption, rangement" },
-  { icon: "📖", text: "Recettes illimitées, avec suggestions automatiques" },
-  { icon: "🔗", text: "Listes liées à l'inventaire : déduction automatique des courses" },
-  { icon: "👨‍👩‍👧‍👦", text: "Débloqué pour tout le foyer, pas seulement toi" },
-];
-
-const PLANS = {
-  monthly: { label: "Mensuel", price: "4,99 €", period: "/ mois", cta: "4,99 €/mois", badge: null },
-  annual: { label: "Annuel", price: "39,99 €", period: "/ an", cta: "39,99 €/an", badge: "Économise 33 %", sub: "soit 3,33 €/mois" },
+const DEFAULT_INFO = {
+  title: "Cette fonction est dans Premium",
+  text: "Elle fait partie de l'offre Premium.",
+  highlights: ["🍽️", "📦", "📖"],
 };
 
 export function PremiumLockScreen({ feature, onActivatePremium, onOpenPremiumSettings }) {
-  const [plan, setPlan] = useState("annual");
-  const info = FEATURE_INFO[feature] || { title: "Débloque Premium", text: "Cette fonction fait partie de l'offre Premium." };
-  const activePlan = PLANS[plan];
+  const info = FEATURE_INFO[feature] || DEFAULT_INFO;
+  // On garde l'ordre de `highlights`, pas celui de la liste complète : le
+  // bénéfice qui correspond à l'écran verrouillé doit venir en tête.
+  const benefits = info.highlights
+    .map((icon) => PREMIUM_BENEFITS.find((benefit) => benefit.icon === icon))
+    .filter(Boolean);
+
   return html`
     <div className="premium-lock-card">
       <div className="premium-lock-icon">⭐</div>
@@ -39,32 +54,16 @@ export function PremiumLockScreen({ feature, onActivatePremium, onOpenPremiumSet
       <p className="premium-lock-text">${info.text}</p>
 
       <ul className="premium-lock-benefits">
-        ${BENEFITS.map((b) => html`
-          <li key=${b.text}>
-            <span className="premium-lock-benefit-icon">${b.icon}</span>
-            <span>${b.text}</span>
+        ${benefits.map((benefit) => html`
+          <li key=${benefit.text}>
+            <span className="premium-lock-benefit-icon">${benefit.icon}</span>
+            <span>${benefit.text}</span>
           </li>
         `)}
       </ul>
 
-      <div className="premium-lock-plans">
-        ${Object.entries(PLANS).map(([key, p]) => html`
-          <button
-            key=${key}
-            type="button"
-            className=${`premium-lock-plan${plan === key ? " on" : ""}`}
-            onClick=${() => setPlan(key)}
-          >
-            ${p.badge ? html`<span className="premium-lock-plan-badge">${p.badge}</span>` : null}
-            <span className="premium-lock-plan-label">${p.label}</span>
-            <span className="premium-lock-plan-price">${p.price}<small>${p.period}</small></span>
-            ${p.sub ? html`<span className="premium-lock-plan-sub">${p.sub}</span>` : null}
-          </button>
-        `)}
-      </div>
-
-      <button className="premium-lock-cta" onClick=${() => onActivatePremium?.()}>
-        Activer Premium — ${activePlan.cta}
+      <button type="button" className="premium-lock-cta" onClick=${() => onActivatePremium?.()}>
+        Voir les formules
       </button>
       <button type="button" className="premium-lock-secondary" onClick=${() => onOpenPremiumSettings?.()}>
         Gérer depuis les Réglages
