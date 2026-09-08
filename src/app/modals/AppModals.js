@@ -9,6 +9,35 @@
 import { DEFAULT_MEMBER_COLOR } from "../config/constants.js";
 import { html, useState } from "../lib.js";
 import { MrdModal } from "../components/MrdModal.js";
+import { LineIcon } from "../components/LineIcons.js";
+
+/* ── Les deux modales de rappel (handoff 8a / 8b) ─────────────────────────
+   Elles partagent une carte (`.rmd`) : vignette et sur-titre en en-tête au
+   lieu du gros emoji centré, texte aligné à gauche, contenu actionnable, un
+   seul bouton plein. Seul leur corps diffère — 8a fait cocher, 8b fait
+   choisir. */
+
+const PERIOD_LABEL = {
+  daily: "Aujourd'hui",
+  weekly: "Semaine",
+  monthly: "Mois",
+  deadline: "Échéance",
+};
+
+function isTaskDone(task) {
+  return (Array.isArray(task?.doneBy) ? task.doneBy.filter(Boolean).length > 0 : false)
+    || Boolean(task?.completedByPersonId);
+}
+
+/* La ligne secondaire d'une tâche. La pastille de droite porte déjà la
+   période : celle-ci dit donc l'état ou l'heure, jamais la même chose. */
+function taskMetaLine(task) {
+  if (isTaskDone(task)) return "Faite";
+  if (task.dueTime) return `À faire avant ${task.dueTime}`;
+  if (task.dueDate) return "Échéance aujourd'hui";
+  if (task.taskKind === "recurring") return "Tâche récurrente";
+  return "Pas encore faite";
+}
 
 // ── Fiche profil (éditable ou lecture seule) ──────────────────────────────
 
@@ -122,19 +151,56 @@ export function InviteCodesModal({ inviteCodes, onClose }) {
   `;
 }
 
-// ── Popup contextuelle au clic sur une notification ──────────────────────
+// ── 8a · Le rappel se coche ───────────────────────────────────────────────
+//
+// La popup était une carte centrée : gros 🔔, titre en 30px, les tâches en
+// liste à puces grise — on ne pouvait rien en faire, « Fermer » menait à un
+// cul-de-sac. Les tâches deviennent des lignes tapables (on coche sans
+// quitter), et « Plus tard » ouvre une feuille d'action de trois créneaux au
+// lieu de fermer sans rien faire — le report repart en push depuis le serveur,
+// il survit donc à la fermeture de l'app.
 
-export function NotificationModal({ notification, onClose, onNavigate }) {
+/* Le type de notification fixe la teinte, la vignette et le sur-titre. Le
+   scénario se lit donc avant même le titre. */
+const NOTIF_KINDS = {
+  "end-of-day": { tone: "amber",  glyph: "bell",     overline: "fin de journée" },
+  urgent:       { tone: "danger", glyph: "clock",    overline: "urgent" },
+  due:          { tone: "accent", glyph: "clock",    overline: "échéance" },
+  event:        { tone: "sage",   glyph: "calendar", overline: "agenda" },
+  general:      { tone: "accent", glyph: "bell",     overline: "rappel" },
+};
+
+const NOTIF_FALLBACK_TEXT = {
+  "end-of-day": "Coche ce qui est déjà fait — le reste se reporte d'un tap.",
+  urgent: "Elle attend toujours. Coche-la, ou repousse le rappel.",
+  due: "L'échéance approche. Coche-la, ou repousse le rappel.",
+  event: "L'événement arrive. Ouvre l'agenda, ou repousse le rappel.",
+  general: "",
+};
+
+export function NotificationModal({
+  notification,
+  tasks = [],
+  activePersonId = "",
+  onClose,
+  onNavigate,
+  onToggleTask,
+  onSnooze,
+}) {
   const [closing, setClosing] = useState(false);
 
   const {
     title = "",
     body = "",
     notifType = "general",
-    tasks = [],
     taskId = "",
     eventId = "",
   } = notification || {};
+
+  const kind = NOTIF_KINDS[notifType] || NOTIF_KINDS.general;
+  const rows = Array.isArray(tasks) ? tasks.slice(0, 6) : [];
+  const hiddenCount = Math.max(0, (Array.isArray(tasks) ? tasks.length : 0) - rows.length);
+  const canToggle = Boolean(onToggleTask && activePersonId);
 
   const hasNavTarget = Boolean(
     eventId ||
@@ -143,11 +209,9 @@ export function NotificationModal({ notification, onClose, onNavigate }) {
     notifType === "urgent" ||
     notifType === "due"
   );
-
-  function getNavLabel() {
-    if (eventId || notifType === "event") return "Voir l'événement";
-    return "Voir les tâches";
-  }
+  const navLabel = (eventId || notifType === "event")
+    ? "Voir l'événement"
+    : rows.length > 1 ? "Voir les tâches" : "Voir la tâche";
 
   // Lance l'animation de sortie, puis appelle onClose après 220ms
   function handleClose() {
@@ -161,87 +225,235 @@ export function NotificationModal({ notification, onClose, onNavigate }) {
   }
 
   return html`
-    <${MrdModal} isOpen=${!closing} onClose=${onClose} className="notification-modal-card">
-        <div style=${{ display: "flex", justifyContent: "center", marginBottom: "4px" }}>
-          <span style=${{ fontSize: "36px", lineHeight: 1 }}>🔔</span>
+    <${MrdModal} isOpen=${!closing} onClose=${onClose} className="rmd-card">
+      <div className=${`rmd rmd--${kind.tone}`}>
+        <div className="rmd-head">
+          <span className="rmd-tile"><${LineIcon} name=${kind.glyph} size=${19} /></span>
+          <span className="rmd-head-copy">
+            <span className="rmd-overline">${kind.overline}</span>
+            <span className="rmd-title">${title || "Rappel"}</span>
+          </span>
+          <button type="button" className="rmd-close" onClick=${handleClose} aria-label="Fermer">✕</button>
         </div>
-        <h2 className="notification-modal-title">${title}</h2>
-        ${body ? html`<p className="notification-modal-text">${body}</p>` : null}
-        ${tasks && tasks.length > 0 ? html`
-          <ul className="notification-modal-task-list">
-            ${tasks.slice(0, 6).map((task, i) => html`
-              <li key=${task.id || i} className="notification-modal-task-item">
-                <span className="notification-modal-task-bullet">◦</span>
-                <span>${task.text}</span>
-              </li>
-            `)}
-            ${tasks.length > 6 ? html`
-              <li className="notification-modal-task-item notification-modal-task-more">
-                et ${tasks.length - 6} autre${tasks.length - 6 > 1 ? "s" : ""}…
-              </li>
-            ` : null}
-          </ul>
+
+        ${(body || NOTIF_FALLBACK_TEXT[notifType]) ? html`
+          <p className="rmd-text">${body || NOTIF_FALLBACK_TEXT[notifType]}</p>
         ` : null}
-        <div className="notification-modal-actions">
-          ${hasNavTarget ? html`
-            <button type="button" className="notification-modal-primary" onClick=${handleNavigate}>
-              ${getNavLabel()}
-            </button>
+
+        ${rows.length ? html`
+          <div className="rmd-rows">
+            ${rows.map((task) => {
+              const done = isTaskDone(task);
+              return html`
+                <button type="button" key=${task.id}
+                  className=${`rmd-row ${done ? "is-done" : ""}`}
+                  disabled=${!canToggle}
+                  onClick=${canToggle ? () => onToggleTask(task.id, activePersonId) : null}>
+                  <span className="rmd-row-check">${done ? "✓" : ""}</span>
+                  <span className="rmd-row-copy">
+                    <span className="rmd-row-name">${task.icon ? `${task.icon} ` : ""}${task.text}</span>
+                    <span className="rmd-row-meta">${taskMetaLine(task)}</span>
+                  </span>
+                  <span className="rmd-row-tag">${PERIOD_LABEL[task.type] || "Tâche"}</span>
+                </button>
+              `;
+            })}
+            ${hiddenCount ? html`
+              <span className="rmd-rows-more">et ${hiddenCount} autre${hiddenCount > 1 ? "s" : ""}…</span>
+            ` : null}
+          </div>
+        ` : null}
+
+        ${/* Pas de « Plus tard » sans droit de reporter : un rappel de foyer ne
+             se repousse que par un admin, et le report vaut alors pour tout le
+             monde. Afficher un bouton qui se contenterait de fermer ferait
+             croire à un report — la carte se ferme par le ✕, comme avant. */null}
+        <div className="rmd-actions">
+          ${onSnooze ? html`
+            <button type="button" className="rmd-ghost" onClick=${onSnooze}>Plus tard</button>
           ` : null}
-          <button type="button" className="notification-modal-close" onClick=${handleClose}>
-            Fermer
-          </button>
+          <button type="button" className="rmd-primary"
+            onClick=${hasNavTarget ? handleNavigate : handleClose}>${hasNavTarget ? navLabel : "C'est noté"}</button>
         </div>
+      </div>
     <//>
   `;
 }
 
-// ── Relance "tâche non faite" (semaine/mois en retard) ────────────────────
+// ── 8b · La relance propose ───────────────────────────────────────────────
+//
+// « Passer à la semaine / Passer au jour / Ignorer » était une rangée de trois
+// boutons qui débordait. Elle devient une liste à cocher : un choix par ligne,
+// avec sa conséquence en clair, et le libellé du bouton plein qui suit la
+// ligne choisie. Le déplacement fait, un second temps montre ce qui a bougé et
+// laisse annuler.
 
-export function StaleTaskModal({ task, alert, onClose, onMoveToDaily, onMoveToWeekly }) {
+const STALE_KINDS = {
+  weekly:    { tone: "amber",  glyph: "hourglass", overline: "relance · semaine", tag: "Semaine" },
+  monthly:   { tone: "danger", glyph: "calendar",  overline: "relance · mois",    tag: "Mois" },
+  recurring: { tone: "accent", glyph: "repeat",    overline: "relance · récurrent", tag: "Récurrent" },
+};
+
+/* Les choix dépendent de la période : on ne propose jamais « passer à la
+   semaine » à une tâche qui y est déjà. */
+function staleChoices(alert) {
+  if (alert.kind === "recurring") {
+    return [
+      { id: "restart", label: "Repartir au prochain cycle", hint: "Le compteur de cycles ratés repart de zéro", cta: "Repartir au prochain cycle" },
+      { id: "open", label: "Voir la tâche", hint: `Ouvrir l'onglet ${alert.period === "weekly" ? "Semaine" : "Mois"}`, cta: "Voir la tâche" },
+    ];
+  }
+  if (alert.period === "weekly") {
+    return [
+      { id: "daily", label: "Passer à aujourd'hui", hint: "Elle rejoint les tâches du jour", cta: "Passer à aujourd'hui" },
+      { id: "weekly", label: "Garder pour la semaine", hint: "Le compteur repart pour sept jours", cta: "Garder pour la semaine" },
+      { id: "stop", label: "Ne plus me relancer", hint: "La tâche reste, le rappel s'arrête", cta: "Ne plus me relancer" },
+    ];
+  }
+  return [
+    { id: "weekly", label: "Passer à la semaine", hint: "Sept jours pour la boucler", cta: "Passer à la semaine" },
+    { id: "daily", label: "Passer à aujourd'hui", hint: "Elle rejoint les tâches du jour", cta: "Passer à aujourd'hui" },
+    { id: "stop", label: "Ne plus me relancer", hint: "La tâche reste, le rappel s'arrête", cta: "Ne plus me relancer" },
+  ];
+}
+
+export function StaleTaskModal({
+  task,
+  alert,
+  onClose,
+  onLater,
+  onDismiss,
+  onMovePeriod,
+  onSetStaleNotice,
+  onOpenTask,
+}) {
+  /* La période et la date d'entrée d'origine, figées à l'ouverture : le second
+     temps s'en sert pour dire d'où vient la tâche, et pour annuler. */
+  const [origin] = useState(() => ({
+    period: task?.type || "weekly",
+    createdAt: task?.createdAt || "",
+  }));
+  const [choiceId, setChoiceId] = useState(null);
+  const [moved, setMoved] = useState(null);
+  const [keepNotice, setKeepNotice] = useState(true);
+
   if (!task || !alert) return null;
-  const isRecurring = alert.kind === "recurring";
-  const isWeekly = alert.period === "weekly";
-  const periodLabel = isWeekly ? "cette semaine" : "ce mois-ci";
-  const periodTagLabel = isWeekly ? "Semaine" : "Mois";
-  const title = isRecurring ? "Tâche récurrente non faite" : "Tâche non terminée";
-  const badgeIcon = isRecurring ? "🔁" : isWeekly ? "⏳" : "🗓️";
+
+  const kindKey = alert.kind === "recurring" ? "recurring" : alert.period === "weekly" ? "weekly" : "monthly";
+  const kind = STALE_KINDS[kindKey];
+  const choices = staleChoices(alert);
+  const selected = choices.find((choice) => choice.id === choiceId) || choices[0];
+
   const missedCount = Number(alert.missedCount) || 0;
+  const title = alert.kind === "recurring" ? "Tâche récurrente non faite" : "Tâche non terminée";
+  const periodLabel = alert.period === "weekly" ? "cette semaine" : "ce mois-ci";
+  const text = alert.kind === "recurring" && missedCount > 1
+    ? `Elle a manqué ${missedCount} cycles d'affilée. Que veut-on en faire ?`
+    : `Elle n'a pas été faite ${periodLabel}. Que veut-on en faire ?`;
+
+  function handleConfirm() {
+    if (selected.id === "open") { onOpenTask(); return; }
+    if (selected.id === "restart" || selected.id === "stop") { onDismiss(); return; }
+    onMovePeriod(selected.id);
+    /* « Garder pour la semaine » ne change pas de période : le second temps
+       annonce alors un compteur relancé, pas un déplacement. */
+    setMoved(selected.id === origin.period
+      ? {
+          title: "Le compteur repart",
+          text: "L'ancienneté de la tâche repart de zéro. Tu peux revenir en arrière tant que cette carte est ouverte.",
+          line: `${PERIOD_LABEL[origin.period]} · sept jours de plus`,
+        }
+      : {
+          title: "C'est déplacé",
+          text: "La tâche a changé de période. Tu peux revenir en arrière tant que cette carte est ouverte.",
+          line: `${PERIOD_LABEL[origin.period] || "Semaine"} → ${PERIOD_LABEL[selected.id]}`,
+        });
+  }
+
+  function handleToggleKeep() {
+    const next = !keepNotice;
+    setKeepNotice(next);
+    onSetStaleNotice(next);
+  }
+
+  function handleUndo() {
+    onMovePeriod(origin.period, { createdAt: origin.createdAt });
+    onLater();
+  }
 
   return html`
-    <${MrdModal} isOpen=${true} onClose=${onClose} className="task-modal-redesign stale-task-modal mrd-modal-narrow">
-        <div className="mrd-mhd">
-          <span className="mrd-mtitle">${title}</span>
-          <button type="button" className="mrd-mclose" onClick=${onClose}>✕</button>
+    <${MrdModal} isOpen=${true} onClose=${onClose} className="rmd-card">
+      <div className=${`rmd rmd--${kind.tone}`}>
+        <div className="rmd-head">
+          <span className="rmd-tile"><${LineIcon} name=${kind.glyph} size=${19} /></span>
+          <span className="rmd-head-copy">
+            <span className="rmd-overline">${kind.overline}</span>
+            <span className="rmd-title">${moved ? moved.title : title}</span>
+          </span>
+          <button type="button" className="rmd-close" onClick=${onLater} aria-label="Fermer">✕</button>
         </div>
-        <div className="mrd-mbody">
-          <div className=${`stale-task-modal-icon ${isWeekly ? "is-weekly" : "is-monthly"}`}>${badgeIcon}</div>
 
-          <div className="stale-task-modal-card">
-            ${task.icon ? html`<span className="task-emoji has-emoji">${task.icon}</span>` : null}
-            <div className="stale-task-modal-card-text">
-              <span className="stale-task-modal-card-name">${task.text}</span>
-              <span className=${`ttag stale-task-modal-tag ${isWeekly ? "is-weekly" : "is-monthly"}`}>${periodTagLabel}</span>
-            </div>
+        ${moved ? html`
+          <p className="rmd-text">${moved.text}</p>
+
+          <div className="rmd-task is-done">
+            <span className="rmd-task-icon">
+              ${task.icon ? task.icon : html`<${LineIcon} name="checklist" size=${16} />`}
+            </span>
+            <span className="rmd-task-copy">
+              <span className="rmd-task-name">${task.text}</span>
+              <span className="rmd-task-move">${moved.line}</span>
+            </span>
+            <span className="rmd-task-check">✓</span>
           </div>
 
-          <p className="stale-task-modal-message">
-            N'a pas été faite <strong>${periodLabel}</strong>${isRecurring && missedCount > 1 ? ` — ratée ${missedCount} fois` : ""}.
-          </p>
+          <button type="button" className="rmd-keep" onClick=${handleToggleKeep}>
+            <span className="rmd-keep-copy">
+              <span className="rmd-keep-label">Garder la relance</span>
+              <span className="rmd-keep-hint">Si elle traîne encore, je te repropose ce choix.</span>
+            </span>
+            <span className=${`rmd-switch ${keepNotice ? "on" : ""}`}><span className="rmd-switch-dot"></span></span>
+          </button>
 
-          <div className="task-modal-actions">
-            ${!isRecurring && isWeekly ? html`
-              <button type="button" className="clrbtn" onClick=${onClose}>Ignorer</button>
-              <button type="button" className="aok" onClick=${onMoveToDaily}>Ajouter à la tâche quotidienne</button>
-            ` : null}
-            ${!isRecurring && !isWeekly ? html`
-              <button type="button" className="clrbtn" onClick=${onClose}>Ignorer</button>
-              <button type="button" className="acn" onClick=${onMoveToWeekly}>Passer à la semaine</button>
-              <button type="button" className="aok" onClick=${onMoveToDaily}>Passer au jour</button>
-            ` : null}
-            ${isRecurring ? html`<button type="button" className="aok" onClick=${onClose}>Compris</button>` : null}
+          <div className="rmd-actions">
+            <button type="button" className="rmd-ghost" onClick=${handleUndo}>Annuler</button>
+            <button type="button" className="rmd-primary" onClick=${onLater}>Terminé</button>
           </div>
-        </div>
+        ` : html`
+          <p className="rmd-text">${text}</p>
+
+          <div className="rmd-task">
+            <span className="rmd-task-icon">
+              ${task.icon ? task.icon : html`<${LineIcon} name="checklist" size=${16} />`}
+            </span>
+            <span className="rmd-task-copy">
+              <span className="rmd-task-name">${task.text}</span>
+              <span className="rmd-task-meta">${taskMetaLine(task)}</span>
+            </span>
+            <span className="rmd-task-tag">${kind.tag}</span>
+          </div>
+
+          <div className="rmd-choices">
+            <span className="rmd-label">que faire ?</span>
+            ${choices.map((choice) => html`
+              <button type="button" key=${choice.id}
+                className=${`rmd-choice ${selected.id === choice.id ? "on" : ""}`}
+                onClick=${() => setChoiceId(choice.id)}>
+                <span className="rmd-choice-dot"></span>
+                <span className="rmd-choice-copy">
+                  <span className="rmd-choice-label">${choice.label}</span>
+                  <span className="rmd-choice-hint">${choice.hint}</span>
+                </span>
+              </button>
+            `)}
+          </div>
+
+          <div className="rmd-actions">
+            <button type="button" className="rmd-ghost" onClick=${onLater}>Plus tard</button>
+            <button type="button" className="rmd-primary" onClick=${handleConfirm}>${selected.cta}</button>
+          </div>
+        `}
+      </div>
     <//>
   `;
 }

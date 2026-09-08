@@ -7,6 +7,7 @@ import { RecipeLibrary } from "./RecipeLibrary.js";
 import { scrapeRecipeFromUrl, categorizeRecipe, importErrorMessage } from "../../providers/clientRecipes.js";
 import { confirmDialog } from "../../utils/dialogs.js";
 import { MrdModal } from "../../components/MrdModal.js";
+import { LineIcon } from "../../components/LineIcons.js";
 
 const ESSENTIAL_ID_SET = new Set(CONDIMENT_ESSENTIALS.map((e) => e.id));
 
@@ -1211,7 +1212,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
     const options = [
       {
         id: "import",
-        icon: "🔗",
+        icon: "link",
         title: "Importer un lien",
         sub: "On lit la page et on remplit la fiche pour toi.",
         meta: "le plus rapide",
@@ -1220,7 +1221,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
       },
       {
         id: "manual",
-        icon: "✏️",
+        icon: "pencil",
         title: "Créer à la main",
         sub: "Un formulaire vierge, à remplir dans l'ordre.",
         meta: "à partir de zéro",
@@ -1246,7 +1247,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
             <button type="button" key=${option.id}
               className=${`rsrc-option ${option.accent ? "accent" : ""}`}
               onClick=${option.pick}>
-              <span className="rsrc-option-icon">${option.icon}</span>
+              <span className="rsrc-option-icon"><${LineIcon} name=${option.icon} size=${22} /></span>
               <span className="rsrc-option-copy">
                 <span className="rsrc-option-title">${option.title}</span>
                 <span className="rsrc-option-sub">${option.sub}</span>
@@ -1312,7 +1313,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
           <div className="rimp-body">
             <div className="rimp-field-block">
               <div className=${`rimp-field ${error ? "err" : ""}`}>
-                <span className="rimp-field-icon">🔗</span>
+                <span className="rimp-field-icon"><${LineIcon} name="link" size=${16} /></span>
                 <input className="rimp-input" type="url"
                   placeholder="Colle l'adresse de la recette"
                   value=${importUrl}
@@ -1324,7 +1325,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
                 ` : null}
               </div>
               <button type="button" className="rimp-paste" onClick=${pasteImportUrl} disabled=${step === "loading"}>
-                📋 Coller depuis le presse-papier
+                Coller depuis le presse-papier
               </button>
               <span className=${`rimp-hint ${error ? "err" : ""}`}>
                 ${error || "La plupart des sites de cuisine fonctionnent. Le lien reste en note si la lecture échoue."}

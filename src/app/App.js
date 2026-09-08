@@ -5,10 +5,12 @@ import { HomeView } from "./pages/home/HomeView.js";
 import { AuthScreen } from "./pages/auth/AuthScreen.js";
 import { SegmentedTabs } from "./components/SegmentedTabs.js";
 import { ProfileModal, NotifPromptModal, InviteCodesModal, HouseholdWelcomeModal, NotificationModal, StaleTaskModal } from "./modals/AppModals.js";
+import { SNOOZE_OPTIONS, canSnoozeReminder, reminderAudience, snoozeDueDate } from "./utils/snooze.js";
 import {
   canChangePassword,
   getCurrentAuthMode,
   renameFamily,
+  scheduleSnoozedReminder,
   signInWithEmail,
   signInWithGoogle,
   signOutUser,
@@ -224,13 +226,18 @@ function AppShell() {
      destination (par exemple « efface la sous-page » puis « ouvre la section »).
      Avec des routes, cela empilait deux entrees d'historique identiques et le
      bouton retour paraissait ne rien faire au premier appui. */
-  function go(path, { replace = false } = {}) {
+  /* `direction` traverse react-router jusqu'à Ionic : `IonRouter` lit
+     `location.state.direction` et retombe sur « forward » quand il n'y a rien —
+     d'où l'animation de poussée par défaut. « none » supprime la transition
+     sans toucher à l'historique : c'est ce qu'il faut quand l'URL change mais
+     qu'aucune page ne s'empile (les 4 périodes de Tâches). */
+  function go(path, { replace = false, direction = "" } = {}) {
     if (path === location.pathname) return;
-    navigate(path, { replace });
+    navigate(path, { replace, state: direction ? { direction } : undefined });
   }
 
-  function setActiveTab(tab, { replace = false } = {}) {
-    go(pathForTab(tab), { replace });
+  function setActiveTab(tab, { replace = false, direction = "" } = {}) {
+    go(pathForTab(tab), { replace, direction });
   }
 
   /* Dernier écran hors réglages, pour savoir où revenir en fermant les
@@ -606,6 +613,7 @@ function AppShell() {
     handleMoveTask,
     handleChangeTaskPeriod,
     handleDismissStaleNotice,
+    handleRestoreStaleNotice,
   } = useTasks(updateState);
 
   useTaskNotifications({
@@ -613,20 +621,130 @@ function AppShell() {
     taskNotifications: state.taskNotifications,
     updateState,
     onNotification: setNotifPopup,
+    personId: linkedPerson?.id || "",
   });
 
-  const staleTaskAlerts = useStaleTaskAlerts(state.tasks);
-  const activeStaleTaskAlert = staleTaskAlerts[0] || null;
-  const activeStaleTask = activeStaleTaskAlert
-    ? state.tasks.find((task) => task.id === activeStaleTaskAlert.taskId) || null
-    : null;
+  /* ── 8a · report du rappel ──────────────────────────────────────────────
+     « Plus tard » ouvre une feuille d'action de trois créneaux. Le report ne
+     peut PAS être un minuteur de session : la popup ne vit que tant que l'app
+     est ouverte, alors qu'un rappel reporté doit revenir même app fermée. On
+     écrit donc le rappel dans Firestore et c'est le cron des Cloud Functions
+     qui renvoie le push (cf. `scheduleSnoozedReminder`). */
+  const [snoozeSheetOpen, setSnoozeSheetOpen] = useState(false);
 
-  function handleDismissStaleTaskAlert() {
-    if (activeStaleTaskAlert) handleDismissStaleNotice(activeStaleTaskAlert.taskId);
+  /* Périmètre du rappel affiché : ses personnes concernées, ou le foyer. Il
+     décide à la fois de la présence du bouton « Plus tard » et de qui recevra
+     le report. */
+  const notifPopupAudience = notifPopup
+    ? reminderAudience(notifPopup, { tasks: state.tasks, agenda: state.agenda, people: safePeople })
+    : null;
+  const canSnoozeNotifPopup = canSnoozeReminder(notifPopupAudience, {
+    personId: linkedPerson?.id || "",
+    role: currentRole,
+  });
+
+  /* La feuille se referme d'elle-même après le tap (Ionic), et son
+     `onDidDismiss` la démonte : rien à fermer ici. */
+  async function handleSnoozeNotifPopup(optionId) {
+    const pending = notifPopup;
+    const audience = notifPopupAudience;
+    if (!pending || !audience) return;
+    const option = SNOOZE_OPTIONS.find((item) => item.id === optionId);
+    if (!option) return;
+
+    if (!currentFamilyId || !user?.uid) {
+      showToast("Impossible de reporter le rappel pour le moment.");
+      return;
+    }
+
+    /* Les personnes du périmètre sans compte lié n'ont pas de jeton : elles
+       sortent d'elles-mêmes de la liste. L'auteur, lui, y est toujours. */
+    const audienceUids = audience.personIds
+      .map((personId) => safePeople.find((person) => person.id === personId)?.linkedAccountId || "")
+      .filter(Boolean);
+
+    setNotifPopup(null);
+    try {
+      await scheduleSnoozedReminder({
+        familyId: currentFamilyId,
+        uid: user.uid,
+        dueAt: snoozeDueDate(optionId, getCurrentAppDate()),
+        notification: pending,
+        scope: audience.scope,
+        uids: audienceUids,
+      });
+      /* Sans permission le rappel part quand même en base : la personne peut
+         activer les notifications d'ici l'échéance, et le cron poussera vers
+         les jetons présents à ce moment-là. */
+      const who = audience.scope === "household" ? " pour tout le foyer" : "";
+      showToast(pushPermission === "granted"
+        ? `Rappel reporté ${option.toast}${who}`
+        : `Rappel reporté ${option.toast}${who} — active les notifications pour le recevoir`);
+    } catch (error) {
+      console.error("[notifications] report du rappel échoué", error);
+      showToast("Le report n'a pas pu être enregistré.");
+      setNotifPopup(pending);
+    }
   }
 
-  function handleMoveStaleTaskToPeriod(period) {
-    if (activeStaleTaskAlert) handleChangeTaskPeriod(activeStaleTaskAlert.taskId, period);
+  /* Les tâches de la popup sont relues dans l'état à chaque rendu : la charge
+     de la notification est un instantané, or on coche maintenant depuis la
+     carte — sans ça la coche ne se verrait pas. */
+  const notifPopupTasks = (() => {
+    if (!notifPopup) return [];
+    const ids = Array.isArray(notifPopup.tasks) && notifPopup.tasks.length
+      ? notifPopup.tasks.map((task) => task.id)
+      : notifPopup.taskIds ? String(notifPopup.taskIds).split(",").filter(Boolean)
+      : notifPopup.taskId ? [notifPopup.taskId] : [];
+    return ids.map((id) => state.tasks.find((task) => task.id === id)).filter(Boolean);
+  })();
+
+  const staleTaskAlerts = useStaleTaskAlerts(state.tasks);
+  const firstStaleAlert = staleTaskAlerts[0] || null;
+
+  /* ── 8b · la relance se retient ─────────────────────────────────────────
+     La carte a maintenant un second temps (« c'est déplacé », avec Annuler).
+     Or déplacer la tâche la sort de la liste des relances : dérivée du state,
+     la modale se démonterait au moment précis où elle doit montrer ce qu'elle
+     vient de faire. On fige donc l'alerte à l'ouverture, et c'est la fermeture
+     qui la relâche. */
+  const [staleLatch, setStaleLatch] = useState(null);
+  const staleSkippedRef = useRef(new Set());
+
+  useEffect(() => {
+    if (staleLatch || notifPopup || !firstStaleAlert) return;
+    if (staleSkippedRef.current.has(firstStaleAlert.taskId)) return;
+    const task = state.tasks.find((item) => item.id === firstStaleAlert.taskId);
+    if (task) setStaleLatch({ alert: firstStaleAlert, task });
+  }, [firstStaleAlert?.taskId, Boolean(staleLatch), Boolean(notifPopup)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* « Plus tard » ferme sans marquer la relance vue : elle reviendra à la
+     prochaine session, contrairement à « Ne plus me relancer ». */
+  function handleLaterStaleTask() {
+    if (staleLatch) staleSkippedRef.current.add(staleLatch.alert.taskId);
+    setStaleLatch(null);
+  }
+
+  function handleDismissStaleTaskAlert() {
+    if (staleLatch) handleDismissStaleNotice(staleLatch.alert.taskId);
+    handleLaterStaleTask();
+  }
+
+  function handleMoveStaleTaskToPeriod(period, options) {
+    if (staleLatch) handleChangeTaskPeriod(staleLatch.alert.taskId, period, options);
+  }
+
+  /* Le bouton « Garder la relance » du second temps : décoché, il marque la
+     notice vue sans fermer la carte. */
+  function handleSetStaleNotice(keep) {
+    if (!staleLatch) return;
+    if (keep) handleRestoreStaleNotice(staleLatch.alert.taskId);
+    else handleDismissStaleNotice(staleLatch.alert.taskId);
+  }
+
+  function handleOpenStaleTask() {
+    if (staleLatch) setActiveTab(staleLatch.task.type === "monthly" ? "monthly" : "weekly");
+    handleLaterStaleTask();
   }
 
   function handleUpdateTaskNotifications(updates) {
@@ -1180,7 +1298,7 @@ function AppShell() {
                           { id: "mine",    emoji: "👤",  label: "Mes tâches" },
                         ]}
                         activeId=${tab}
-                        onChange=${setActiveTab}
+                        onChange=${(period) => setActiveTab(period, { direction: "none" })}
                       />
           <//>
         ` : null}
@@ -1428,6 +1546,12 @@ function AppShell() {
      déclencheraient une animation de transition entre deux onglets segmentés,
      ce qui n'est pas le geste.
 
+     La route commune ne suffisait pas : l'URL change quand même
+     (`/tasks/weekly` → `/tasks/monthly`), et Ionic anime toute navigation dont
+     la direction n'est pas précisée — le contenu glissait de droite à gauche à
+     chaque clic sur un segment. Le segment appelle donc `setActiveTab` avec
+     `direction: "none"` (cf. `go`).
+
      La période vient de l'URL, avec un repli sur `lastTaskTab` : pendant la
      transition qui QUITTE les tâches, `activeTab` vaut déjà l'écran de
      destination, et la page sortante afficherait le contenu de la page
@@ -1501,18 +1625,51 @@ ${/* Modals — absolute-positioned within the shell */null}
       ${notifPopup ? html`
         <${NotificationModal}
           notification=${notifPopup}
+          tasks=${notifPopupTasks}
+          activePersonId=${activePersonId}
           onClose=${() => setNotifPopup(null)}
           onNavigate=${handleNotifPopupNavigate}
+          onToggleTask=${handleToggleTask}
+          onSnooze=${canSnoozeNotifPopup ? () => setSnoozeSheetOpen(true) : null}
         />
       ` : null}
 
-      ${!notifPopup && activeStaleTask ? html`
+      ${/* Les créneaux de report vivent dans une feuille d'action et non en
+           pastilles dans la carte : trois libellés lisibles, posés dans la
+           zone du pouce, et la modale reste intacte si on annule.
+
+           Montée à la demande, contrairement à la feuille « Plus » : deux
+           `<ion-action-sheet>` en permanence dans le document rendraient
+           ambigu le `querySelector("ion-action-sheet")` — celui des tests de
+           navigation, mais aussi celui de tout lecteur d'écran qui suit
+           l'ordre du DOM. */null}
+      ${snoozeSheetOpen ? html`
+        <${IonActionSheet}
+          isOpen=${true}
+          header="Me le rappeler…"
+          className="mrd-snooze-sheet"
+          onDidDismiss=${() => setSnoozeSheetOpen(false)}
+          buttons=${[
+            ...SNOOZE_OPTIONS.map((option) => ({
+              text: option.label,
+              handler: () => { handleSnoozeNotifPopup(option.id); },
+            })),
+            { text: "Annuler", role: "cancel" },
+          ]}
+        />
+      ` : null}
+
+      ${!notifPopup && staleLatch ? html`
         <${StaleTaskModal}
-          task=${activeStaleTask}
-          alert=${activeStaleTaskAlert}
-          onClose=${handleDismissStaleTaskAlert}
-          onMoveToDaily=${() => handleMoveStaleTaskToPeriod("daily")}
-          onMoveToWeekly=${() => handleMoveStaleTaskToPeriod("weekly")}
+          key=${staleLatch.alert.taskId}
+          task=${staleLatch.task}
+          alert=${staleLatch.alert}
+          onClose=${handleLaterStaleTask}
+          onLater=${handleLaterStaleTask}
+          onDismiss=${handleDismissStaleTaskAlert}
+          onMovePeriod=${handleMoveStaleTaskToPeriod}
+          onSetStaleNotice=${handleSetStaleNotice}
+          onOpenTask=${handleOpenStaleTask}
         />
       ` : null}
 

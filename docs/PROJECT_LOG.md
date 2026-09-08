@@ -2,6 +2,81 @@
 
 ---
 
+## [2026-09-07] — Import de recette depuis la console admin, nouvelle clé Anthropic
+
+Le bouton « Importer depuis une URL » de la console admin (MRD-40) renvoyait un 501 `not-wired` : les deux callables Python de l'app (`scrape_recipe`, `categorize_recipe`) exigent un jeton Firebase Auth, et la console s'authentifie par mot de passe. Des trois sorties notées dans le code, c'est le **chemin serveur à serveur** qui a été retenu — pas de compte fantôme, et le code d'analyse reste unique.
+
+### Ce qui change
+
+- `functions-py/main.py` : les corps des deux callables deviennent `_scrape(url)` et `_categorize(recipe)` ; les `on_call` ne sont plus que des enveloppes. Nouvelle fonction HTTP `import_recipe` qui enchaîne les deux en un appel et réduit la photo à 300 px / JPEG 60 avec Pillow (la même cible que `compressImageDataUrl` côté app — sinon la photo brute peut dépasser la limite de 1 Mio du document Firestore). L'échec de l'IA n'est pas fatal : la recette brute est renvoyée avec `analysis: null` et `analysis_error`, exactement le repli de l'app.
+- Authentification de `import_recipe` : jeton d'identité Google du compte de service de la fonction `admin` (`google-auth-library`, `getIdTokenClient`). Côté Python, `_verify_service_caller` vérifie signature, audience (l'URL de la fonction, `IMPORT_RECIPE_AUDIENCE`) et émetteur (`IMPORT_RECIPE_CALLERS`, défaut : compte de calcul du projet). La fonction reste publique au sens IAM ; c'est la vérification du jeton qui ferme la porte.
+- `functions/admin/recipeImport.js` : l'appelant, et `recipeDocFromImport`, qui produit un document au format de `buildRecipePayload` (labels = régime + contraintes, `quick` déduit du temps, disponibilité déduite des mois) plus `sourceUrl` / `sourceHost` / `importedAt`. Copie assumée : `functions/` est déployé seul et ne peut pas importer `src/`.
+- `functions/index.js` : la fonction `admin` passe à `timeoutSeconds: 300` (scraping + IA peuvent prendre deux minutes ; le défaut de 60 s coupait avant).
+- Page admin : le message d'échec affiche désormais la cause renvoyée par le serveur au lieu de « Vérifie le lien » quelle que soit l'erreur.
+- Tests : 375 unitaires au vert, dont 6 nouveaux sur la route et 6 sur le module d'import.
+
+### Clé Anthropic
+
+Nouvelle clé posée dans `functions-py/.env` (non versionné). Vérification locale : la clé est **acceptée** mais l'API répond `Your credit balance is too low to access the Anthropic API` — le compte n'a pas de crédit. Tant que ce n'est pas réglé sur platform.claude.com, l'import fonctionne (scraping, photo, ingrédients bruts) mais la catégorie, le régime et les étapes restent à saisir, et la console l'annonce. La cause exacte est désormais journalisée côté serveur (`[categorize_recipe] échec Anthropic : …`) ; avant, l'exception était avalée sans trace.
+
+---
+
+## [2026-09-04] — Onglets de tâches sans transition, clic inerte sur une tâche, icône native corrigée
+
+Trois signalements à l'usage, sans rapport entre eux.
+
+### 1. La barre segmentée des tâches poussait une page
+
+Cliquer sur « Semaine » ou « Mois » faisait glisser le contenu de droite à gauche, comme une entrée dans une sous-page. Le commentaire des routes affirmait que le problème était réglé — une seule route `/tasks/:period` pour les quatre périodes, précisément pour éviter ça. Il l'était à moitié : la route est bien unique, mais **l'URL change quand même** (`/tasks/weekly` → `/tasks/monthly`), et `IonRouter` lit `location.state.direction` avec un repli sur `"forward"`. Toute navigation dont on ne précise pas la direction est donc animée.
+
+La direction voyage à travers react-router : `navigate(path, { state: { direction } })`. Côté Ionic, `routeDirection: "none"` fait tomber `directionToUse` à `undefined`, ce qui déclenche la bascule synchrone des pages au lieu d'une transition (`@ionic/react-router`, `transitionPage`).
+
+Le reste de la navigation garde son animation : seule la barre segmentée passe `"none"`.
+
+### 2. Le clic sur une tâche ouvrait une modale de détail
+
+Une modale s'ouvrait au moindre appui sur une carte. Elle n'affichait rien de plus que la carte elle-même (elle rendait `TaskCard`) et n'avait **aucune autre porte d'entrée** que ce clic. Le menu `⋮` de chaque carte portait déjà « Modifier » et « Supprimer ». Retirée entièrement plutôt que neutralisée : garder l'état et le rendu d'une modale que rien n'ouvre, c'est du code mort qui a l'air vivant.
+
+`suppressOpenRef` disparaît avec elle. Il servait à empêcher la modale de s'ouvrir juste après un glissé de réordonnancement ; sans clic, il n'a plus rien à empêcher. L'appui long qui réordonne et les pastilles de validation par personne sont inchangés.
+
+### 3. L'icône native était le favicon agrandi
+
+L'icône de l'écran d'accueil, iOS comme Android, était visiblement plus grasse que celle de la même app installée depuis le web. Cause : `scripts/generate-app-icons.mjs` partait de `src/assets/brand/favicon.svg`.
+
+Le dépôt porte **deux dessins voisins et volontairement distincts**, et le script confondait les deux :
+
+| | motif / canevas | épaisseur du trait |
+|---|---|---|
+| `favicon.svg` — favicon 32 px | 64,5 % | 8,4 % du diamètre de l'anneau |
+| icône d'app (`icon-512.png`, `icon-192.png`, `icon-maskable-512.png`) | 56,6 % | 3,6 % |
+
+Le favicon est épais **exprès**, pour rester lisible dans un onglet. L'agrandir en 1024 donne une icône d'app trop lourde. Vérifié dans les deux sens : rastériser `favicon.svg` en 1024 redonnait l'ancienne icône iOS **au pixel près** (RMSE 0).
+
+Il manquait la source vectorielle de l'icône d'app — seuls des PNG existaient, et le script refuse à juste titre de repasser sur un raster (agrandir `icon-512.png` en 1024 divise la netteté par trois, mesuré à l'écart-type du laplacien : 11,97 → 4,10). `src/assets/brand/icon.svg` a donc été reconstruit en mesurant `icon-512.png` : rayons, épaisseurs, opacité de l'anneau tireté (0,55), motif de tirets (`13 26`, bouts ronds) et phase. Contrôle : rendu en 512 et en 192, il redonne `icon-512.png` et `icon-192.png` avec une emprise de motif **identique au pixel** (290×305 et 110×115), l'écart résiduel (RMSE ~1,5 %) n'étant que de l'antialiasing entre rastériseurs.
+
+Au passage, le premier plan adaptatif Android était aussi **décentré** — le motif tirait vers le haut à gauche. Il est maintenant centré et occupe 56,9 % de la zone visible de 72 dp, contre 56,6 % pour l'icône plate iOS et 56,1 % de la zone sûre de `icon-maskable-512.png` : même respiration sur les trois surfaces.
+
+**Non corrigé, à décider :** `src/assets/brand/apple-touch-icon.png` appartient à l'autre famille — motif à 64,4 %, fond en **dégradé** vertical (#BF6E59 → #A4523E) et coins arrondis transparents, là où tous les autres ont un aplat #B85F4A. C'est le seul fichier de la marque dans ce cas. Il n'a pas été touché : le dégradé a l'air d'un choix, pas d'un accident, et il ne concerne que le raccourci web iOS.
+
+### Fichiers
+
+| Fichier | Changement |
+|---|---|
+| `src/app/App.js` | `go()` et `setActiveTab()` acceptent une option `direction`, passée à Ionic via l'état de navigation de react-router. La barre segmentée des tâches appelle `setActiveTab(period, { direction: "none" })`. Commentaire des routes corrigé : il prétendait que la route unique suffisait. |
+| `src/app/pages/tasks/TasksView.js` | Modale de détail supprimée : états `selectedTaskId` et `detailMenuOpen`, `openTaskDetails`, `closeTaskDetails`, `handleTaskMainClick`, `suppressOpenRef`, les deux `onClick` sur `.task-main` (liste courante et cartes « à faire avant »), le bloc de rendu, et l'import `SharedTaskCard` devenu inutile. |
+| `src/theme/styles.css` | `.task-main` perd `cursor: pointer` — plus rien ne s'ouvre au clic. Le `user-select: none` reste : il sert à l'appui long de réordonnancement. |
+| `src/assets/brand/icon.svg` | **Nouveau.** Source vectorielle de l'icône d'application, carré plein 512 sans coins arrondis (iOS et Android appliquent leur masque, et l'App Store refuse la transparence). |
+| `scripts/generate-app-icons.mjs` | Source basculée de `favicon.svg` vers `icon.svg`. En-tête réécrit : la distinction entre les deux dessins est désormais la première chose qu'on y lit. Le retrait du `rx` reste en garde-fou. |
+| `ios/.../AppIcon-512@2x.png`, `android/.../mipmap-*/ic_launcher{,_round,_foreground}.png` | Régénérés (16 fichiers). |
+
+### Vérifié
+
+354 tests unitaires verts, `npm run build` OK, e2e `navigation` 9/9 et e2e `tasks` 60/60. Icône iOS contrôlée sans canal alpha (exigence App Store) et à 1024×1024. Icône adaptative Android composée à la main (fond + premier plan, rognée aux 72 dp centraux puis masquée en cercle) pour vérifier le cadrage réel d'un lanceur.
+
+Un premier `npm run test` complet a rendu 3 échecs et 4 annulations, tous en `parentAlreadyFinished` : deux exécutions e2e tournaient en parallèle et dépassaient le budget de 240 s du test parent. Relancées seules, les deux suites concernées passent intégralement. La suite complète n'a pas été rejouée d'un bloc après coup (~15 min).
+
+---
+
 ## [2026-08-25] — Feuille « Remplir la semaine » refaite d'après le handoff design
 
 L'ancienne feuille était une rangée de puces en vrac : régime, contraintes et options se ressemblaient toutes, et rien ne disait ce qu'on décidait. Le handoff (`design_handoff_remplir_semaine`) impose **une décision par ligne**, chaque ligne étiquetée à gauche, le tout dans ~200 px au-dessus de la barre d'onglets.

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "../lib.js";
+import { taskConcernsPerson } from "../utils/snooze.js";
 import { getCurrentAppDate, localDateKey } from "../utils/date.js";
 import { getNotificationPermissionState, showAppNotification } from "../plugins/notifications.js";
 
@@ -96,7 +97,7 @@ function buildDueReminder(task, settings) {
   };
 }
 
-function checkTaskNotifications(tasks, settings, updateState, onNotification) {
+function checkTaskNotifications(tasks, settings, updateState, onNotification, personId) {
   if (getNotificationPermissionState() !== "granted") return;
   if (!settings?.enabled) return;
   if (!Array.isArray(tasks) || tasks.length === 0) return;
@@ -120,7 +121,9 @@ function checkTaskNotifications(tasks, settings, updateState, onNotification) {
         (t) => Array.isArray(t.notificationLog) && t.notificationLog.includes(eodKey),
       );
       if (!alreadySent && !_taskSentThisSession.has(eodKey)) {
-        // Tâches du jour : récurrentes quotidiennes + tâches dont l'échéance est aujourd'hui
+        // Tâches du jour : récurrentes quotidiennes + tâches dont l'échéance est
+        // aujourd'hui. Ce récapitulatif couvre le jour entier, assignations
+        // mélangées : il reste une affaire de foyer.
         const undone = tasks.filter(
           (t) => !isTaskDone(t) && (t.type === "daily" || t.dueDate === todayKey)
         );
@@ -144,6 +147,9 @@ function checkTaskNotifications(tasks, settings, updateState, onNotification) {
     tasks.forEach((task) => {
       if (task.priority !== "urgent" && !task.critical) return;
       if (isTaskDone(task)) return;
+      /* Une tâche assignée ne regarde que ses assignés — le serveur ne la leur
+         envoie qu'à eux, ce chemin local doit dire la même chose. */
+      if (!taskConcernsPerson(task, personId)) return;
       const key = `${task.id}-urgent-${todayKey}`;
       if (Array.isArray(task.notificationLog) && task.notificationLog.includes(key)) return;
       if (_taskSentThisSession.has(key)) return;
@@ -162,6 +168,7 @@ function checkTaskNotifications(tasks, settings, updateState, onNotification) {
   if (settings.due) {
     tasks.forEach((task) => {
       if (isTaskDone(task)) return;
+      if (!taskConcernsPerson(task, personId)) return;
       const reminder = buildDueReminder(task, settings);
       if (!reminder) return;
       const sent = Array.isArray(task.notificationLog) && task.notificationLog.includes(reminder.key);
@@ -191,20 +198,22 @@ function checkTaskNotifications(tasks, settings, updateState, onNotification) {
   }));
 }
 
-export function useTaskNotifications({ tasks, taskNotifications, updateState, onNotification }) {
+export function useTaskNotifications({ tasks, taskNotifications, updateState, onNotification, personId = "" }) {
   const tasksRef = useRef(tasks);
   const settingsRef = useRef(taskNotifications);
   const updateStateRef = useRef(updateState);
   const onNotificationRef = useRef(onNotification);
+  const personIdRef = useRef(personId);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { personIdRef.current = personId; }, [personId]);
   useEffect(() => { settingsRef.current = taskNotifications; }, [taskNotifications]);
   useEffect(() => { updateStateRef.current = updateState; }, [updateState]);
   useEffect(() => { onNotificationRef.current = onNotification; }, [onNotification]);
 
   useEffect(() => {
     function check() {
-      checkTaskNotifications(tasksRef.current, settingsRef.current, updateStateRef.current, onNotificationRef.current);
+      checkTaskNotifications(tasksRef.current, settingsRef.current, updateStateRef.current, onNotificationRef.current, personIdRef.current);
     }
     function handleVisibility() {
       if (document.visibilityState === "visible") check();

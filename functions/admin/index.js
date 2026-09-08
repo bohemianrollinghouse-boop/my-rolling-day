@@ -12,6 +12,7 @@ const {
 } = require("./auth.js");
 const { loginPage, consolePage } = require("./page.js");
 const queries = require("./queries.js");
+const { recipeDocFromImport } = require("./recipeImport.js");
 
 /**
  * Limitation des tentatives, par IP.
@@ -68,7 +69,7 @@ function readBody(req, key) {
   return "";
 }
 
-function createAdminHandler({ db, password }) {
+function createAdminHandler({ db, password, importRecipe }) {
   return async function adminHandler(req, res) {
     const route = routeOf(req);
     const secret = String(password || "");
@@ -129,21 +130,38 @@ function createAdminHandler({ db, password }) {
       }
 
       if (route === "/api/recipes/import" && req.method === "POST") {
-        // Les fonctions Python scrape_recipe et categorize_recipe sont des
-        // `on_call` et appellent _require_auth : elles refusent tout appel sans
-        // jeton Firebase Auth. Cette console s'authentifie par mot de passe, pas
-        // par Firebase Auth — il n'y a donc pas de jeton a presenter.
-        //
-        // Trois sorties possibles, toutes des decisions produit : creer un
-        // utilisateur technique dedie et signer un jeton personnalise, ouvrir un
-        // chemin serveur-a-serveur sur les fonctions Python, ou lancer l'import
-        // depuis l'app. Aucune ne doit etre choisie a la legere : la premiere
-        // fait apparaitre un compte fantome dans la liste des utilisateurs.
+        // Les callables Python de l'app exigent Firebase Auth ; la console
+        // s'authentifie par mot de passe. L'import passe donc par la fonction
+        // HTTP `import_recipe`, appelee serveur a serveur avec un jeton
+        // d'identite Google (voir recipeImport.js). Sans appelant injecte, on
+        // le dit franchement plutot que d'echouer en silence.
+        if (typeof importRecipe !== "function") {
+          json(res, { ok: false, error: "not-wired", message: "L'import n'est pas configure sur ce deploiement." }, 501);
+          return;
+        }
+        const url = readBody(req, "url").trim();
+        if (!url) { json(res, { ok: false, error: "invalid-argument", message: "Colle d'abord un lien." }, 400); return; }
+        let imported;
+        try {
+          imported = await importRecipe(url);
+        } catch (error) {
+          const status = Number(error && error.status) || 502;
+          json(res, { ok: false, error: (error && error.code) || "import-failed", message: (error && error.message) || "L'import a echoue." }, status);
+          return;
+        }
+        const doc = recipeDocFromImport({ url, scraped: imported.scraped, analysis: imported.analysis });
+        if (!doc.name && !doc.ingredients.length) {
+          json(res, { ok: false, error: "empty", message: "Aucune recette exploitable sur cette page." }, 422);
+          return;
+        }
+        const ref = await db.collection("recipes").add(doc);
         json(res, {
-          ok: false,
-          error: "not-wired",
-          message: "L'import reutilise scrape_recipe et categorize_recipe, qui exigent une authentification Firebase. Le chemin d'appel reste a decider.",
-        }, 501);
+          ok: true,
+          id: ref.id,
+          name: doc.name || "Recette sans nom",
+          category: doc.category,
+          warning: imported.analysis ? "" : (imported.analysis_error || "L'analyse IA a echoue : categorie et regime restent a choisir."),
+        });
         return;
       }
 

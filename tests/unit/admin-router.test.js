@@ -125,11 +125,91 @@ test("admin : sans ADMIN_PASSWORD, la console refuse de servir quoi que ce soit"
 
 // ── Import de recettes ────────────────────────────────────────────────────
 
-test("admin : l'import annonce franchement qu'il n'est pas cable", async () => {
+test("admin : sans appelant d'import, la route le dit franchement", async () => {
   // Mieux vaut un 501 explicite qu'un bouton qui echoue sans dire pourquoi.
   const res = fakeRes();
   await handler(req({ path: "/api/recipes/import", method: "POST", cookie: validCookie(), body: { url: "https://x" } }), res);
   assert.equal(res.statusCode, 501);
   assert.equal(res.body.ok, false);
-  assert.match(res.body.message, /authentification Firebase/);
+  assert.equal(res.body.error, "not-wired");
+});
+
+function fakeDb() {
+  const added = [];
+  return {
+    added,
+    collection(name) {
+      assert.equal(name, "recipes");
+      return { add: async (doc) => { added.push(doc); return { id: "r1" }; } };
+    },
+  };
+}
+const SCRAPED = {
+  title: "Tarte aux pommes", ingredients: ["3 pommes", "1 pâte"], instructions: "Faire.",
+  yields: "6 servings", prep_time_min: 15, cook_time_min: 30, image_data_url: "",
+};
+const ANALYSIS = {
+  category: "dessert", food_type: "vegetarian", constraints: [], quick: false,
+  availability_mode: "season", seasons: ["autumn"], months: [], servings: 6,
+  title_fr: "", steps: ["Éplucher.", "Cuire."], condiments: ["cannelle"],
+  ingredients: [{ name: "pomme", quantity: "3", unit: "unite", group: "" }],
+};
+
+test("admin : l'import ecrit la recette dans le catalogue et renvoie son nom", async () => {
+  const db = fakeDb();
+  const calls = [];
+  const h = createAdminHandler({ db, password: PWD, importRecipe: async (url) => { calls.push(url); return { scraped: SCRAPED, analysis: ANALYSIS, analysis_error: "" }; } });
+  const res = fakeRes();
+  await h(req({ path: "/api/recipes/import", method: "POST", cookie: validCookie(), body: { url: "https://site.fr/tarte" } }), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls, ["https://site.fr/tarte"]);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.id, "r1");
+  assert.equal(res.body.name, "Tarte aux pommes");
+  assert.equal(res.body.warning, "");
+  assert.equal(db.added.length, 1);
+  assert.equal(db.added[0].category, "dessert");
+  assert.deepEqual(db.added[0].labels, ["vegetarian"]);
+  assert.equal(db.added[0].availabilityMode, "season");
+  assert.deepEqual(db.added[0].months, [9, 10, 11]);
+  assert.equal(db.added[0].sourceHost, "site.fr");
+});
+
+test("admin : IA en echec, la recette brute est quand meme importee avec un avertissement", async () => {
+  const db = fakeDb();
+  const h = createAdminHandler({ db, password: PWD, importRecipe: async () => ({ scraped: SCRAPED, analysis: null, analysis_error: "L'analyse IA a échoué. Réessaie." }) });
+  const res = fakeRes();
+  await h(req({ path: "/api/recipes/import", method: "POST", cookie: validCookie(), body: { url: "https://site.fr/tarte" } }), res);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body.warning, /IA/);
+  assert.equal(db.added[0].category, "");
+  assert.equal(db.added[0].ingredients.length, 2);
+  assert.equal(db.added[0].ingredients[0].name, "3 pommes");
+});
+
+test("admin : l'erreur de la fonction Python remonte avec son statut et son message", async () => {
+  const db = fakeDb();
+  const err = Object.assign(new Error("Aucune recette détectée sur cette page."), { status: 404, code: "not-found" });
+  const h = createAdminHandler({ db, password: PWD, importRecipe: async () => { throw err; } });
+  const res = fakeRes();
+  await h(req({ path: "/api/recipes/import", method: "POST", cookie: validCookie(), body: { url: "https://site.fr/rien" } }), res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error, "not-found");
+  assert.match(res.body.message, /Aucune recette/);
+  assert.equal(db.added.length, 0);
+});
+
+test("admin : l'import sans lien est refuse avant tout appel", async () => {
+  const h = createAdminHandler({ db: fakeDb(), password: PWD, importRecipe: async () => { throw new Error("ne doit pas etre appele"); } });
+  const res = fakeRes();
+  await h(req({ path: "/api/recipes/import", method: "POST", cookie: validCookie(), body: { url: "  " } }), res);
+  assert.equal(res.statusCode, 400);
+});
+
+test("admin : l'import exige une session, comme le reste de l'API", async () => {
+  const res = fakeRes();
+  await createAdminHandler({ db, password: PWD, importRecipe: async () => { throw new Error("ne doit pas etre appele"); } })(
+    req({ path: "/api/recipes/import", method: "POST", body: { url: "https://x" } }), res,
+  );
+  assert.equal(res.statusCode, 401);
 });

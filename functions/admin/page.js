@@ -291,14 +291,24 @@ async function renderRecipes() {
     const url = $("#url").value.trim();
     const msg = $("#importMsg");
     if (!url) { msg.textContent = "Colle d'abord un lien."; return; }
-    msg.textContent = "Extraction en cours…";
+    msg.textContent = "Extraction puis analyse IA en cours… (jusqu'à deux minutes)";
+    $("#go").disabled = true;
     try {
-      const r = await api("/recipes/import", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }),
+      const res = await fetch("/admin/api/recipes/import", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }),
       });
-      msg.textContent = r && r.ok ? "Recette importée : " + r.name : "L'import n'a rien renvoyé.";
-      if (r && r.ok) setTimeout(renderRecipes, 800);
-    } catch (e) { msg.textContent = "Échec de l'import. Vérifie le lien."; }
+      if (res.status === 401) { location.href = "/admin"; return; }
+      let r = null;
+      try { r = await res.json(); } catch (_) { r = null; }
+      if (r && r.ok) {
+        msg.textContent = "Recette importée : " + r.name + (r.warning ? " — " + r.warning : "");
+        setTimeout(renderRecipes, 1200);
+      } else {
+        msg.textContent = (r && r.message) || ("Échec de l'import (HTTP " + res.status + ").");
+      }
+    } catch (e) { msg.textContent = "Échec de l'import : la console n'a pas pu joindre le serveur."; }
+    finally { const b = $("#go"); if (b) b.disabled = false; }
   });
 }
 

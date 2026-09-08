@@ -86,6 +86,38 @@ service cloud.firestore {
         allow write: if isFamilyMember(familyId);
       }
 
+      // Rappels reportes depuis la popup 8a (« Plus tard »). Le document
+      // n'existe que tant que le rappel est en attente : la Cloud Function le
+      // supprime apres l'envoi.
+      //
+      // `uid` est l'auteur du report, `scope` son perimetre :
+      //
+      //   person    — la tache est assignee : le report ne repart qu'a ses
+      //               assignes, et l'auteur doit en faire partie. Sans cette
+      //               condition, un membre programmerait des notifications sur
+      //               le telephone d'un autre.
+      //   household — personne n'est assigne : le rappel est celui de la
+      //               maison, le report vaut pour tout le monde, et seul un
+      //               admin peut l'engager.
+      //
+      // Le bouton « Plus tard » masque cote client n'est qu'une commodite :
+      // c'est ici que la permission est reellement tenue. Pas d'update : un
+      // report ne se modifie pas, il se reprogramme.
+      match /reminders/{reminderId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.uid == request.auth.uid
+          && (
+               (request.resource.data.scope == 'person'
+                 && request.auth.uid in request.resource.data.uids)
+               || (request.resource.data.scope == 'household'
+                 && isFamilyAdmin(familyId))
+             );
+        allow delete: if isFamilyMember(familyId)
+          && resource.data.uid == request.auth.uid;
+        allow update: if false;
+      }
+
       match /serverNotificationLog/{logId} {
         allow read: if isFamilyMember(familyId);
         allow write: if false; // écrit uniquement par Cloud Functions

@@ -1390,7 +1390,10 @@ html[data-theme="dark"] .auth-cta-secondary { background: var(--mrd-surf2); bord
 .task-card.done { opacity: 1; background: var(--mrd-surf2); border-color: var(--mrd-border); box-shadow: var(--mrd-shadowSm); }
 .task-card.overdue { border-color: var(--mrd-dangerMd); box-shadow: 0 0 0 1px oklch(90% 0.07 15 / 0.35), 0 10px 28px oklch(42% 0.17 17 / 0.08); }
 .task-card-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
-.task-main { min-width: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+/* Pas de `cursor: pointer` : un clic sur une tâche n'ouvre rien. Seuls les
+   boutons de la carte (personnes, ⋮, suppression) agissent. Le `user-select`
+   reste, lui : il sert à l'appui long qui réordonne la liste. */
+.task-main { min-width: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .task-main, .task-main * { user-select: none; -webkit-user-select: none; }
 .task-headline { display: flex; align-items: flex-start; gap: 10px; }
 .task-headline.no-emoji { gap: 0; }
@@ -5314,43 +5317,6 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
   font-size: 30px;
   box-shadow: var(--mrd-shadowSm);
 }
-/* ── Modal relance "tâche non faite" ── */
-.stale-task-modal-icon {
-  width: 56px;
-  height: 56px;
-  margin: 2px auto 14px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  box-shadow: var(--mrd-shadowSm);
-  background: var(--mrd-amberLt);
-  color: var(--mrd-amberDeep);
-}
-.stale-task-modal-icon.is-monthly { background: var(--mrd-dangerLt); color: var(--mrd-danger); }
-.stale-task-modal-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--mrd-surf2);
-  border: 1px solid var(--mrd-borderSoft);
-  border-radius: 14px;
-  padding: 12px 14px;
-}
-.stale-task-modal-card-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.stale-task-modal-card-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--mrd-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.stale-task-modal-tag { align-self: flex-start; background: var(--mrd-amberLt); color: var(--mrd-amberDeep); }
-.stale-task-modal-tag.is-monthly { background: var(--mrd-dangerLt); color: var(--mrd-danger); }
-.stale-task-modal-message { margin: 12px 0 0; font-size: 13px; color: var(--mrd-fg2); line-height: 1.5; text-align: left; }
-.stale-task-modal-message strong { color: var(--mrd-fg); }
 .onboarding-badge-preview { width: 74px; height: 74px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; color: var(--mrd-white); font-size: 28px; font-weight: 700; box-shadow: var(--mrd-shadowLg); }
 .onboarding-color-grid { margin-top: 4px; }
 .onboarding-color-option { border-radius: 10px; }
@@ -5856,48 +5822,414 @@ html[data-theme="dark"] .auth-back:hover { background: var(--mrd-surf2); color: 
   background: transparent;
   color: var(--mrd-fg2);
 }
-/* ── Liste de tâches dans la popup de notification ── */
-.notification-modal-task-list {
+/* ── Modales de rappel — 8a le rappel, 8b la relance ─────────────────────
+   Les trois modales de rappel étaient des cartes centrées à gros emoji, texte
+   centré et une rangée de boutons qui débordait à trois. La carte reste
+   centrée, mais elle change de nature : en-tête à vignette et sur-titre, texte
+   aligné à gauche, contenu actionnable (cocher, choisir, reporter) et un seul
+   bouton plein.
+
+   8a et 8b partagent tout le châssis (`.rmd`) — seul le corps diffère. La
+   teinte vient d'une variante posée sur le conteneur : elle habille la
+   vignette, le sur-titre et les pastilles d'un coup, sans qu'un seul composant
+   ait à connaître le scénario. */
+.mrd-modal.rmd-card {
+  --width: min(380px, calc(100% - 40px));
+  --max-width: 380px;
+  --border-radius: 26px;
+}
+.mrd-shell .rmd {
+  --rmd-lt: var(--mrd-aLt);
+  --rmd-md: var(--mrd-aMd);
+  --rmd-fg: var(--mrd-a);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 18px;
+  background: var(--mrd-surf);
+}
+.mrd-shell .rmd--amber  { --rmd-lt: var(--mrd-amberLt);  --rmd-md: var(--mrd-amberMd);  --rmd-fg: var(--mrd-amber); }
+.mrd-shell .rmd--danger { --rmd-lt: var(--mrd-dangerLt); --rmd-md: var(--mrd-dangerMd); --rmd-fg: var(--mrd-danger); }
+.mrd-shell .rmd--sage   { --rmd-lt: var(--mrd-sageLt);   --rmd-md: var(--mrd-sageMd);   --rmd-fg: var(--mrd-sageDeep); }
+
+/* ── En-tête ── */
+.mrd-shell .rmd-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.mrd-shell .rmd-tile {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--rmd-lt);
+  color: var(--rmd-fg);
+}
+.mrd-shell .rmd-tile svg { display: block; }
+.mrd-shell .rmd-head-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mrd-shell .rmd-overline {
+  font-family: var(--mrd-sans);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rmd-fg);
+}
+.mrd-shell .rmd-title {
+  font-family: var(--mrd-serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.12;
+  color: var(--mrd-fg);
+  text-wrap: pretty;
+}
+.mrd-shell .rmd-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg3);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mrd-shell .rmd-text {
   margin: 0;
-  padding: 10px 14px;
-  list-style: none;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mrd-fg2);
+  text-wrap: pretty;
+}
+.mrd-shell .rmd-label {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+
+/* ── 8a · les tâches se cochent ──
+   Une ligne tapable, pas une puce : c'est ce qui fait que « Fermer » ne mène
+   plus à un cul-de-sac. */
+.mrd-shell .rmd-rows {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: var(--mrd-surf2);
-  border-radius: 12px;
 }
-.notification-modal-task-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13.5px;
-  color: var(--mrd-fg2);
-  line-height: 1.4;
-}
-.notification-modal-task-bullet {
-  font-size: 18px;
-  line-height: 1.1;
-  color: var(--mrd-a);
-  flex-shrink: 0;
-}
-.notification-modal-task-more {
-  color: var(--mrd-fg3);
-  font-style: italic;
-  padding-left: 26px;
-}
-html[data-theme="dark"] .notification-modal-task-list {
+.mrd-shell .rmd-row {
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
   background: var(--mrd-surf);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
 }
-html[data-theme="dark"] .notification-modal-task-item {
+.mrd-shell .rmd-row:disabled { cursor: default; }
+.mrd-shell .rmd-row:active { opacity: 0.85; }
+.mrd-shell .rmd-row.is-done { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); }
+.mrd-shell .rmd-row-check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1.5px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-white);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.mrd-shell .rmd-row.is-done .rmd-row-check {
+  border-color: var(--mrd-sage);
+  background: var(--mrd-sage);
+}
+.mrd-shell .rmd-row-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mrd-shell .rmd-row-name {
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .rmd-row.is-done .rmd-row-name {
   color: var(--mrd-fg2);
+  text-decoration: line-through;
 }
-html[data-theme="dark"] .notification-modal-task-bullet {
-  color: var(--mrd-a);
-}
-html[data-theme="dark"] .notification-modal-task-more {
+.mrd-shell .rmd-row-meta {
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
   color: var(--mrd-fg3);
 }
+.mrd-shell .rmd-row-tag {
+  flex: none;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--rmd-lt);
+  color: var(--rmd-fg);
+  font-family: var(--mrd-sans);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: grid;
+  place-items: center;
+}
+.mrd-shell .rmd-rows-more {
+  padding-left: 4px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--mrd-fg3);
+}
+
+/* ── 8b · la tâche relancée ── */
+.mrd-shell .rmd-task {
+  padding: 11px 12px;
+  border-radius: 15px;
+  background: var(--rmd-lt);
+  border: 1px solid var(--rmd-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mrd-shell .rmd-task.is-done { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); }
+.mrd-shell .rmd-task-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.mrd-shell .rmd-task-icon svg { display: block; }
+.mrd-shell .rmd-task-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mrd-shell .rmd-task-name {
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrd-shell .rmd-task-meta {
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  color: var(--mrd-fg2);
+}
+.mrd-shell .rmd-task-move {
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--mrd-sageDeep);
+}
+.mrd-shell .rmd-task-tag {
+  flex: none;
+  height: 21px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--mrd-surf);
+  color: var(--rmd-fg);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: grid;
+  place-items: center;
+}
+.mrd-shell .rmd-task-check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--mrd-sage);
+  color: var(--mrd-white);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ── 8b · un choix, pas trois boutons ──
+   Chaque ligne dit sa conséquence, et le bouton plein reprend son libellé :
+   on lit ce qui va se passer avant de le déclencher. */
+.mrd-shell .rmd-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.mrd-shell .rmd-choice {
+  min-height: 46px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.mrd-shell .rmd-choice.on { border-color: var(--rmd-md); background: var(--rmd-lt); }
+.mrd-shell .rmd-choice-dot {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  display: grid;
+  place-items: center;
+}
+.mrd-shell .rmd-choice.on .rmd-choice-dot { border-color: var(--rmd-fg); }
+.mrd-shell .rmd-choice-dot::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: transparent;
+}
+.mrd-shell .rmd-choice.on .rmd-choice-dot::after { background: var(--rmd-fg); }
+.mrd-shell .rmd-choice-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mrd-shell .rmd-choice-label {
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+}
+.mrd-shell .rmd-choice-hint {
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--mrd-fg3);
+  text-wrap: pretty;
+}
+
+/* ── 8b · second temps — garder la relance ── */
+.mrd-shell .rmd-keep {
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.mrd-shell .rmd-keep-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mrd-shell .rmd-keep-label {
+  font-family: var(--mrd-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mrd-fg);
+}
+.mrd-shell .rmd-keep-hint {
+  font-family: var(--mrd-sans);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--mrd-fg3);
+  text-wrap: pretty;
+}
+.mrd-shell .rmd-switch {
+  flex: none;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--mrd-switchOff);
+  transition: background 0.16s ease;
+}
+.mrd-shell .rmd-switch.on { background: var(--mrd-sage); }
+.mrd-shell .rmd-switch-dot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--mrd-white);
+  box-shadow: var(--mrd-shadowXs);
+  transition: left 0.16s ease;
+}
+.mrd-shell .rmd-switch.on .rmd-switch-dot { left: 21px; }
+
+/* ── Pied ── un seul bouton plein, un secondaire qui ne rivalise pas. */
+.mrd-shell .rmd-actions {
+  display: flex;
+  gap: 8px;
+}
+.mrd-shell .rmd-ghost {
+  flex: none;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mrd-shell .rmd-primary {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: none;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-family: var(--mrd-sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--mrd-glowA);
+}
+.mrd-shell .rmd-primary:active { opacity: 0.9; }
 .support-page {
   min-height: 100%;
   background: var(--mrd-bg);
@@ -8438,6 +8770,9 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
   background: var(--mrd-aLt);
 }
 .mrd-shell .rsrc-option:active { opacity: 0.85; }
+/* Le pictogramme est un trait, pas un emoji : sa teinte vient de la tuile
+   (ambre), donc les deux chemins se lisent comme une même famille au lieu de
+   deux dessins système sans rapport. */
 .mrd-shell .rsrc-option-icon {
   flex: none;
   width: 46px;
@@ -8446,8 +8781,9 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
   display: grid;
   place-items: center;
   background: var(--mrd-surf2);
-  font-size: 20px;
+  color: var(--mrd-amber);
 }
+.mrd-shell .rsrc-option-icon svg { display: block; }
 .mrd-shell .rsrc-option.accent .rsrc-option-icon { background: var(--mrd-surf); }
 .mrd-shell .rsrc-option-copy {
   flex: 1;
@@ -8565,7 +8901,8 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
   background: var(--mrd-surf);
 }
 .mrd-shell .rimp-field.err { border-color: var(--mrd-aMd); }
-.mrd-shell .rimp-field-icon { flex: none; font-size: 14px; }
+.mrd-shell .rimp-field-icon { flex: none; display: grid; place-items: center; color: var(--mrd-fg2); }
+.mrd-shell .rimp-field-icon svg { display: block; }
 .mrd-shell .rimp-input {
   flex: 1;
   min-width: 0;

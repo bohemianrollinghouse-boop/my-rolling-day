@@ -6,6 +6,8 @@ Deux étapes, deux callables :
      catégorie (starter/main/…), régime (omnivore/…), contraintes (sans gluten/…),
      rapide, saisonnalité (toute saison / saisons / mois précis selon les ingrédients),
      et normalise les ingrédients en {name, quantity, unit}.
+  + import_recipe(url) — HTTP, réservé à la console admin (jeton d'identité Google
+     du compte de service) : enchaîne les deux étapes ci-dessus en un appel.
 
 Clé API : ANTHROPIC_API_KEY dans functions-py/.env (cf. .env.example, non versionné).
 Modèle : ANTHROPIC_MODEL (défaut claude-sonnet-5 — la saisonnalité au mois près
@@ -102,10 +104,10 @@ def _download_image_as_data_url(image_url: str, page_url: str) -> str:
         return ""
 
 
-@https_fn.on_call(memory=options.MemoryOption.MB_512, timeout_sec=60)
-def scrape_recipe(req: https_fn.CallableRequest) -> dict:
-    _require_auth(req)
-    url = _normalize_url(req.data.get("url"))
+def _scrape(raw_url) -> dict:
+    """Extrait la recette brute d'une page. Partagé entre le callable de l'app
+    (`scrape_recipe`) et l'import de la console admin (`import_recipe`)."""
+    url = _normalize_url(raw_url)
     _assert_public_http_url(url)
 
     try:
@@ -165,6 +167,12 @@ def scrape_recipe(req: https_fn.CallableRequest) -> dict:
         "host": _safe(scraper.host, urlparse(url).hostname or "") or "",
         "image_data_url": _download_image_as_data_url(image_url, url) if image_url else "",
     }
+
+
+@https_fn.on_call(memory=options.MemoryOption.MB_512, timeout_sec=60)
+def scrape_recipe(req: https_fn.CallableRequest) -> dict:
+    _require_auth(req)
+    return _scrape(req.data.get("url"))
 
 
 # ── Étape 2 : catégorisation IA ────────────────────────────────────────────
@@ -315,16 +323,16 @@ def _anthropic_categorize(payload: dict) -> dict:
     return json.loads(text)
 
 
-@https_fn.on_call(memory=options.MemoryOption.MB_512, timeout_sec=120)
-def categorize_recipe(req: https_fn.CallableRequest) -> dict:
-    _require_auth(req)
+def _categorize(recipe) -> dict:
+    """Catégorise une recette brute via l'IA. Partagé entre le callable de
+    l'app (`categorize_recipe`) et l'import de la console admin."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise https_fn.HttpsError(
             "failed-precondition",
             "ANTHROPIC_API_KEY manquante côté serveur (functions-py/.env).",
         )
 
-    recipe = req.data.get("recipe") or {}
+    recipe = recipe or {}
     payload = {
         "titre": str(recipe.get("title") or "")[:300],
         "portions": str(recipe.get("yields") or "")[:100],
@@ -340,7 +348,10 @@ def categorize_recipe(req: https_fn.CallableRequest) -> dict:
         result = _anthropic_categorize(payload)
     except https_fn.HttpsError:
         raise
-    except Exception:
+    except Exception as err:
+        # La cause reste côté serveur (Cloud Logging) : le client n'a pas à
+        # voir les détails de facturation ou de quota du compte Anthropic.
+        print(f"[categorize_recipe] échec Anthropic : {type(err).__name__}: {err}")
         raise https_fn.HttpsError("internal", "L'analyse IA a échoué. Réessaie.")
 
     # Validation défensive (le schéma ne borne pas les mois)
@@ -355,3 +366,122 @@ def categorize_recipe(req: https_fn.CallableRequest) -> dict:
     result["steps"] = [str(s).strip() for s in (result.get("steps") or []) if str(s).strip()]
     result["condiments"] = [str(c) for c in (result.get("condiments") or [])]
     return result
+
+
+@https_fn.on_call(memory=options.MemoryOption.MB_512, timeout_sec=120)
+def categorize_recipe(req: https_fn.CallableRequest) -> dict:
+    _require_auth(req)
+    return _categorize(req.data.get("recipe"))
+
+
+# ── Import complet pour la console admin (serveur à serveur) ───────────────
+#
+# La console admin (fonction Node `admin`) s'authentifie par mot de passe, pas
+# par Firebase Auth : elle ne peut donc pas appeler les deux callables
+# ci-dessus. Plutôt qu'un compte fantôme, elle appelle cette fonction HTTP avec
+# un jeton d'identité Google signé pour son compte de service. On vérifie ici
+# la signature, l'audience (notre propre URL) et l'émetteur (un compte de
+# service du projet) — aucun utilisateur humain ne peut produire ce jeton.
+#
+# Réglages (functions-py/.env) :
+#   IMPORT_RECIPE_AUDIENCE  URL de cette fonction, telle que l'appelant la vise
+#   IMPORT_RECIPE_CALLERS   emails de comptes de service autorisés, séparés par
+#                           des virgules (défaut : compte de calcul du projet)
+
+DEFAULT_IMPORT_AUDIENCE = "https://europe-west1-my-rolling-day.cloudfunctions.net/import_recipe"
+DEFAULT_IMPORT_CALLERS = "543367828677-compute@developer.gserviceaccount.com"
+# Même cible que l'app (compressImageDataUrl : 300 px, JPEG qualité 60) pour
+# que la photo tienne dans le document Firestore (limite 1 Mio).
+PHOTO_MAX_SIDE = 300
+PHOTO_JPEG_QUALITY = 60
+
+
+def _verify_service_caller(request) -> None:
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        raise https_fn.HttpsError("unauthenticated", "Jeton d'identité absent.")
+    audience = os.environ.get("IMPORT_RECIPE_AUDIENCE", DEFAULT_IMPORT_AUDIENCE).strip()
+    allowed = {
+        e.strip().lower()
+        for e in os.environ.get("IMPORT_RECIPE_CALLERS", DEFAULT_IMPORT_CALLERS).split(",")
+        if e.strip()
+    }
+    try:
+        claims = id_token.verify_oauth2_token(
+            header[len("Bearer "):].strip(), google_requests.Request(), audience=audience
+        )
+    except Exception:
+        raise https_fn.HttpsError("unauthenticated", "Jeton d'identité invalide.")
+    email = str(claims.get("email") or "").lower()
+    if not claims.get("email_verified") or email not in allowed:
+        raise https_fn.HttpsError("permission-denied", "Appelant non autorisé.")
+
+
+def _shrink_photo(data_url: str) -> str:
+    """Réduit la photo comme le fait l'app côté client. Vide si illisible."""
+    if not data_url.startswith("data:image/"):
+        return ""
+    try:
+        from io import BytesIO
+        from base64 import b64decode
+        from PIL import Image
+
+        raw = b64decode(data_url.split(",", 1)[1])
+        image = Image.open(BytesIO(raw))
+        image = image.convert("RGB")
+        image.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))
+        out = BytesIO()
+        image.save(out, format="JPEG", quality=PHOTO_JPEG_QUALITY, optimize=True)
+        return f"data:image/jpeg;base64,{b64encode(out.getvalue()).decode('ascii')}"
+    except Exception:
+        return ""
+
+
+# Codes HttpsError → statuts HTTP, pour que la console affiche la bonne cause.
+_HTTP_STATUS = {
+    "invalid-argument": 400,
+    "unauthenticated": 401,
+    "permission-denied": 403,
+    "not-found": 404,
+    "failed-precondition": 412,
+    "unavailable": 502,
+    "internal": 500,
+}
+
+
+def _error_code(err: https_fn.HttpsError) -> str:
+    code = getattr(err, "code", "internal")
+    return getattr(code, "value", str(code))
+
+
+@https_fn.on_request(memory=options.MemoryOption.MB_512, timeout_sec=180)
+def import_recipe(req) -> https_fn.Response:
+    """Scraping + analyse IA en un appel. Réponse : {scraped, analysis,
+    analysis_error}. L'échec de l'IA n'est pas fatal — comme dans l'app, la
+    recette brute suffit à créer la fiche, la catégorie restant à choisir."""
+    def reply(body: dict, status: int = 200):
+        return https_fn.Response(
+            json.dumps(body, ensure_ascii=False), status=status,
+            mimetype="application/json",
+        )
+
+    try:
+        if req.method != "POST":
+            raise https_fn.HttpsError("invalid-argument", "POST attendu.")
+        _verify_service_caller(req)
+        body = req.get_json(silent=True) or {}
+        scraped = _scrape(body.get("url"))
+        scraped["image_data_url"] = _shrink_photo(scraped.get("image_data_url") or "")
+    except https_fn.HttpsError as err:
+        code = _error_code(err)
+        return reply({"error": code, "message": err.message}, _HTTP_STATUS.get(code, 500))
+
+    analysis, analysis_error = None, ""
+    try:
+        analysis = _categorize(scraped)
+    except https_fn.HttpsError as err:
+        analysis_error = err.message
+    return reply({"scraped": scraped, "analysis": analysis, "analysis_error": analysis_error})

@@ -75,6 +75,9 @@ self.addEventListener("notificationclick", (event) => {
     eventId: notifData.eventId || fcmPayload?.data?.eventId || "",
     notifType: notifData.notifType || fcmPayload?.data?.notifType || "general",
     tab: notifData.tab || fcmPayload?.data?.tab || "",
+    // Rappel de fin de journée reporté : la charge ne transporte que les
+    // identifiants, l'app relit les tâches dans son état.
+    taskIds: notifData.taskIds || fcmPayload?.data?.taskIds || "",
     link: targetUrl,
   };
 

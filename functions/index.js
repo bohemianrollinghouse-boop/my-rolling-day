@@ -15,6 +15,7 @@ const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https")
 const { defineSecret } = require("firebase-functions/params");
 const { decidePremiumFromEvent, premiumFieldsFor } = require("./revenuecat.js");
 const { createAdminHandler } = require("./admin/index.js");
+const { createRecipeImporter } = require("./admin/recipeImport.js");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -190,6 +191,27 @@ function taskAssignedPersonIds(task) {
   return [...new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))];
 }
 
+// Le périmètre d'un rappel de tâche : ses personnes assignées quand il y en a,
+// sinon tout le foyer. Miroir exact de `reminderAudience` côté client
+// (src/app/utils/snooze.js) — les deux doivent dire la même chose, sinon le
+// bouton « Plus tard » apparaîtrait à quelqu'un qui ne reçoit pas le rappel.
+//
+// Une personne assignée sans compte lié n'a pas de jeton : si AUCUN assigné
+// n'a de compte, le rappel n'atteindrait personne — le foyer reprend la main.
+function tokensForTask(tokens, task, peopleById) {
+  if (task?.assignedWholeFamily) return tokens;
+  const personIds = taskAssignedPersonIds(task);
+  if (personIds.length === 0) return tokens;
+
+  const uids = new Set(
+    personIds
+      .map((id) => String(peopleById.get(id)?.linkedAccountId || "").trim())
+      .filter(Boolean)
+  );
+  if (uids.size === 0) return tokens;
+  return tokens.filter((entry) => uids.has(entry.uid));
+}
+
 async function getPeopleById(familyId) {
   const snap = await db
     .collection("families").doc(familyId)
@@ -316,7 +338,7 @@ function getTaskReminderMinutes(task, reminder) {
   return 0;
 }
 
-async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) {
+async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis, peopleById = new Map()) {
   if (!settings?.enabled) return;
   if (!Array.isArray(tasks) || tasks.length === 0) return;
 
@@ -337,7 +359,10 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
       const eodClientKey = `foyer-endofday-${todayKey}`;
       const eodSentLocally = tasks.some((t) => clientAlreadyNotified(t.notificationLog, eodClientKey));
       if (!eodSentLocally && !(await isAlreadySent(familyId, key))) {
-        // Tâches du jour : récurrentes quotidiennes + tâches dont l'échéance est aujourd'hui
+        // Tâches du jour : récurrentes quotidiennes + tâches dont l'échéance est
+        // aujourd'hui. Ce récapitulatif couvre le jour entier, assignations
+        // mélangées : il part à tout le foyer, contrairement aux rappels d'une
+        // tâche précise juste en dessous.
         const undone = tasks.filter(
           (t) => !isTaskDone(t) && (t.type === "daily" || t.dueDate === todayKey)
         );
@@ -369,7 +394,7 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
       if (await isAlreadySent(familyId, key)) continue;
       if (clientAlreadyNotified(task.notificationLog, `${task.id}-urgent-${todayKey}`)) continue;
       await sendToFamily(
-        tokens,
+        tokensForTask(tokens, task, peopleById),
         `Urgent : ${task.text}`,
         "Cette tâche n'est pas encore faite",
         { type: "task_urgent", taskId: String(task.id) }
@@ -430,7 +455,7 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
       // Clé serveur = "srv-" + clé cliente (formats miroirs dans useTaskNotifications.js)
       if (clientAlreadyNotified(task.notificationLog, key.slice(4))) continue;
 
-      await sendToFamily(tokens, title, "", { type: "task_due", taskId: String(task.id) });
+      await sendToFamily(tokensForTask(tokens, task, peopleById), title, "", { type: "task_due", taskId: String(task.id) });
       await markAsSent(familyId, key);
       console.log(`[tasks] échéance : ${task.text} (famille ${familyId})`);
     }
@@ -458,7 +483,7 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
       const body = "Cette tâche de la semaine n'a pas encore été faite (3 jours)";
 
       await sendToFamily(
-        tokens,
+        tokensForTask(tokens, task, peopleById),
         title,
         body,
         { type: "task_weekly_overdue", taskId: String(task.id) }
@@ -466,6 +491,84 @@ async function checkTasksForFamily(familyId, tasks, settings, tokens, nowParis) 
       await markAsSent(familyId, key);
       console.log(`[tasks] hebdo 3j non faite : ${task.text} (famille ${familyId})`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rappels reportés depuis la popup (« Plus tard » — handoff 8a)
+// ---------------------------------------------------------------------------
+// La popup in-app ne vit que tant que l'app est ouverte : un report ne peut pas
+// être un minuteur côté client. Le client écrit donc le rappel dans
+// `families/{id}/reminders`, et c'est ici qu'il repart en push.
+//
+// Le document n'existe QUE tant que le rappel est en attente — on le supprime
+// après l'envoi. Une seule condition (`dueAt <=`) suffit donc à la requête, et
+// aucun index composite n'est à déployer.
+//
+// Le report hérite du périmètre du rappel d'origine : renvoyé aux seules
+// personnes assignées (`scope: "person"`), ou à tout le foyer quand personne
+// ne l'était (`scope: "household"` — réservé aux admins par `firestore.rules`).
+const SNOOZE_MAX_LATE_MS = 2 * 60 * 60 * 1000;
+
+function tokensForReminder(tokens, reminder) {
+  if (reminder.scope !== "person") return tokens;
+  const uids = new Set(
+    Array.isArray(reminder.uids) && reminder.uids.length
+      ? reminder.uids
+      : reminder.uid ? [reminder.uid] : []
+  );
+  return tokens.filter((entry) => uids.has(entry.uid));
+}
+
+async function checkSnoozedReminders(familyId, tokens, tasks) {
+  const now = Timestamp.now();
+  const snap = await db
+    .collection("families").doc(familyId)
+    .collection("reminders")
+    .where("dueAt", "<=", now)
+    .limit(50)
+    .get();
+  if (snap.empty) return;
+
+  const tasksById = new Map((Array.isArray(tasks) ? tasks : []).map((t) => [t.id, t]));
+
+  for (const reminderDoc of snap.docs) {
+    const reminder = reminderDoc.data() || {};
+    const lateMs = now.toMillis() - (reminder.dueAt?.toMillis?.() ?? 0);
+
+    // Un report très en retard (fonction en panne, quota…) n'a plus de sens :
+    // recevoir « ce soir à 20 h » le lendemain midi est du bruit.
+    let shouldSend = lateMs <= SNOOZE_MAX_LATE_MS;
+
+    // La tâche a pu être faite entre le report et l'échéance : dans ce cas le
+    // rappel n'a plus d'objet.
+    const watchedIds = Array.isArray(reminder.taskIds) && reminder.taskIds.length
+      ? reminder.taskIds
+      : reminder.taskId ? [reminder.taskId] : [];
+    if (shouldSend && watchedIds.length) {
+      const stillOpen = watchedIds.filter((id) => {
+        const task = tasksById.get(id);
+        return task && !isTaskDone(task);
+      });
+      if (stillOpen.length === 0) shouldSend = false;
+    }
+
+    if (shouldSend) {
+      const targets = tokensForReminder(tokens, reminder);
+      if (targets.length > 0) {
+        await sendToFamily(targets, reminder.title || "Rappel", reminder.body || "", {
+          notifType: reminder.notifType || "general",
+          taskId: reminder.taskId || "",
+          eventId: reminder.eventId || "",
+          tab: reminder.tab || "",
+          taskIds: watchedIds.join(","),
+          snoozed: "1",
+        });
+        console.log(`[notifications] Rappel reporté renvoyé (famille ${familyId}, uid ${reminder.uid})`);
+      }
+    }
+
+    await reminderDoc.ref.delete();
   }
 }
 
@@ -491,17 +594,16 @@ exports.sendScheduledNotifications = onSchedule(
       const familyId = familyDoc.id;
 
       try {
-        // Planner state
+        // Planner state — absent, on traite quand même les rappels reportés :
+        // ils ne dépendent pas de l'état du planner.
         const plannerSnap = await db
           .collection("families").doc(familyId)
           .collection("planner").doc("state")
           .get();
-        if (!plannerSnap.exists) continue;
 
-        const plannerData = plannerSnap.data()?.data;
-        if (!plannerData) continue;
+        const plannerData = plannerSnap.exists ? plannerSnap.data()?.data : null;
 
-        const { agenda = [], recurringEvents = [], tasks = [], taskNotifications } = plannerData;
+        const { agenda = [], recurringEvents = [], tasks = [], taskNotifications } = plannerData || {};
 
         // Membres
         const membersSnap = await db
@@ -519,8 +621,10 @@ exports.sendScheduledNotifications = onSchedule(
         await cleanOldLogs(familyId);
 
         // Vérifications
+        await checkSnoozedReminders(familyId, tokens, tasks);
+        if (!plannerData) continue;
         await checkAgendaForFamily(familyId, agenda, recurringEvents, tokens, nowParis);
-        await checkTasksForFamily(familyId, tasks, taskNotifications, tokens, nowParis);
+        await checkTasksForFamily(familyId, tasks, taskNotifications, tokens, nowParis, await getPeopleById(familyId));
 
       } catch (err) {
         console.error(`[notifications] Erreur famille ${familyId} :`, err);
@@ -1038,10 +1142,13 @@ exports.revenueCatWebhook = onRequest(
 
 const adminPassword = defineSecret("ADMIN_PASSWORD");
 
+// L'import de recette attend le scraping puis l'analyse IA (jusqu'a ~3 min) :
+// le delai par defaut de 60 s ne suffit pas.
+const importRecipe = createRecipeImporter({ url: process.env.IMPORT_RECIPE_URL || undefined });
 exports.admin = onRequest(
-  { region: "europe-west1", secrets: [adminPassword], cors: false },
+  { region: "europe-west1", secrets: [adminPassword], cors: false, timeoutSeconds: 300 },
   async (req, res) => {
-    const handler = createAdminHandler({ db, password: adminPassword.value() });
+    const handler = createAdminHandler({ db, password: adminPassword.value(), importRecipe });
     return handler(req, res);
   },
 );

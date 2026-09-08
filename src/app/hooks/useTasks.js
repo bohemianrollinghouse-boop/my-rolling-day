@@ -344,7 +344,11 @@ export function useTasks(updateState) {
 
   // Déplace une tâche unique (non récurrente) vers une autre période (offert
   // depuis la modale de relance "tâche non faite" — ex. semaine → quotidien).
-  function handleChangeTaskPeriod(taskId, newPeriod) {
+  //
+  // `options.createdAt` sert au « Annuler » de la relance (handoff 8b) : sans
+  // lui le retour en arrière remettrait le compteur d'ancienneté à zéro, et la
+  // tâche cesserait silencieusement d'être en retard.
+  function handleChangeTaskPeriod(taskId, newPeriod, options = {}) {
     updateState((previous) => {
       const sameType = previous.tasks.filter((task) => task.type === newPeriod && task.id !== taskId);
       const tasks = previous.tasks.map((task) => {
@@ -354,7 +358,7 @@ export function useTasks(updateState) {
           type: newPeriod,
           displayPeriod: newPeriod,
           order: sameType.length,
-          createdAt: getCurrentAppDate().toISOString(),
+          createdAt: options.createdAt || getCurrentAppDate().toISOString(),
           staleNoticeDismissedAt: "",
         };
       });
@@ -377,6 +381,19 @@ export function useTasks(updateState) {
     }));
   }
 
+  // L'inverse : réarme la relance quand on rallume « Garder la relance » dans
+  // le second temps de la modale (handoff 8b).
+  function handleRestoreStaleNotice(taskId) {
+    updateState((previous) => ({
+      ...previous,
+      tasks: previous.tasks.map((task) => {
+        if (task.id !== taskId) return task;
+        if (task.taskKind === "recurring") return { ...task, staleNoticeMissedCount: 0 };
+        return { ...task, staleNoticeDismissedAt: "" };
+      }),
+    }));
+  }
+
   return {
     handleAddTask,
     handleUpdateTask,
@@ -385,5 +402,6 @@ export function useTasks(updateState) {
     handleMoveTask,
     handleChangeTaskPeriod,
     handleDismissStaleNotice,
+    handleRestoreStaleNotice,
   };
 }

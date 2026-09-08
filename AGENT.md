@@ -4,8 +4,8 @@
 > Lis ce fichier en entier avant de toucher au code. Il est écrit pour éviter
 > de réanalyser le projet à chaque session.
 >
-> Dernière mise à jour : **28 août 2026** · branche `main` — après la fusion du
-> dégraissage d'`App.js` et du chargement paresseux des vues.
+> Dernière mise à jour : **4 septembre 2026** · branche `main` — après la
+> correction des onglets de tâches et de l'icône native.
 
 ---
 
@@ -691,6 +691,21 @@ Deux appels successifs vers le codebase Python (`functions-py/main.py`), via
 
 `importErrorMessage(error)` traduit les codes en messages français.
 
+**Console admin** (`/admin`, onglet Recettes) : même chaîne, mais la console
+s'authentifie par mot de passe et ne peut pas appeler les deux `on_call`. Elle
+passe par `POST /api/recipes/import` → `functions/admin/recipeImport.js` →
+fonction HTTP Python `import_recipe` (scraping + IA en un appel, photo réduite
+à 300 px par Pillow comme le fait l'app côté client). L'appel est signé par un
+jeton d'identité Google du compte de service de la fonction `admin` ; côté
+Python, `_verify_service_caller` contrôle signature, audience
+(`IMPORT_RECIPE_AUDIENCE`) et émetteur (`IMPORT_RECIPE_CALLERS`). Les corps
+partagés sont `_scrape(url)` et `_categorize(recipe)` ; les `on_call` de l'app
+ne sont que des enveloppes. Le document écrit dans `recipes/{id}` (catalogue,
+écriture serveur uniquement) reprend la forme de `buildRecipePayload` — copie
+volontaire, `functions/` ne pouvant pas importer `src/` — plus `sourceUrl`,
+`sourceHost`, `importedAt`. Si l'IA échoue, la recette brute est quand même
+créée et la console affiche l'avertissement.
+
 ### Mémoire produit — logique commune
 
 `utils/productUtils.js` est le point central, partagé entre inventaire, listes
@@ -767,9 +782,10 @@ que l'état React se propage.
 | `acceptInvitation` | `onCall` |
 | `requestPasswordReset` | `onCall` — génère le lien et écrit dans `mail/` (extension « Trigger Email ») |
 
-**`functions-py/` (Python 3.13, codebase `recipes`, 357 lignes)**
-`scrape_recipe` et `categorize_recipe`, en `europe-west1`, `on_call`.
-Dépendances : `recipe-scrapers`, `anthropic`, `requests`.
+**`functions-py/` (Python 3.13, codebase `recipes`)**
+`scrape_recipe` et `categorize_recipe` (`on_call`, app) et `import_recipe`
+(`on_request`, console admin, jeton d'identité Google), en `europe-west1`.
+Dépendances : `recipe-scrapers`, `anthropic`, `requests`, `Pillow`, `google-auth`.
 
 ### Push natif
 
@@ -932,6 +948,7 @@ normal, c'est un journal historique, ne le réécris pas.**
 | 2026-08-23 | agent | `README.md` réécrit (254 → 163 l.). Corrigés : chemins Windows d'une machine précédente, lancement `npx serve`/`python -m http.server` (faux — l'app a besoin de Vite), `.claude/launch.json` inexistant, bloc PowerShell `run-tests.ps1`, et **trois commandes de test avec un flag invalide** (`--test-isolation=none` → `node: bad option` ; le vrai est `--experimental-test-isolation=none`). Supprimée la section « Cache busting » qui contredisait le même fichier 175 lignes plus haut. L'inventaire des fichiers a été retiré du README plutôt que corrigé : le dupliquer ici est ce qui l'avait périmé. |
 | 2026-08-23 | agent | **`App.js` dégraissé : 1890 → 1526 l. (−19 %), 28 → 7 handlers métier.** 5 hooks créés (`useMealCooking` 241 l., `usePlannerData` 101, `useInbox` 92, `useAppTime` 92, `useNotes` 46) ; condiments rapatriés dans `useMeals`, `handleReorderStorageLocations` dans `useLists`. `computeMealCookState` et `deductionToastMessage` sont désormais purs et exportés, donc testables : **16 tests ajoutés** (`tests/unit/meal-cooking.test.js`), un par règle produit de §8 — suite passée de 213 à **229 pass / 0 fail / 0 skipped**. Non extraits volontairement : `handleSetActivePerson` / `handleSetDeviceMode`, voir §15. Sections §4, §14, §15, §16 mises à jour. |
 | 2026-08-28 | agent | **Fusion de `605a33b` (dégraissage d'`App.js`) et `e34ed54` (chargement paresseux des vues).** Un seul conflit, le bloc d'imports d'`App.js` : les deux commits l'avaient restructuré pour des raisons opposées — eux pour poser 12 `lazy()`, moi pour retirer les imports partis dans `useMealCooking`. Résolu en gardant leur bloc `lazy`/`Suspense` et en y appliquant mes retraits. Les deux jeux de changements sont complémentaires (coque vs métier), vérifiés présents des deux côtés. Suite : **234 pass / 0 fail / 0 skipped**. Corrigé au passage deux faits devenus faux : l'en-tête, et §16 qui listait encore le code-splitting comme dette alors que `e34ed54` venait de le faire. À noter : `node_modules` avait disparu du poste (`vite: command not found`), réinstallé par `npm ci` — sans rapport avec la fusion. |
+| 2026-09-04 | agent | **Trois correctifs à l'usage** (détail dans `docs/PROJECT_LOG.md`). 1) La barre segmentée des tâches animait une transition de page : la route unique `/tasks/:period` ne suffisait pas, l'URL change quand même et `IonRouter` retombe sur `direction: "forward"`. `go()`/`setActiveTab()` acceptent désormais une `direction`, le segment passe `"none"`. Le commentaire des routes affirmait le contraire, corrigé sur place. 2) Modale de détail des tâches supprimée : elle n'avait d'autre porte d'entrée que le clic sur la carte et ne montrait rien de plus qu'elle. 3) **`npm run icons` partait du mauvais dessin** — `favicon.svg` (motif à 64,5 % du canevas, trait à 8,4 %) au lieu de l'icône d'app (56,6 % / 3,6 %) : les icônes natives étaient le favicon agrandi. La source vectorielle de l'icône d'app manquait, reconstruite en mesurant `icon-512.png` → `src/assets/brand/icon.svg`, vérifiée par rendu (emprise du motif identique au pixel en 512 et 192). Le premier plan adaptatif Android était en prime décentré. 16 icônes natives régénérées. Relevé sans le corriger : `apple-touch-icon.png` est le seul fichier de la marque à fond dégradé et à motif épais — à arbitrer. Vérif : 354 unitaires verts, build OK, e2e `navigation` 9/9 et `tasks` 60/60. |
 
 ---
 
@@ -945,7 +962,7 @@ normal, c'est un journal historique, ne le réécris pas.**
 | `npm run build` | Build prod dans `dist/` — déclenche `prebuild` |
 | `npm run prebuild` | Génère `src/assets/build-info.json` (version, build, date, commit) |
 | `npm run preview` | Sert le `dist/` buildé |
-| `npm run icons` | Régénère les icônes iOS et Android depuis la marque (requiert ImageMagick) |
+| `npm run icons` | Régénère les icônes iOS et Android depuis `src/assets/brand/icon.svg` (requiert ImageMagick + librsvg) |
 
 ### Natif
 

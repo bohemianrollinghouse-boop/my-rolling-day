@@ -1,9 +1,11 @@
 import {
   arrayUnion,
+  collection,
   doc,
   getDoc,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
 } from "firebase/firestore";
 import { db, messagingTokenDocId, getOrCreateDeviceId } from "./core.js";
@@ -110,4 +112,62 @@ export async function saveMessagingToken({
   }
 
   return tokenDocId;
+}
+
+// ── Rappels reportés (handoff 8a) ─────────────────────────────────────────
+//
+// « Plus tard » ne pose pas un minuteur dans la session : la popup ne vit que
+// tant que l'app est ouverte, alors qu'un rappel reporté doit revenir même app
+// fermée. On écrit donc le rappel dans Firestore, et le cron des Cloud
+// Functions (`sendScheduledNotifications`) renvoie le push le moment venu.
+//
+// Le document n'existe QUE tant que le rappel est en attente : la fonction le
+// supprime après l'envoi. Une seule condition sur `dueAt` suffit donc à la
+// requête serveur — pas d'index composite à déployer.
+
+export async function scheduleSnoozedReminder({ familyId, uid, dueAt, notification, scope = "household", uids = [] }) {
+  const safeFamilyId = String(familyId || "").trim();
+  const safeUid = String(uid || "").trim();
+  if (!safeFamilyId || !safeUid) throw new Error("Foyer ou utilisateur manquant.");
+  if (!(dueAt instanceof Date) || Number.isNaN(dueAt.getTime())) {
+    throw new Error("Échéance de report invalide.");
+  }
+
+  /* Le report hérite du périmètre du rappel : renvoyé aux seules personnes
+     concernées, ou à tout le foyer. `firestore.rules` revérifie les deux —
+     appartenance au périmètre pour « person », rôle admin pour « household ».
+     L'auteur est toujours dans les destinataires d'un report personnel : il ne
+     peut pas programmer une notification sur le téléphone d'un autre. */
+  const safeScope = scope === "person" ? "person" : "household";
+  const safeUids = safeScope === "person"
+    ? [...new Set([safeUid, ...(Array.isArray(uids) ? uids : [])].map((id) => String(id || "").trim()).filter(Boolean))]
+    : [];
+
+  const { title = "", body = "", notifType = "general", taskId = "", eventId = "", tab = "", tasks = [] } =
+    notification || {};
+
+  /* Le rappel de fin de journée porte une liste de tâches. Une charge FCM ne
+     transporte que des chaînes : on ne garde que les identifiants, et le
+     client relit les tâches dans son état — elles auront pu changer entre
+     temps, et c'est justement ce qu'on veut montrer. */
+  const taskIds = (Array.isArray(tasks) ? tasks : [])
+    .map((task) => String(task?.id || "").trim())
+    .filter(Boolean);
+
+  const reminderRef = doc(collection(db, "families", safeFamilyId, "reminders"));
+  await setDoc(reminderRef, {
+    uid: safeUid,
+    scope: safeScope,
+    uids: safeUids,
+    dueAt: Timestamp.fromDate(dueAt),
+    title,
+    body,
+    notifType,
+    taskId,
+    eventId,
+    tab,
+    taskIds,
+    createdAt: serverTimestamp(),
+  });
+  return reminderRef.id;
 }

@@ -1,6 +1,5 @@
 import { DEFAULT_MEMBER_COLOR } from "../../config/constants.js";
 import { html, useMemo, useState, useEffect, useRef } from "../../lib.js";
-import { TaskCard as SharedTaskCard } from "./TaskCard.js";
 import { getCurrentAppDate, getCurrentAppTimestamp, localDateKey } from "../../utils/date.js";
 import { EmojiPicker } from "./EmojiPicker.js";
 import { MrdModal } from "../../components/MrdModal.js";
@@ -276,16 +275,13 @@ export function TasksView({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showConcernedField, setShowConcernedField] = useState(false);
   const [showAllDeadlines, setShowAllDeadlines] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState("");
   const [editingTaskId, setEditingTaskId] = useState("");
   const [form, setForm] = useState(() => defaultTaskForm(tab));
   const [dragState, setDragState] = useState(null);
   const [openMenuTaskId, setOpenMenuTaskId] = useState("");
-  const [detailMenuOpen, setDetailMenuOpen] = useState(false);
   const taskNodeRefs = useRef(new Map());
   const pressStateRef = useRef(null);
   const dragStateRef = useRef(null);
-  const suppressOpenRef = useRef("");
   const lastExternalOpenCreateRef = useRef(externalOpenCreate);
 
   const sortedTasks = useMemo(() => sortTasks((Array.isArray(tasks) ? tasks : []).filter((t) => !t.archived)), [tasks]);
@@ -398,7 +394,6 @@ export function TasksView({
       if (sourceIndex >= 0 && targetIndex >= 0 && sourceIndex !== targetIndex) {
         onMoveTask(activeDrag.taskId, targetIndex, activeDrag.groupKey, activeDrag.visibleIds);
       }
-      suppressOpenRef.current = activeDrag.taskId;
       setDragState(null);
     }
 
@@ -451,22 +446,12 @@ export function TasksView({
     resetForm(tab);
   }
 
-  function openTaskDetails(taskId) {
-    setSelectedTaskId(taskId);
-  }
-
-  function closeTaskDetails() {
-    setSelectedTaskId("");
-    setDetailMenuOpen(false);
-  }
-
   function openEditTask(task) {
     const planning = planningByTask?.[task.id] || null;
     const durPreset = planning
       ? durationToPreset(planning.duration || 60, Boolean(planning.allDay))
       : { preset: "60", customValue: 1, customUnit: "hours" };
     setEditingTaskId(task.id);
-    setSelectedTaskId("");
     setForm({
       ...defaultTaskForm(tab),
       icon: task.icon || "",
@@ -576,7 +561,6 @@ export function TasksView({
           width: rect.width,
           height: rect.height,
         });
-        suppressOpenRef.current = task.id;
         pressStateRef.current = null;
       }, LONG_PRESS_MS),
     };
@@ -633,14 +617,6 @@ export function TasksView({
         style=${{ height: `${Math.max(60, Math.round(preview.height || 82))}px` }}
       ></div>
     `;
-  }
-
-  function handleTaskMainClick(taskId) {
-    if (suppressOpenRef.current === taskId) {
-      suppressOpenRef.current = "";
-      return;
-    }
-    openTaskDetails(taskId);
   }
 
   function submitTask(event) {
@@ -721,7 +697,6 @@ export function TasksView({
                   <div
                     className="task-main"
                     onPointerDown=${(event) => handleTaskMainPointerDown(event, task, moveGroupKey, list.map((item) => item.id))}
-                    onClick=${() => handleTaskMainClick(task.id)}
                     onSelectStart=${preventTaskSelection}
                     onDragStart=${preventTaskSelection}
                   >
@@ -885,7 +860,7 @@ export function TasksView({
     return html`
         <article className=${`task-card ${isDone ? "done" : ""} ${isTaskLate(task) && !isDone ? "overdue" : ""}`} key=${task.id}>
         <div className="task-card-top">
-          <div className="task-main" onClick=${() => openTaskDetails(task.id)}>
+          <div className="task-main">
             <div className=${`task-headline ${task.icon ? "" : "no-emoji"}`}>
               ${task.icon ? html`<span className="task-emoji has-emoji">${task.icon}</span>` : null}
               <div className="task-content">
@@ -1386,49 +1361,6 @@ export function TasksView({
           />` : null}
         `;
       })() : null}
-
-      ${selectedTaskId
-        ? (() => {
-            const selectedTask = safeAllTasks.find((task) => task.id === selectedTaskId);
-            if (!selectedTask) return null;
-            const planning = planningByTask?.[selectedTask.id]
-              ? {
-                  ...planningByTask[selectedTask.id],
-                  childLabels: (planningByTask[selectedTask.id].childIds || [])
-                    .map((childId) => children.find((child) => child.id === childId)?.label)
-                    .filter(Boolean),
-                }
-              : null;
-            return html`
-              <${MrdModal} isOpen=${true} onClose=${closeTaskDetails} className="task-modal">
-
-                  <div className="task-modal-head task-modal-head-bare">
-                    <div className="task-menu-wrap">
-                      <button className="task-menu-btn" onClick=${() => setDetailMenuOpen((open) => !open)} title="Actions">⋮</button>
-                      ${detailMenuOpen ? html`
-                        <div className="task-menu-dropdown" onClick=${(e) => e.stopPropagation()}>
-                          <button className="task-menu-item" onClick=${() => { setDetailMenuOpen(false); openEditTask(selectedTask); }}>Modifier</button>
-                          <button className="task-menu-item task-menu-item-danger" onClick=${() => { onDeleteTask(selectedTask.id); closeTaskDetails(); }}>Supprimer</button>
-                        </div>
-                      ` : null}
-                    </div>
-                    <button className="delbtn" onClick=${closeTaskDetails}>X</button>
-                  </div>
-                  <div>
-                    <${SharedTaskCard}
-                      task=${selectedTask}
-                      people=${activePeople}
-                      completers=${completers}
-                      planning=${planning}
-                      onToggleTask=${onToggleTask}
-                      showDelete=${false}
-                      showOrder=${false}
-                    />
-                  </div>
-              <//>
-            `;
-          })()
-        : null}
     </section>
   `;
 }

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="My Rolling Day">
+  <title>My Rolling Day</title>
+  <!--
+    Icône d'application — source vectorielle de `icon-512.png`, `icon-192.png`,
+    `apple-touch-icon.png` et des icônes natives iOS / Android.
+
+    À ne pas confondre avec `favicon.svg`, qui est le dessin du favicon 32 px :
+    trait plus épais et motif plus grand (64,5 % du canevas contre 56,6 % ici)
+    pour rester lisible dans un onglet. Les deux sont volontairement distincts.
+
+    Carré plein, sans coins arrondis : iOS et Android appliquent leur propre
+    masque, et l'App Store refuse une icône transparente.
+  -->
+  <rect width="512" height="512" fill="#B85F4A"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#FDFBF7" stroke-opacity="0.55"
+          stroke-width="10" stroke-linecap="round" stroke-dasharray="13 26"/>
+  <circle cx="256" cy="256" r="87.5" fill="none" stroke="#FDFBF7" stroke-width="13"/>
+  <circle cx="256" cy="116" r="20" fill="#FDFBF7"/>
+</svg>

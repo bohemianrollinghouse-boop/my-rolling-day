@@ -129,6 +129,7 @@ export function usePushMessaging({ userId = "", familyId = "", linkedPersonId = 
         eventId: payload?.data?.eventId || "",
         notifType: payload?.data?.notifType || "general",
         tab: payload?.data?.tab || "",
+        taskIds: payload?.data?.taskIds || "",
       });
     };
 
@@ -155,6 +156,7 @@ export function usePushMessaging({ userId = "", familyId = "", linkedPersonId = 
         eventId: event.data.eventId || "",
         notifType: event.data.notifType || "general",
         tab: event.data.tab || "",
+        taskIds: event.data.taskIds || "",
       });
     }
     navigator.serviceWorker.addEventListener("message", handleSWMessage);

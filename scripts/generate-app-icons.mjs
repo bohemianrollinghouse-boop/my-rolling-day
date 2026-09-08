@@ -1,20 +1,33 @@
 #!/usr/bin/env node
 /**
- * Génère les icônes natives iOS et Android depuis les sources vectorielles.
+ * Génère les icônes natives iOS et Android depuis la source vectorielle.
  *
- * Source unique : `src/assets/brand/favicon.svg` — l'icône complète.
+ * Source unique : `src/assets/brand/icon.svg` — l'icône d'application.
  *
- * Le premier plan Android en est dérivé en retirant le `<rect>` de fond, et
- * **non** de `mark-white.svg`. Ce dernier est le logo inline de l'app, une
- * variante au trait plus léger : son épaisseur vaut 4,4 % du diamètre de
- * l'anneau contre 8,4 % dans l'icône. L'utiliser donnait un motif visiblement
- * plus fin que sur iOS.
+ * **Ne pas confondre avec `favicon.svg`.** Le dépôt porte deux dessins voisins
+ * mais distincts, et les avoir confondus est précisément le bug que ce
+ * changement corrige :
  *
- * **Le vecteur est la source de vérité, et c'est vérifiable** : rastériser
- * `favicon.svg` en 1024 (coins arrondis retirés) redonne l'icône iOS du dépôt
- * au pixel près — RMSE 0. Une première version de ce script partait de
- * `icon-512.png` et agrandissait en 1024 : l'écart-type du laplacien tombait de
- * 11,97 à 4,10, soit trois fois moins net. Ne pas repasser sur un raster.
+ *  - `favicon.svg` est le favicon 32 px. Trait épais (8,4 % du diamètre de
+ *    l'anneau) et motif large (64,5 % du canevas) pour rester lisible dans un
+ *    onglet de navigateur.
+ *  - `icon.svg` est l'icône d'application. Trait fin (3,6 %) et motif à 56,6 %
+ *    du canevas — le dessin de `icon-512.png`, `icon-192.png` et
+ *    `icon-maskable-512.png`, c'est-à-dire les icônes que le manifeste PWA
+ *    déclare, et la famille du logo affiché dans l'app (`mark.svg`).
+ *
+ * Ce script partait de `favicon.svg` : les icônes de l'écran d'accueil iOS et
+ * Android étaient donc le favicon agrandi, visiblement plus gras que l'icône du
+ * même produit installé depuis le web. C'est vérifiable dans les deux sens :
+ * rastériser `favicon.svg` en 1024 redonnait l'ancienne icône iOS au pixel près
+ * (RMSE 0), et `icon.svg` rendu en 512 et 192 redonne `icon-512.png` et
+ * `icon-192.png` à l'antialiasing près (RMSE ~1,5 %, emprise du motif
+ * identique au pixel : 290×305 et 110×115).
+ *
+ * **Le vecteur reste la source de vérité.** Une version antérieure de ce script
+ * partait de `icon-512.png` et agrandissait en 1024 : l'écart-type du laplacien
+ * tombait de 11,97 à 4,10, soit trois fois moins net. Ne pas repasser sur un
+ * raster.
  *
  * Pourquoi ce script existe : les trois jeux d'icônes avaient été produits à la
  * main et ne concordaient pas. Le motif occupait 67,7 % de l'icône sur iOS,
@@ -26,12 +39,17 @@
  *
  *  - **iOS** veut l'icône complète (fond compris) en 1024×1024, **sans**
  *    transparence ni coins déjà arrondis : iOS applique son propre masque, et
- *    l'App Store refuse une icône transparente. D'où le retrait du `rx`.
+ *    l'App Store refuse une icône transparente. `icon.svg` est donc dessiné en
+ *    carré plein, sans `rx`.
  *  - **Android** veut une icône *adaptative* : le fond est une couleur
  *    (`ic_launcher_background`) et le premier plan un PNG transparent de
  *    108 dp. Le lanceur n'en affiche que les 72 dp centraux (288 px sur 432) —
  *    les 18 dp de marge servent au masquage et à la parallaxe. Le motif se
  *    dimensionne donc par rapport à cette zone visible, pas au canevas.
+ *
+ * Ce cadrage à 2/3 concorde avec `icon-maskable-512.png`, l'icône maskable du
+ * web : le motif y occupe 56,1 % de la zone sûre, contre 56,6 % de la zone
+ * visible ici. Même dessin, même respiration sur les deux plateformes.
  *
  * Aucun facteur d'échelle à régler : le cadrage du motif dans la zone visible
  * d'Android est celui du SVG lui-même, puisque c'est le même fichier privé de
@@ -48,7 +66,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const ICON_SVG = join(ROOT, "src/assets/brand/favicon.svg");
+const ICON_SVG = join(ROOT, "src/assets/brand/icon.svg");
 
 const BACKGROUND = "srgb(184,95,74)"; // #B85F4A — égal à ic_launcher_background.xml
 
@@ -91,12 +109,10 @@ function main() {
   mkdirSync(WORK, { recursive: true });
 
   /* iOS applique son propre masque : l'icône livrée doit être un carré plein.
-     On retire donc l'arrondi du SVG au passage. */
+     `icon.svg` est déjà dessiné ainsi ; le retrait d'un éventuel `rx` reste
+     là comme garde-fou si quelqu'un arrondit le fond un jour. */
   const squareSvg = join(WORK, "icon-square.svg");
   const svgText = readFileSync(ICON_SVG, "utf8");
-  if (!/\brx="/.test(svgText)) {
-    console.warn("attention : favicon.svg n'a plus d'attribut rx — vérifier le fond.");
-  }
   writeFileSync(squareSvg, svgText.replace(/\s+rx="[^"]*"/g, ""));
 
   /* Motif seul : le même SVG privé de son `<rect>` de fond. Il garde donc le
@@ -105,7 +121,7 @@ function main() {
   const markSvg = join(WORK, "mark.svg");
   const markText = svgText.replace(/<rect\b[^>]*\/?>(?:<\/rect>)?/g, "");
   if (markText === svgText) {
-    console.error("favicon.svg : aucun <rect> de fond trouvé, le motif ne peut pas être isolé.");
+    console.error("icon.svg : aucun <rect> de fond trouvé, le motif ne peut pas être isolé.");
     process.exit(1);
   }
   writeFileSync(markSvg, markText);
@@ -117,7 +133,7 @@ function main() {
   rasterise(squareSvg, 1024, iosIcon);
   // Aplatir tout canal alpha résiduel : l'App Store refuse la transparence.
   magick([iosIcon, "-background", BACKGROUND, "-alpha", "remove", "-alpha", "off", iosIcon]);
-  console.log("ios      AppIcon-512@2x.png 1024x1024 (depuis favicon.svg)");
+  console.log("ios      AppIcon-512@2x.png 1024x1024 (depuis icon.svg)");
 
   // ── Android ─────────────────────────────────────────────────────────────
   for (const { dir, adaptive, legacy } of DENSITIES) {
