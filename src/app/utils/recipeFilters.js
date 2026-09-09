@@ -109,8 +109,14 @@ export function recipeLabels(recipe) {
   return Array.isArray(recipe?.labels) ? recipe.labels : [];
 }
 
+/**
+ * « Omnivore » n'est pas une contrainte, c'est l'absence de contrainte : un
+ * omnivore mange aussi les plats végé, végan et pescétarien. Le traiter comme
+ * un label exact ne remonterait que les recettes taguées « omnivore »
+ * explicitement, en écartant tout le reste.
+ */
 export function matchesDiet(recipe, dietId) {
-  if (!dietId) return true;
+  if (!dietId || dietId === "omnivore") return true;
   return recipeLabels(recipe).includes(dietId);
 }
 

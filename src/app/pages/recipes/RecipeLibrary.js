@@ -104,7 +104,6 @@ export function RecipeLibrary({
   linkInventory = false,
   currentMonth = new Date().getMonth() + 1,
   onOpenRecipe,
-  onCreateRecipe,
   onLoadDemoRecipes = null,
   onPlanRecipe = null,
   onToggleFavorite = null,
@@ -418,7 +417,6 @@ export function RecipeLibrary({
           ${onLoadDemoRecipes
             ? html`<button type="button" className="recipes-page-demo-btn" onClick=${onLoadDemoRecipes}>Démo</button>`
             : null}
-          <button type="button" className="rlib-add" onClick=${() => onCreateRecipe?.()} title="Ajouter une recette" aria-label="Ajouter une recette">+</button>
         </div>
       </div>
 

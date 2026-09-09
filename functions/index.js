@@ -1019,3 +1019,85 @@ exports.revenueCatWebhook = onRequest(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// Notification de test — console développeur (Réglages → Console notifications)
+//
+// Envoie une notification push à ses PROPRES appareils, et à eux seuls : la
+// fonction ne lit que les tokens de l'appelant, il n'y a donc rien à
+// restreindre par e-mail côté serveur. Sert à vérifier toute la chaîne réelle
+// (token FCM → Firebase → APNs/FCM → appareil), ce qu'une notification locale
+// ne teste pas.
+// ---------------------------------------------------------------------------
+exports.sendTestNotification = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Connecte-toi pour envoyer une notification de test.");
+    }
+    const uid = request.auth.uid;
+
+    const title = String(request.data?.title || "").trim().slice(0, 200);
+    const body = String(request.data?.body || "").trim().slice(0, 500);
+    if (!title) {
+      throw new HttpsError("invalid-argument", "Titre manquant.");
+    }
+
+    // Délai optionnel : laisse le temps de mettre l'app en arrière-plan pour
+    // voir la bannière système au lieu de la popup in-app.
+    const delaySeconds = Math.min(60, Math.max(0, Number(request.data?.delaySeconds) || 0));
+
+    const rawData = request.data?.data && typeof request.data.data === "object" ? request.data.data : {};
+    const stringData = Object.fromEntries(
+      Object.entries(rawData).slice(0, 10).map(([key, value]) => [String(key).slice(0, 40), String(value).slice(0, 200)]),
+    );
+    stringData.test = "1";
+
+    // getFamilyTokens lit users/{uid}/messagingTokens : son premier argument
+    // (familyId) n'est pas utilisé, d'où la chaîne vide ici.
+    const tokens = await getFamilyTokens("", [uid]);
+    if (tokens.length === 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Aucun appareil enregistré pour ce compte. Autorise les notifications sur cet appareil, puis réessaie.",
+      );
+    }
+
+    if (delaySeconds > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+    }
+
+    const result = await messaging.sendEachForMulticast({
+      notification: { title, body },
+      data: stringData,
+      tokens: tokens.map((entry) => entry.token),
+      webpush: {
+        notification: { icon: "/icon-192.png", badge: "/icon-192.png" },
+        fcmOptions: { link: "/" },
+      },
+    });
+
+    const toClean = [];
+    const errors = [];
+    result.responses.forEach((response, index) => {
+      if (response.success) return;
+      const code = response.error?.code || "unknown";
+      errors.push(code);
+      if (
+        code === "messaging/invalid-registration-token" ||
+        code === "messaging/registration-token-not-registered"
+      ) {
+        toClean.push(tokens[index]);
+      }
+    });
+    if (toClean.length > 0) await cleanInvalidTokens(toClean);
+
+    console.log(`[sendTestNotification] ${uid} → ${result.successCount}/${tokens.length} appareil(s)`);
+    return {
+      sent: result.successCount,
+      failed: result.failureCount,
+      devices: tokens.length,
+      errors: errors.slice(0, 5),
+    };
+  }
+);

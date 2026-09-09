@@ -322,3 +322,38 @@ test("design : la passerelle couvre les surcharges de mode d'Ionic", () => {
       + `elles resteront aux valeurs d'Ionic en sombre : ${missing.join(", ")}`,
   );
 });
+
+/* ── 12. --border-radius reste une seule longueur ────────────────────
+   Bug réel, trouvé sur `.mrd-miss-modal` (popup « ce qui manque », tour 20a) :
+   sur une feuille Ionic (`.modal-sheet`), le hôte réinjecte `--border-radius`
+   dans des longhands d'un seul coin —
+
+     :host(.modal-sheet) .modal-wrapper {
+       border-start-start-radius: var(--border-radius);
+       border-end-end-radius: 0;
+     }
+
+   Une valeur à plusieurs longueurs ("30px 30px 0 0") y est invalide : la
+   déclaration entière tombe, le rayon calculé vaut 0, et la feuille sort à
+   bords carrés — sans erreur nulle part, seulement visible à l'œil. Voir
+   aussi la note sur `.mrd-modal-sheet` dans styles.css. Cette règle vaut pour
+   toute déclaration `--border-radius`, pas seulement les feuilles : une
+   modale centrée qui en aurait besoin passerait par `border-radius` directement. */
+test("design : --border-radius reste une seule longueur", () => {
+  const offenders = [];
+  for (const match of cssNoComments.matchAll(/(--border-radius)\s*:\s*([^;]+);/g)) {
+    const raw = match[2].trim();
+    // Les valeurs entre parenthèses (var(--x), calc(...)) comptent pour un
+    // seul token même si leur contenu contient des espaces.
+    const collapsed = raw.replace(/\([^()]*\)/g, "()");
+    if (/\s/.test(collapsed)) {
+      const line = cssNoComments.slice(0, match.index).split("\n").length;
+      offenders.push(`styles.css:${line} → ${raw}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `--border-radius à plusieurs longueurs (invalide sur une feuille Ionic, rayon nul) :\n${offenders.join("\n")}`,
+  );
+});

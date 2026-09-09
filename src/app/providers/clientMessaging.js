@@ -6,7 +6,8 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db, messagingTokenDocId, getOrCreateDeviceId } from "./core.js";
+import { httpsCallable } from "firebase/functions";
+import { db, functions, messagingTokenDocId, getOrCreateDeviceId } from "./core.js";
 
 // ── Enregistrement du token FCM (ancien chemin devices/) ──────────────────
 
@@ -110,4 +111,18 @@ export async function saveMessagingToken({
   }
 
   return tokenDocId;
+}
+
+// ── Notification de test (console développeur) ─────────────────────────────
+
+/**
+ * Demande au serveur d'envoyer un vrai push FCM sur les appareils du compte
+ * connecté. Contrairement à une notification locale, ce chemin teste toute la
+ * chaîne : token enregistré → Cloud Function → FCM/APNs → appareil.
+ * `delaySeconds` laisse le temps de mettre l'app en arrière-plan.
+ */
+export async function sendTestPushNotification({ title, body = "", data = {}, delaySeconds = 0 }) {
+  const callable = httpsCallable(functions, "sendTestNotification", { timeout: 90000 });
+  const response = await callable({ title, body, data, delaySeconds });
+  return response?.data || {};
 }

@@ -103,7 +103,7 @@ export function computeRecipeStock(recipe, inventory) {
  * Les deux sont nécessaires : un article sans quantité exploitable compte comme
  * présent sans rien peser.
  */
-function createStockLedger(inventory) {
+export function createStockLedger(inventory) {
   const present = new Set();
   const amounts = new Map();
   (Array.isArray(inventory) ? inventory : [])
@@ -130,7 +130,7 @@ function createStockLedger(inventory) {
  * qui permet de dire « lundi midi cuisine la même chose » au lieu d'un « il
  * manque » sans explication.
  */
-function takeFromLedger(ledger, ingredient, slotLabel) {
+export function takeFromLedger(ledger, ingredient, slotLabel) {
   const key = productMatchKey(ingredient?.name);
   if (!key) return null;
   if (!ledger.present.has(key)) return { ...ingredient, missingGroup: "main", takenBy: [] };
@@ -218,6 +218,54 @@ export function computeWeekStock({ slots = [], inventory = [] } = {}) {
   return result;
 }
 
+/**
+ * Le budget de stock tel qu'il se présente juste avant un créneau donné —
+ * une fois déduit ce que les créneaux plus tôt dans la semaine (même ordre
+ * que `computeWeekStock`) ont déjà réservé. Sert le sélecteur de recettes :
+ * sans lui, une recette déjà posée plus tôt dans la semaine se présentait
+ * « en stock » une deuxième fois, alors qu'il n'en resterait rien pour elle.
+ *
+ * Les créneaux à `targetKey` et après ne sont pas déduits : du point de vue
+ * de celui qu'on édite, ils n'ont encore rien réservé. Un créneau déjà
+ * cuisiné est ignoré comme dans `computeWeekStock` — l'inventaire réel
+ * porte déjà sa déduction.
+ */
+export function buildLedgerBeforeSlot(slots, targetKey, inventory) {
+  const ledger = createStockLedger(inventory);
+  for (const slot of (Array.isArray(slots) ? slots : [])) {
+    if (!slot?.key || slot.key === targetKey) break;
+    if (slot.cooked) continue;
+    (Array.isArray(slot.recipes) ? slot.recipes : [])
+      .filter(Boolean)
+      .flatMap((recipe) => (Array.isArray(recipe?.ingredients) ? recipe.ingredients.filter((item) => item?.name) : []))
+      .forEach((ingredient) => takeFromLedger(ledger, ingredient));
+  }
+  return ledger;
+}
+
+/**
+ * Etat d'une recette candidate face à un budget déjà entamé (voir
+ * `buildLedgerBeforeSlot`). Même forme que `computeRecipeStock`, pour rester
+ * interchangeable côté affichage (badge, tri, filtre « Déjà en stock ») —
+ * seule la source du stock change. Le budget n'est jamais mutilé : chaque
+ * recette est jaugée sur son propre clone, sinon la première recette
+ * affichée épuiserait le budget pour toutes les suivantes.
+ */
+export function computeRecipeStockAgainstLedger(recipe, ledger, inventory) {
+  const ingredients = (Array.isArray(recipe?.ingredients) ? recipe.ingredients : []).filter((item) => item?.name);
+  const known = ingredients.length > 0;
+  const probe = { present: ledger.present, amounts: new Map(ledger.amounts), takenBy: new Map() };
+  const missing = ingredients.map((ingredient) => takeFromLedger(probe, ingredient)).filter(Boolean);
+  return {
+    total: ingredients.length,
+    missing,
+    missingCount: missing.length,
+    missingCondimentCount: computeMissingCondiments(recipe, inventory).length,
+    known,
+    ready: known && missing.length === 0,
+  };
+}
+
 /** Rang de tri : d'abord les recettes faisables, les non comparables à la fin. */
 export function recipeStockRank(stock) {
   if (!stock || !stock.known) return Number.MAX_SAFE_INTEGER;
@@ -241,8 +289,14 @@ export function collectExpiringItems(inventory, maxDays = EXPIRY_SOON_DAYS) {
  * Recettes qui consomment ce qui périme bientôt.
  * Tri : le plus d'articles urgents utilisés, puis la DLC la plus proche, puis
  * le moins d'ingrédients manquants.
+ *
+ * `stockByRecipeId`, si fourni, remplace la comparaison au stock complet par
+ * un état déjà calculé ailleurs (p. ex. `computeRecipeStockAgainstLedger`,
+ * conscient de ce que la semaine a déjà réservé) — sinon cette rangée pouvait
+ * classer devant une recette dont le stock est en réalité déjà pris par un
+ * autre créneau.
  */
-export function computePriorityRecipes({ recipes = [], inventory = [], limit = 3, maxDays = EXPIRY_SOON_DAYS } = {}) {
+export function computePriorityRecipes({ recipes = [], inventory = [], limit = 3, maxDays = EXPIRY_SOON_DAYS, stockByRecipeId = null } = {}) {
   const expiring = collectExpiringItems(inventory, maxDays);
   if (!expiring.length) return [];
 
@@ -267,7 +321,8 @@ export function computePriorityRecipes({ recipes = [], inventory = [], limit = 3
         seen.add(key);
         expiringItems.push(urgent);
       });
-      return { recipe, expiringItems: expiringItems.sort((a, b) => a.days - b.days), stock: computeRecipeStock(recipe, inventory) };
+      const stock = stockByRecipeId?.get(recipe.id) || computeRecipeStock(recipe, inventory);
+      return { recipe, expiringItems: expiringItems.sort((a, b) => a.days - b.days), stock };
     })
     .filter((entry) => entry.expiringItems.length > 0)
     .sort((left, right) => {

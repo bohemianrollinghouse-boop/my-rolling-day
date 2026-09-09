@@ -18,17 +18,41 @@ import { Capacitor } from "@capacitor/core";
 /* ── Découpage de la préparation en étapes ─────────────────────
    Formats gérés : liste numérotée ("1. …"), paragraphes séparés
    par une ligne vide, sinon une étape par ligne. */
-export function parseMethodSteps(method) {
-  const text = String(method || "").trim();
-  if (!text) return [];
-  const numbered = text
+function parseStepChunk(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return [];
+  const numbered = trimmed
     .split(/\n\s*(?=\d+\s*[.)–-]\s+)/)
     .map((chunk) => chunk.replace(/^\d+\s*[.)–-]\s+/, "").replace(/\s+/g, " ").trim())
     .filter(Boolean);
   if (numbered.length > 1) return numbered;
-  const paragraphs = text.split(/\n{2,}/).map((chunk) => chunk.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const paragraphs = trimmed.split(/\n{2,}/).map((chunk) => chunk.replace(/\s+/g, " ").trim()).filter(Boolean);
   if (paragraphs.length > 1) return paragraphs;
-  return text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  return trimmed.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+}
+
+/* Une recette à plusieurs préparations (pâte, garniture…) marque chaque
+   section par une ligne "## Titre" — même logique que le `group` des
+   ingrédients. Sans ligne "## …", tout le texte forme une section unique. */
+export function parseMethodGroups(method) {
+  const text = String(method || "").trim();
+  if (!text) return [];
+  if (!/^##\s+.+$/m.test(text)) {
+    return [{ group: "", steps: parseStepChunk(text) }];
+  }
+  const parts = text.split(/(?=^##\s+.+$)/m).map((part) => part.trim()).filter(Boolean);
+  return parts
+    .map((part) => {
+      const match = part.match(/^##\s+(.+)$/m);
+      const group = match ? match[1].trim() : "";
+      const body = match ? part.slice(match[0].length).trim() : part;
+      return { group, steps: parseStepChunk(body) };
+    })
+    .filter((section) => section.steps.length);
+}
+
+export function parseMethodSteps(method) {
+  return parseMethodGroups(method).flatMap((section) => section.steps);
 }
 
 /* ── Commandes vocales ─────────────────────────────────────────

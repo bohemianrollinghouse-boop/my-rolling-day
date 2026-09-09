@@ -46,6 +46,10 @@ export const AUTH_PATH = "/auth";
 export const SETTINGS_SECTIONS = [
   "profile", "households", "household", "notifications",
   "appearance", "account", "privacy", "help", "about",
+  // Outils développeur, sous le bouton « Admin » (compte dev uniquement).
+  // Une section absente de cette liste retombe sur `/settings` : sans ces deux
+  // entrées, les liens vers l'admin ne navigueraient nulle part.
+  "admin", "notiflab",
 ];
 
 /** Sous-pages de support, sous `/settings/support/:page`. */

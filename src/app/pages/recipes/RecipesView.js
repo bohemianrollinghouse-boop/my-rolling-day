@@ -24,6 +24,41 @@ const MONTHS = [
   { id: 10, label: "Octobre" }, { id: 11, label: "Novembre" }, { id: 12, label: "Décembre" },
 ];
 
+/* ── Hauteur de la feuille « D'où vient cette recette ? » (handoff 7b) ──
+   La maquette dessine une feuille qui se dimensionne sur son contenu : titre,
+   deux chemins, « Annuler ». Ionic ne sait pas auto-dimensionner une feuille —
+   `initialBreakpoint` est une fraction de la hauteur d'écran. Figée à 0.46,
+   elle donnait 374 px pour un panneau qui en mesure 329 : 45 px de vide sous
+   « Annuler » sur un écran de 812 px. Et le défaut s'inverse sur un écran
+   court (667 px → 307 px), où le bouton passait sous le pli.
+
+   On part donc de la hauteur du panneau et on la ramène en fraction. */
+const SOURCE_SHEET_HEIGHT = 329;
+
+/* ── Hauteur de la feuille d'import (handoff 7c) ────────────────────────
+   Même raison qu'au-dessus, mais la feuille d'import change de contenu en
+   route : figée à 0.88, elle ouvrait aux quatre cinquièmes de l'écran pour
+   ne montrer qu'un champ et un bouton — 400 px de vide sous la consigne, et
+   la maquette ne dessine qu'un bandeau bas. On mesure donc chaque étape.
+   « done » n'est pas mesurable (la fiche lue est de longueur variable) :
+   elle prend ce qui reste, plafonné par IMPORT_SHEET_MAX. */
+const IMPORT_SHEET_HEIGHT = { idle: 258, loading: 428, failed: 420, done: 9999 };
+const IMPORT_SHEET_MAX = 0.88;
+
+/* `env(safe-area-inset-bottom)` n'est pas lisible depuis JS : le padding bas
+   de `.rsrc` l'inclut, donc la hauteur du panneau grandit d'autant sur les
+   écrans à indicateur d'accueil. Une sonde d'un élément le rend mesurable. */
+function safeAreaBottom() {
+  if (typeof document === "undefined") return 0;
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;left:-9999px;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px)";
+  document.body.appendChild(probe);
+  const inset = probe.getBoundingClientRect().height;
+  probe.remove();
+  return Number.isFinite(inset) ? inset : 0;
+}
+
 /* Types alimentaires principaux (filtre + form, single-select) */
 const FOOD_TYPES = [
   { id: "omnivore",    label: "Omnivore",    icon: "🍖" },
@@ -123,6 +158,26 @@ function seasonById(seasonId) {
 
 function uniqueMonths(values) {
   return [...new Set((Array.isArray(values) ? values : []).map((value) => Number(value)).filter((value) => value >= 1 && value <= 12))];
+}
+
+/* Étapes {text, group} de l'IA -> texte de `method`, numéroté en continu.
+   Un changement de group insère une ligne "## Titre" (lue par
+   parseMethodGroups côté fiche/mode vocal) ; group="" ne produit rien. */
+function buildGroupedMethodText(steps) {
+  if (!steps.length) return "";
+  const lines = [];
+  let currentGroup = null;
+  steps.forEach((step, index) => {
+    if (step.group !== currentGroup) {
+      if (lines.length) lines.push("");
+      if (step.group) lines.push(`## ${step.group}`);
+      currentGroup = step.group;
+    } else if (lines.length) {
+      lines.push("");
+    }
+    lines.push(`${index + 1}. ${step.text}`);
+  });
+  return lines.join("\n");
 }
 
 function formFromRecipe(recipe) {
@@ -274,6 +329,12 @@ export function RecipesView({
   onToggleRecipeFavorite = null,
   linkInventory = false,
   onBack = null,
+  // « Modifier » depuis la fiche recette ouverte dans Repas : cet onglet
+  // remonte à chaque fois qu'on y arrive (routage par onglet), donc lire la
+  // prop au montage suffit — pas besoin de la resurveiller ensuite.
+  openEditRecipeId = "",
+  onEditRecipeHandled = null,
+  externalOpenCreate = 0,
 }) {
 
   /* ── Page création/édition ─────────────────────────────────── */
@@ -291,6 +352,14 @@ export function RecipesView({
 
   /* ── Point de départ d'une nouvelle recette (handoff 7b) ──── */
   const [sourceSheetOpen, setSourceSheetOpen] = useState(false);
+  /* Recalculé à chaque ouverture : la hauteur d'écran change avec la
+     rotation et avec la barre d'adresse mobile. */
+  const sourceSheetBreakpoint = useMemo(() => {
+    if (!sourceSheetOpen) return 0.46;
+    const viewport = window.innerHeight || 812;
+    const wanted = (SOURCE_SHEET_HEIGHT + safeAreaBottom()) / viewport;
+    return Math.min(0.9, Math.max(0.25, Math.round(wanted * 1000) / 1000));
+  }, [sourceSheetOpen]);
 
   /* ── Import depuis un site (handoff 7c) ───────────────────── */
   const [importSheetOpen, setImportSheetOpen] = useState(false);
@@ -299,6 +368,26 @@ export function RecipesView({
   const [importState, setImportState] = useState(defaultImportState());
   // Arrivée par l'import : le formulaire affiche le rappel « vérifie les champs »
   const [cameFromImport, setCameFromImport] = useState(false);
+  /* La feuille suit son contenu : un bandeau bas pour « colle un lien », puis
+     elle monte quand la lecture se raconte et quand la fiche arrive. Les
+     quatre hauteurs sont calculées d'un coup à l'ouverture — `ion-modal` fige
+     ses paliers à la présentation, une hauteur non déclarée alors ne serait
+     plus atteignable ensuite. */
+  const importSheetStops = useMemo(() => {
+    const viewport = window.innerHeight || 812;
+    const inset = importSheetOpen ? safeAreaBottom() : 0;
+    const stops = {};
+    for (const [step, height] of Object.entries(IMPORT_SHEET_HEIGHT)) {
+      const wanted = (height + inset) / viewport;
+      stops[step] = Math.min(IMPORT_SHEET_MAX, Math.max(0.25, Math.round(wanted * 1000) / 1000));
+    }
+    return stops;
+  }, [importSheetOpen]);
+  const importSheetBreakpoint = importSheetStops[importState.step] || importSheetStops.idle;
+  const importSheetBreakpoints = useMemo(
+    () => Object.values(importSheetStops),
+    [importSheetStops],
+  );
 
   /* ── Ingrédients ──────────────────────────────────────────── */
   const [ingredientDraft, setIngredientDraft] = useState(defaultIngredientDraft());
@@ -330,6 +419,15 @@ export function RecipesView({
     if (!exists) setSheetRecipeId("");
   }, [recipes, sheetRecipeId]);
 
+  // Arrivée depuis « Modifier » sur la fiche recette ouverte dans Repas.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!openEditRecipeId) return;
+    const target = (Array.isArray(recipes) ? recipes : []).find((r) => r.id === openEditRecipeId);
+    if (target) openEditModal(target);
+    onEditRecipeHandled?.();
+  }, []);
+
   function openRecipeSheet(recipe) {
     setSheetRecipeId(recipe.id);
   }
@@ -341,6 +439,13 @@ export function RecipesView({
   function openEditModalFromSheet(recipe) {
     closeRecipeSheet();
     openEditModal(recipe);
+  }
+
+  // `RecipeSheet` a déjà demandé confirmation avant d'appeler `onDelete` —
+  // ne pas la redemander ici.
+  function deleteRecipeFromSheet(recipe) {
+    onDeleteRecipe?.(recipe.id);
+    closeRecipeSheet();
   }
 
   function setServings(nextValue) {
@@ -462,11 +567,14 @@ export function RecipesView({
     const condiments = (Array.isArray(analysis.condiments) ? analysis.condiments : [])
       .filter((id) => knownCondimentIds.has(id));
 
-    // Étapes de préparation : liste numérotée aérée
-    const steps = Array.isArray(analysis.steps) ? analysis.steps.map((s) => String(s).trim()).filter(Boolean) : [];
-    const methodText = steps.length
-      ? steps.map((step, index) => `${index + 1}. ${step}`).join("\n\n")
-      : "";
+    // Étapes de préparation : liste numérotée aérée, groupée comme les
+    // ingrédients quand la recette a plusieurs préparations distinctes.
+    const steps = Array.isArray(analysis.steps)
+      ? analysis.steps
+          .map((s) => ({ text: String(s?.text || "").trim(), group: String(s?.group || "").trim() }))
+          .filter((s) => s.text)
+      : [];
+    const methodText = buildGroupedMethodText(steps);
 
     const aiIngredients = Array.isArray(analysis.ingredients) && analysis.ingredients.length
       ? analysis.ingredients.map((item, index) => ({
@@ -545,6 +653,16 @@ export function RecipesView({
     resetEditState();
     setSourceSheetOpen(true);
   }
+
+  // FAB « + » posé au niveau de la page (App.js, hors d'ion-content) pour
+  // rester fixe à l'écran — il ne peut donc pas appeler openCreateModal()
+  // directement, d'où ce compteur externe (même mécanique que le FAB des
+  // tâches).
+  const lastExternalOpenCreateRef = useRef(externalOpenCreate);
+  useEffect(() => {
+    if (externalOpenCreate > lastExternalOpenCreateRef.current) openCreateModal();
+    lastExternalOpenCreateRef.current = externalOpenCreate;
+  }, [externalOpenCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Les deux chemins de 7b arrivent sur le même formulaire : l'import le
      pré-remplit, la création part vierge. */
@@ -1172,7 +1290,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
               value=${form.method}
               onInput=${(e) => setForm({ ...form, method: e.target.value })}
             ></textarea>
-            <span className="nrec-hint">Une étape par ligne : le mode cuisson vocal les lira une à une.</span>
+            <span className="nrec-hint">Une étape par ligne : le mode cuisson vocal les lira une à une. Pour regrouper (« Pour la pâte »…), mets le titre seul sur une ligne commençant par « ## ».</span>
           </section>
 
           ${isEdit ? html`
@@ -1234,7 +1352,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
         isOpen=${sourceSheetOpen}
         onClose=${() => setSourceSheetOpen(false)}
         sheet=${true}
-        sheetBreakpoint=${0.46}
+        sheetBreakpoint=${sourceSheetBreakpoint}
         className="rsrc-sheet"
       >
         <div className="rsrc">
@@ -1269,19 +1387,21 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
   function renderImportSheet() {
     const { step, marks, found, error } = importState;
     const stepLabel = step === "loading" ? "lecture en cours"
-      : step === "done" ? "étape 2 · vérification"
+      : step === "done" ? "étape 2 sur 2 · vérification"
       : step === "failed" ? "échec de la lecture"
-      : "étape 1 · le lien";
+      : "étape 1 sur 2 · le lien";
 
+    /* Le pied dit d'abord où on en est, puis quoi faire — l'état sur la
+       première ligne, la consigne sur la seconde. L'inverse se lisait comme
+       deux consignes concurrentes. */
     const footLabel = step === "loading" ? "Lecture en cours…"
       : step === "done" ? "Recette lue"
       : step === "failed" ? "Rien à importer"
+      : "En attente d'un lien";
+    const footSub = step === "loading" ? "On remplit la fiche pour toi"
+      : step === "done" ? (found?.name || "")
+      : step === "failed" ? "Tu peux réessayer ou saisir à la main."
       : "Colle un lien pour commencer";
-    const footSub = step === "done"
-      ? (found?.name || "")
-      : step === "failed"
-        ? "Tu peux réessayer ou saisir à la main."
-        : "Marmiton, 750g, un blog de cuisine…";
     const ctaLabel = step === "done" ? "Vérifier et compléter" : step === "failed" ? "Saisir à la main" : "Importer";
     const ctaEnabled = step === "done" || step === "failed" || Boolean(importUrl.trim());
 
@@ -1296,7 +1416,8 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
         isOpen=${importSheetOpen}
         onClose=${closeImportSheet}
         sheet=${true}
-        sheetBreakpoint=${0.88}
+        sheetBreakpoint=${importSheetBreakpoint}
+        sheetBreakpoints=${importSheetBreakpoints}
         backdropDismiss=${step !== "loading"}
         className="rimp-sheet"
       >
@@ -1327,7 +1448,7 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
                 📋 Coller depuis le presse-papier
               </button>
               <span className=${`rimp-hint ${error ? "err" : ""}`}>
-                ${error || "La plupart des sites de cuisine fonctionnent. Le lien reste en note si la lecture échoue."}
+                ${error || "Le lien de la page de recette, pas celui de la page d'accueil."}
               </span>
             </div>
 
@@ -1426,9 +1547,8 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
           inventory=${inventory}
           linkInventory=${linkInventory}
           onOpenRecipe=${openRecipeSheet}
-          onCreateRecipe=${openCreateModal}
           onLoadDemoRecipes=${onLoadDemoRecipes}
-          onPlanRecipe=${onOpenMealsTab ? () => onOpenMealsTab() : null}
+          onPlanRecipe=${onOpenMealsTab ? (recipe) => onOpenMealsTab(recipe) : null}
           onToggleFavorite=${onToggleRecipeFavorite ? (recipe) => onToggleRecipeFavorite(recipe.id, !recipe.favorite) : null}
           onBack=${onBack}
         />
@@ -1444,10 +1564,14 @@ Source : ${pendingUrl}` : `Source : ${pendingUrl}`,
         ? html`<${RecipeSheet}
             key=${sheetRecipe.id}
             recipe=${sheetRecipe}
+            inventory=${inventory}
+            linkInventory=${linkInventory}
             onClose=${closeRecipeSheet}
             onEdit=${openEditModalFromSheet}
-            onPlan=${onOpenMealsTab ? () => { onOpenMealsTab(); closeRecipeSheet(); } : null}
+            onDelete=${onDeleteRecipe ? deleteRecipeFromSheet : null}
+            onPlan=${onOpenMealsTab ? (recipe) => { onOpenMealsTab(recipe); closeRecipeSheet(); } : null}
             onAddToShopping=${onAddRecipeIngredientsToShopping}
+            onToggleFavorite=${onToggleRecipeFavorite ? (recipe) => onToggleRecipeFavorite(recipe.id, !recipe.favorite) : null}
           />`
         : null}
       ${showEditPage ? renderEditPage() : null}

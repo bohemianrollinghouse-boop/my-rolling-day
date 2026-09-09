@@ -19,6 +19,7 @@ export function SegmentedTabs({
   ariaLabel = "",
   rowClassName = "",
   tabsClassName = "",
+  scrollable,
 }) {
   return html`
     <div className=${`mrd-segmented-row${rowClassName ? ` ${rowClassName}` : ""}`}>
@@ -26,7 +27,7 @@ export function SegmentedTabs({
         className=${`mrd-subtabs${tabsClassName ? ` ${tabsClassName}` : ""}`}
         value=${activeId}
         aria-label=${ariaLabel}
-        scrollable=${options.length > 3}
+        scrollable=${scrollable ?? options.length > 3}
         onIonChange=${(event) => {
           const next = event.detail?.value;
           // Ionic émet aussi au montage : ne rien faire si rien ne change,

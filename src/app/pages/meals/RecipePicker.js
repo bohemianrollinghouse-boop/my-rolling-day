@@ -10,7 +10,7 @@
  * rappel en pastilles retirables une fois le panneau refermé.
  */
 import { html, useMemo, useState } from "../../lib.js";
-import { computePriorityRecipes, computeRecipeStock, expiryShortLabel } from "../../utils/recipeStock.js";
+import { buildLedgerBeforeSlot, computePriorityRecipes, computeRecipeStockAgainstLedger, expiryShortLabel } from "../../utils/recipeStock.js";
 import {
   SEASONS,
   durationLabel,
@@ -83,6 +83,12 @@ export function RecipePicker({
   slotLabel = "",
   role = "main",
   currentRecipeId = "",
+  // Semaine entière (même forme que `buildWeekSlots` dans MealsView) et clé du
+  // créneau visé : sans elles, une recette déjà posée plus tôt dans la
+  // semaine se présentait « en stock » ici une deuxième fois, alors qu'il
+  // n'en resterait rien pour elle (handoff « ça n'arrive pas »).
+  weekSlots = [],
+  targetSlotKey = "",
   onRemove,
   onCancel,
   onSelect,
@@ -100,13 +106,17 @@ export function RecipePicker({
   const [selectedId, setSelectedId] = useState("");
 
   // Sans liaison inventaire, aucune comparaison au stock n'a lieu : ni badge,
-  // ni filtre, ni tri (règle produit).
+  // ni filtre, ni tri (règle produit). Le budget est celui qui reste une fois
+  // déduit ce que les créneaux plus tôt dans la semaine ont déjà réservé —
+  // sinon deux jours qui veulent la même recette se croient chacun le stock
+  // entier pour eux.
   const stockByRecipeId = useMemo(() => {
     const map = new Map();
     if (!linkInventory) return map;
-    recipes.forEach((recipe) => map.set(recipe.id, computeRecipeStock(recipe, inventory)));
+    const ledger = buildLedgerBeforeSlot(weekSlots, targetSlotKey, inventory);
+    recipes.forEach((recipe) => map.set(recipe.id, computeRecipeStockAgainstLedger(recipe, ledger, inventory)));
     return map;
-  }, [recipes, inventory, linkInventory]);
+  }, [recipes, inventory, linkInventory, weekSlots, targetSlotKey]);
 
   const visibleRecipes = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -151,8 +161,8 @@ export function RecipePicker({
   // bientôt, calculées sur la liste déjà filtrée pour rester cohérentes avec ce
   // qui est affiché. Une seule rangée, elle ne coûte pas de hauteur de liste.
   const urgentRecipes = useMemo(() => (
-    linkInventory ? computePriorityRecipes({ recipes: visibleRecipes, inventory, limit: 3 }) : []
-  ), [linkInventory, visibleRecipes, inventory]);
+    linkInventory ? computePriorityRecipes({ recipes: visibleRecipes, inventory, limit: 3, stockByRecipeId }) : []
+  ), [linkInventory, visibleRecipes, inventory, stockByRecipeId]);
 
   /* Les filtres du panneau — ceux que « Affiner » compte et que les pastilles rappellent. */
   const activeFilters = [

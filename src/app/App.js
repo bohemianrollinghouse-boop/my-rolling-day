@@ -13,8 +13,10 @@ import {
   signInWithGoogle,
   signOutUser,
   signUpWithEmail,
+  sendTestPushNotification,
   updateFamilyPerson,
 } from "./providers/client.js";
+import { normalizeNotificationPayload } from "./utils/notificationPayload.js";
 import { html, lazy, Suspense, useEffect, useMemo, useRef, useState } from "./lib.js";
 
 /* ── Vues chargees a la demande ─────────────────────────────────────────
@@ -86,7 +88,6 @@ import {
   IonApp,
   IonBackButton,
   IonToast,
-  IonToggle,
   IonButtons,
   IonContent,
   IonFab,
@@ -190,6 +191,24 @@ function AppShell() {
 
   // État popup notification — défini avant usePushMessaging pour pouvoir le passer en callback
   const [notifPopup, setNotifPopup] = useState(null);
+  // Aperçu d'une modale de rappel depuis la page Admin — état séparé de
+  // `activeStaleTaskAlert` pour ne pas confondre un aperçu avec une vraie
+  // relance, qui elle consigne un « vu » sur la tâche à la fermeture.
+  const [staleTaskPreview, setStaleTaskPreview] = useState(null);
+  // Recette à planifier depuis la fiche recette : posée le temps du passage
+  // vers l'onglet Repas, qui ouvre directement son sélecteur jour/repas.
+  const [pendingPlanRecipe, setPendingPlanRecipe] = useState(null);
+
+  function handlePreviewReminderModal(entry) {
+    if (!entry) return;
+    if (entry.kind === "staleTask") {
+      setNotifPopup(null);
+      setStaleTaskPreview({ task: entry.task, alert: entry.alert });
+      return;
+    }
+    setStaleTaskPreview(null);
+    setNotifPopup(normalizeNotificationPayload(entry.payload));
+  }
 
   const {
     pushToken,
@@ -201,7 +220,9 @@ function AppShell() {
     userId: user?.uid || "",
     familyId: currentFamilyId || "",
     linkedPersonId: linkedPerson?.id || "",
-    onForegroundMessage: setNotifPopup,
+    // Les push FCM arrivent enveloppés ({ notification, data }) : sans cette
+    // traduction la modale s'ouvrirait avec un titre vide et sans bouton.
+    onForegroundMessage: (payload) => setNotifPopup(normalizeNotificationPayload(payload)),
   });
 
   /* ── Écran courant : dérivé de l'URL, plus d'un useState ──────────────
@@ -224,13 +245,13 @@ function AppShell() {
      destination (par exemple « efface la sous-page » puis « ouvre la section »).
      Avec des routes, cela empilait deux entrees d'historique identiques et le
      bouton retour paraissait ne rien faire au premier appui. */
-  function go(path, { replace = false } = {}) {
+  function go(path, { replace = false, direction } = {}) {
     if (path === location.pathname) return;
-    navigate(path, { replace });
+    navigate(path, { replace, state: direction ? { direction } : undefined });
   }
 
-  function setActiveTab(tab, { replace = false } = {}) {
-    go(pathForTab(tab), { replace });
+  function setActiveTab(tab, { replace = false, direction } = {}) {
+    go(pathForTab(tab), { replace, direction });
   }
 
   /* Dernier écran hors réglages, pour savoir où revenir en fermant les
@@ -272,9 +293,22 @@ function AppShell() {
     go(settingsPathFor(settingsSubPage, page));
   }
 
+  // « Modifier » depuis la fiche recette ouverte dans Repas : l'édition vit
+  // dans l'onglet Recettes (formulaire, pas dupliqué), donc on y bascule et on
+  // lui dit quelle recette ouvrir dès son montage — `RecipesView` remonte à
+  // chaque changement d'onglet, la lecture au montage suffit, pas besoin d'un
+  // `useEffect` qui re-déclenche.
+  const [pendingRecipeEditId, setPendingRecipeEditId] = useState("");
+  function requestRecipeEdit(recipeId) {
+    setPendingRecipeEditId(recipeId);
+    setActiveTab("recipes");
+  }
+
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [taskFabTrigger, setTaskFabTrigger] = useState(0);
+  const [inventoryFabTrigger, setInventoryFabTrigger] = useState(0);
+  const [recipeFabTrigger, setRecipeFabTrigger] = useState(0);
   const [lastTaskTab, setLastTaskTab] = useState("daily");
   const [inventoryOrganiserMode, setInventoryOrganiserMode] = useState(
     () => { try { return localStorage.getItem("mrd-organiser-mode") === "true"; } catch { return false; } }
@@ -853,11 +887,40 @@ function AppShell() {
      d'historique ne l'est pas.
 
      La route `/settings` existe toujours, pour la navigation volontaire. */
+  /* Les fenêtres ouvrables depuis les réglages, rendues dans les DEUX branches.
+     L'écran des réglages est un retour anticipé : la branche principale, qui
+     porte la pile de modales, n'est alors pas rendue du tout. Une modale
+     déclenchée depuis les réglages (notification, aperçu de relance de la page
+     Admin) posait donc bien son état, sans que rien ne l'affiche. */
+  function renderNotificationOverlays() {
+    return [
+      notifPopup ? html`
+        <${NotificationModal}
+          key="notif-popup"
+          notification=${notifPopup}
+          onClose=${() => setNotifPopup(null)}
+          onNavigate=${handleNotifPopupNavigate}
+        />
+      ` : null,
+      staleTaskPreview ? html`
+        <${StaleTaskModal}
+          key="stale-preview"
+          task=${staleTaskPreview.task}
+          alert=${staleTaskPreview.alert}
+          onClose=${() => setStaleTaskPreview(null)}
+          onMoveToDaily=${() => setStaleTaskPreview(null)}
+          onMoveToWeekly=${() => setStaleTaskPreview(null)}
+        />
+      ` : null,
+    ];
+  }
+
   if (showSettings || !plannerUnlocked) {
     return html`
       <div className="mrd-outer">
         <div className="mrd-shell">
           ${settingsPage()}
+          ${renderNotificationOverlays()}
         </div>
         <${FeedbackWidget} user=${user} currentPage="settings" />
       </div>
@@ -960,6 +1023,11 @@ function AppShell() {
           }}
           onUpdateMeal=${handleUpdateMeal}
           onToggleCook=${handleToggleCookWithInventory}
+          onEditRecipe=${requestRecipeEdit}
+          onDeleteRecipe=${(id) => { handleDeleteRecipe(id); showToast("Recette supprimée"); }}
+          onToggleRecipeFavorite=${handleToggleRecipeFavorite}
+          pendingPlanRecipe=${pendingPlanRecipe}
+          onConsumePendingPlanRecipe=${() => setPendingPlanRecipe(null)}
         />
       `;
     }
@@ -1011,8 +1079,8 @@ function AppShell() {
           onRenameStorageLocation=${handleRenameStorageLocation}
           onDeleteStorageLocation=${handleDeleteStorageLocation}
           onSetItemLocation=${handleSetItemLocation}
-          onReorderStorageLocations=${handleReorderStorageLocations}
-          onReorderInventoryItems=${handleReorderInventoryItems}
+          onSetOrganiserMode=${setInventoryOrganiserMode}
+          externalOpenCreate=${inventoryFabTrigger}
         />
       `;
     }
@@ -1042,10 +1110,13 @@ function AppShell() {
           );
           showToast(`✓ ${items.length} ingrédient${items.length > 1 ? "s" : ""} ajouté${items.length > 1 ? "s" : ""} à la liste de courses`);
         }}
-        onOpenMealsTab=${() => setActiveTab("meals")}
+        onOpenMealsTab=${(recipe) => { setActiveTab("meals"); if (recipe) setPendingPlanRecipe(recipe); }}
         onToggleRecipeFavorite=${handleToggleRecipeFavorite}
         linkInventory=${Boolean(state.linkMealsToInventory)}
         onBack=${() => setActiveTab("home")}
+        openEditRecipeId=${pendingRecipeEditId}
+        onEditRecipeHandled=${() => setPendingRecipeEditId("")}
+        externalOpenCreate=${recipeFabTrigger}
       />`;
     }
     if (tab === "notes") {
@@ -1146,17 +1217,6 @@ function AppShell() {
               <${IonBackButton} defaultHref=${HOME_PATH} text="" className="mrd-ion-back" aria-label="Retour" />
             <//>
             <${IonTitle} className="mrd-ion-title">${SECONDARY_TITLES[tab] || ""}<//>
-            ${tab === "inventory" ? html`
-              <${IonButtons} slot="end" className="mrd-back-hdr-side">
-                <span className=${`mrd-hdr-switch-label${inventoryOrganiserMode ? " on" : ""}`}>Organiser</span>
-                <${IonToggle}
-                  className="mrd-hdr-switch"
-                  checked=${inventoryOrganiserMode}
-                  onIonChange=${(event) => setInventoryOrganiserMode(event.detail.checked)}
-                  aria-label="Organiser l'inventaire"
-                />
-              <//>
-            ` : null}
           <//>
         <//>
       `;
@@ -1180,7 +1240,8 @@ function AppShell() {
                           { id: "mine",    emoji: "👤",  label: "Mes tâches" },
                         ]}
                         activeId=${tab}
-                        onChange=${setActiveTab}
+                        onChange=${(next) => setActiveTab(next, { direction: "none" })}
+                        scrollable=${false}
                       />
           <//>
         ` : null}
@@ -1227,10 +1288,17 @@ function AppShell() {
      permet de supprimer la condition `["daily",…].includes(activeTab)` — la
      page des tâches est la seule à en poser un. */
   function renderPageFab(tab) {
-    if (!TASK_PERIODS.includes(tab)) return null;
+    const fabProps = TASK_PERIODS.includes(tab)
+      ? { title: "Nouvelle tâche", onClick: () => setTaskFabTrigger((n) => n + 1) }
+      : tab === "inventory" && isPremium
+        ? { title: "Ajouter un article", onClick: () => setInventoryFabTrigger((n) => n + 1) }
+        : tab === "recipes" && isPremium
+          ? { title: "Ajouter une recette", onClick: () => setRecipeFabTrigger((n) => n + 1) }
+          : null;
+    if (!fabProps) return null;
     return html`
       <${IonFab} slot="fixed" vertical="bottom" horizontal="end">
-        <${IonFabButton} className="mrd-fab" title="Nouvelle tâche" onClick=${() => setTaskFabTrigger((n) => n + 1)}>
+        <${IonFabButton} className="mrd-fab" title=${fabProps.title} onClick=${fabProps.onClick}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
             <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
           </svg>
@@ -1401,6 +1469,9 @@ function AppShell() {
             pushSyncing=${pushSyncing}
             pushError=${pushError}
             onRequestPushPermission=${requestPushPermission}
+            onPreviewNotification=${setNotifPopup}
+            onPreviewReminderModal=${handlePreviewReminderModal}
+            onSendTestPush=${sendTestPushNotification}
             settingsPage=${settingsSubPage}
             onSettingsPageChange=${setSettingsSubPage}
             supportPage=${settingsSupportPage}
@@ -1498,15 +1569,9 @@ ${/* Modals — absolute-positioned within the shell */null}
             onSave=${() => runFamilyAction(() => handleSaveProfileCard())}
           />
         ` : null}
-      ${notifPopup ? html`
-        <${NotificationModal}
-          notification=${notifPopup}
-          onClose=${() => setNotifPopup(null)}
-          onNavigate=${handleNotifPopupNavigate}
-        />
-      ` : null}
+      ${renderNotificationOverlays()}
 
-      ${!notifPopup && activeStaleTask ? html`
+      ${!notifPopup && !staleTaskPreview && activeStaleTask ? html`
         <${StaleTaskModal}
           task=${activeStaleTask}
           alert=${activeStaleTaskAlert}
