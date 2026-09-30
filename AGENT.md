@@ -4,8 +4,8 @@
 > Lis ce fichier en entier avant de toucher au code. Il est écrit pour éviter
 > de réanalyser le projet à chaque session.
 >
-> Dernière mise à jour : **28 août 2026** · branche `main` — après la fusion du
-> dégraissage d'`App.js` et du chargement paresseux des vues.
+> Dernière mise à jour : **30 septembre 2026** · branche `main` — après l'ajout
+> des 42 recettes d'automne à `DEMO_RECIPES`.
 
 ---
 
@@ -218,7 +218,7 @@ routeur, donc il doit être *dans* le provider).
 |---|---|---|
 | `constants.js` | 77 | `DAYS`, `MEMBER_COLORS` (6), `DEFAULT_MEMBER_COLOR`, `BADGE_PALETTE` (8 teintes × 5 nuances), `DEFAULT_BADGE_COLOR`, `THEME_COLOR_LIGHT/DARK`, `APP_VERSION`, `TABS` (12 entrées) |
 | `defaultState.js` | 29 | `createDefaultState()` — forme du document planner |
-| `demoRecipes.js` | 1197 | `DEMO_RECIPES` — jeu de recettes de démonstration |
+| `demoRecipes.js` | 2097 | `DEMO_RECIPES` — 104 recettes chargées par le bouton « Démo » de la bibliothèque : 62 de printemps / été (`servings: 4`), puis 42 d'automne (2 bases + 40 recettes, `servings: 3`, `months: [9, 10]`) |
 | `condiments.js` | ~60 | `CONDIMENTS`, `CONDIMENT_ESSENTIALS` — catalogue |
 
 ⚠️ `BADGE_PALETTE` et `MEMBER_COLORS` sont **délibérément hors du système de
@@ -626,6 +626,16 @@ Une recette contient : `ingredients` structurés (`name`, `quantity`, `unit`),
 - **Les condiments ne sont jamais déduits automatiquement du stock.** Ils
   peuvent être signalés manquants. Visuellement secondaires aux ingrédients
   principaux.
+- **`servings` n'est pas uniforme dans `DEMO_RECIPES`** : 4 pour le printemps et
+  l'été, 3 pour les 42 entrées d'automne, écrites pour « 1 adulte et 2 enfants ».
+  Les quantités sources ont été reprises telles quelles, sans remise à l'échelle
+  — c'est `servings` qui dit pour combien elles sont, et la fiche recalcule le
+  reste. Ne pas « uniformiser » à 4 sans toucher aussi aux quantités.
+- **Un ingrédient du placard entre en `condiments`, pas en `ingredients`** : à
+  l'import des recettes d'automne, sel, huile, ail, vinaigre et cannelle ont
+  changé de côté. C'est ce qui les tient hors de la liste de courses et hors de
+  la déduction de stock (règle ci-dessus). Leur quantité est perdue au passage,
+  et c'est assumé : on n'achète pas 20 ml d'huile.
 - `linkMealsToInventory = false` → pas de comparaison inventaire, pas de popup
   d'ingrédients manquants, pas de suggestion de liste. La sélection manuelle
   d'ingrédients vers la liste de courses **reste possible**.
@@ -932,6 +942,7 @@ normal, c'est un journal historique, ne le réécris pas.**
 | 2026-08-23 | agent | `README.md` réécrit (254 → 163 l.). Corrigés : chemins Windows d'une machine précédente, lancement `npx serve`/`python -m http.server` (faux — l'app a besoin de Vite), `.claude/launch.json` inexistant, bloc PowerShell `run-tests.ps1`, et **trois commandes de test avec un flag invalide** (`--test-isolation=none` → `node: bad option` ; le vrai est `--experimental-test-isolation=none`). Supprimée la section « Cache busting » qui contredisait le même fichier 175 lignes plus haut. L'inventaire des fichiers a été retiré du README plutôt que corrigé : le dupliquer ici est ce qui l'avait périmé. |
 | 2026-08-23 | agent | **`App.js` dégraissé : 1890 → 1526 l. (−19 %), 28 → 7 handlers métier.** 5 hooks créés (`useMealCooking` 241 l., `usePlannerData` 101, `useInbox` 92, `useAppTime` 92, `useNotes` 46) ; condiments rapatriés dans `useMeals`, `handleReorderStorageLocations` dans `useLists`. `computeMealCookState` et `deductionToastMessage` sont désormais purs et exportés, donc testables : **16 tests ajoutés** (`tests/unit/meal-cooking.test.js`), un par règle produit de §8 — suite passée de 213 à **229 pass / 0 fail / 0 skipped**. Non extraits volontairement : `handleSetActivePerson` / `handleSetDeviceMode`, voir §15. Sections §4, §14, §15, §16 mises à jour. |
 | 2026-08-28 | agent | **Fusion de `605a33b` (dégraissage d'`App.js`) et `e34ed54` (chargement paresseux des vues).** Un seul conflit, le bloc d'imports d'`App.js` : les deux commits l'avaient restructuré pour des raisons opposées — eux pour poser 12 `lazy()`, moi pour retirer les imports partis dans `useMealCooking`. Résolu en gardant leur bloc `lazy`/`Suspense` et en y appliquant mes retraits. Les deux jeux de changements sont complémentaires (coque vs métier), vérifiés présents des deux côtés. Suite : **234 pass / 0 fail / 0 skipped**. Corrigé au passage deux faits devenus faux : l'en-tête, et §16 qui listait encore le code-splitting comme dette alors que `e34ed54` venait de le faire. À noter : `node_modules` avait disparu du poste (`vite: command not found`), réinstallé par `npm ci` — sans rapport avec la fusion. |
+| 2026-09-30 | agent | **42 recettes d'automne ajoutées à `DEMO_RECIPES`** depuis un programme alimentaire externe (`recettes_automne_pour_claude_code.json`) : 62 → 104 entrées, `demoRecipes.js` 1197 → 2097 l. Classification faite à l'import, pas reprise de la source : catégorie, type alimentaire et contraintes déduits des ingrédients. Deux écarts avec le reste du fichier, tous deux volontaires et notés en §8 : `servings: 3` (le programme est écrit pour 1 adulte et 2 enfants) et le sel / l'huile / l'ail / le vinaigre / la cannelle déplacés des `ingredients` vers les `condiments`. Corrigé ici la ligne de `demoRecipes.js` en §4, qui annonçait un « jeu de recettes de démonstration » sans dire que c'est la bibliothèque du bouton « Démo ». Suite unitaire inchangée par ce commit (deux échecs préexistants, `mealFill` et `design-tokens`, reproduits sans ce fichier — ils viennent du travail en cours sur l'inventaire). |
 
 ---
 

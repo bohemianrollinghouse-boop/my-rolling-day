@@ -2,6 +2,45 @@
 
 ---
 
+## [2026-09-30] — 42 recettes d'automne ajoutées à la bibliothèque, classifiées à l'import
+
+Un programme alimentaire externe (`recettes_automne_pour_claude_code.json`, 29 septembre → 28 octobre) est entré dans `DEMO_RECIPES` : **2 préparations de base + 40 recettes**, soit 62 → **104 entrées**. C'est le jeu que charge le bouton « Démo » de la bibliothèque.
+
+La source n'est pas au format de l'app : elle décrit des repas en prose (« 25 min + pousse », « 8 h yaourt »), mélange fonds de placard et ingrédients, et ne porte **aucune catégorie exploitable** — juste « Petit-déjeuner », « Goûter », « Déjeuner ou dîner ». Tout le classement a donc été fait à l'import, à partir des ingrédients.
+
+### Ce qui a été décidé, et pourquoi
+
+| Décision | Pourquoi |
+|---|---|
+| `servings: 3` pour les 42 entrées, contre 4 pour le printemps et l'été | Le programme est écrit pour « 1 adulte et 2 enfants ». Les quantités sources sont reprises **telles quelles**, sans remise à l'échelle : `servings` dit pour combien elles valent, la fiche recalcule le reste (`fmtScaledQty`). Multiplier pour aligner sur 4 aurait faussé un programme conçu quantité par quantité. |
+| Sel, huile, ail, vinaigre et cannelle passés de `ingredients` à `condiments` | Ce sont des fonds de placard. Les laisser en ingrédients les faisait remonter dans la liste de courses et dans la déduction de stock — « acheter 20 ml d'huile ». Leur quantité est perdue au passage, et c'est le comportement voulu du modèle. |
+| « Goûter » et « Petit-déjeuner » fusionnés en `breakfast` | C'est la catégorie que l'app expose, libellée « Petit-déj / goûter ». Inventer une catégorie `snack` aurait demandé de la câbler dans le formulaire, le sélecteur et le tirage pour dix recettes. |
+| Les contraintes (`gluten_free`, `lactose_free`, `egg_free`, `nut_free`, `pork_free`) sont posées **dès qu'elles sont vraies**, pas seulement quand elles sont remarquables | `matchesConstraints` exige que **chaque** contrainte cochée figure dans `labels`. Une recette sans porc mais non taguée `pork_free` disparaît du filtre « sans porc » : l'omission se lit comme une exclusion. |
+| `halal` et `kosher` jamais posés | Ça relève d'une certification, pas d'une lecture d'ingrédients. |
+| Les recettes à l'avoine (porridge, biscuits) **ne sont pas** `gluten_free` | L'avoine vendue en France est presque toujours contaminée, sauf mention explicite sur le paquet. |
+| `months: [9, 10]` pour les 40 recettes, `all_year` pour les 2 bases | Le programme court sur septembre-octobre. Le pain et le yaourt ne sont pas saisonniers. |
+| `cookTime: "600"` pour le yaourt | Sans ça, ses 10 minutes actives le faisaient passer pour une recette rapide (`QUICK_MAX_MINUTES = 20`) alors qu'il demande 8 à 10 h de fermentation. À l'inverse « Fruit et yaourt » **reste** à 5 min : le yaourt y est déjà fait. |
+
+Les champs `a_preparer_en_avance` et `conservation_et_restes` de la source n'ont pas d'équivalent dans le modèle ; ils sont repris en fin de `method` (« À préparer en avance : … », « Conservation et restes : … ») plutôt que jetés — c'est l'information la plus utile du fichier pour un programme qui enchaîne les repas.
+
+Répartition obtenue : 2 `base`, 10 `breakfast`, 30 `main` · 31 végétariennes, 9 véganes, 1 pescétarienne, 1 omnivore.
+
+### Fichiers
+
+| Fichier | Changement |
+|---|---|
+| `src/app/config/demoRecipes.js` | 1197 → 2097 l. 42 entrées ajoutées, ids `demo-recipe-63` → `demo-recipe-104` (les ids sont stables exprès : `handleLoadDemoRecipes` filtre sur eux pour ne pas dupliquer à un second clic sur « Démo »). Bloc précédé d'un commentaire qui explique les deux écarts de format avec le reste du fichier. |
+| `AGENT.md` | §4 : la ligne `demoRecipes.js` annonçait « jeu de recettes de démonstration » sans dire que c'est la bibliothèque du bouton « Démo » — corrigée, avec la nouvelle taille. §8 : deux invariants ajoutés (`servings` non uniforme, placard → `condiments`). En-tête et §12 à jour. |
+
+### Vérifié
+
+- Le module se charge, **104 ids de recette et 459 ids d'ingrédient tous uniques**.
+- Aucune catégorie, aucun label, aucun condiment hors des vocabulaires de l'app (`CATEGORIES` et `CONSTRAINT_LABELS` de `RecipesView.js`, `CONDIMENTS` de `config/condiments.js`) ; exactement un type alimentaire par recette.
+- Les 42 ressortent bien sur le filtre d'octobre, les 2 bases seules en janvier.
+- `npm run test:unit` : deux échecs (`« avec mon stock »`, token `--mrd-recipe-buy-line`) **préexistants**, reproduits en mettant ce fichier de côté — ils viennent du travail en cours sur l'inventaire, pas d'ici.
+
+---
+
 ## [2026-08-25] — Feuille « Remplir la semaine » refaite d'après le handoff design
 
 L'ancienne feuille était une rangée de puces en vrac : régime, contraintes et options se ressemblaient toutes, et rien ne disait ce qu'on décidait. Le handoff (`design_handoff_remplir_semaine`) impose **une décision par ligne**, chaque ligne étiquetée à gauche, le tout dans ~200 px au-dessus de la barre d'onglets.
