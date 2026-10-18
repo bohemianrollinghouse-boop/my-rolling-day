@@ -98,6 +98,17 @@ const ROLE_VALUE_KEYS = {
   dessert: "dessertRecipeId",
 };
 
+/* « Planifier cette recette » (RecipeLibrary) : le service pré-sélectionné
+   suit la catégorie de la recette quand elle correspond à un service du
+   repas (entrée/dessert) ; les autres catégories (boisson, base maison...)
+   n'ont pas de service dédié et retombent sur « Plat ». */
+function defaultPlanRole(recipe) {
+  const category = recipe?.category;
+  return category === "starter" || category === "dessert" ? category : "main";
+}
+
+const PLAN_ROLE_PHRASE = { starter: "en entrée", main: "en plat", dessert: "en dessert" };
+
 function dateToKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -145,6 +156,73 @@ function scaleRecipe(recipe, servings) {
   };
 }
 
+/* ── Hauteur de la feuille « Semaine remplie » (handoff 17c) ────────────
+   Même raison que la feuille source des recettes (RecipesView.js) : `ion-modal`
+   fige `initialBreakpoint` en fraction d'écran, pas en pixels. Le contenu
+   varie avec le tirage — jusqu'à 3 lignes de manquants visibles (le reste
+   défile dans sa carte), phrase d'exception présente ou non, pied réduit à
+   la seule sortie quand rien ne manque — d'où un calcul plutôt qu'une
+   constante unique. */
+function fillReportSheetHeight(report) {
+  if (!report) return 420;
+  const missingCount = report.missingCount || 0;
+  const rows = Math.min(3, report.missingItems?.length || 0);
+  const hasNote = Boolean(report.alreadyListedCount) || Boolean((report.emptyCourses || []).length);
+  // 86, pas 70 : la ligne-hauteur par défaut de Cormorant Garamond sur le
+  // chiffre 24px dépasse largement 1.2, mesuré dans le navigateur — un
+  // premier calcul à 70 laissait un vide sous « Voir la semaine ».
+  const blocks = [44, 86]; // en-tête (vignette) · rangée des trois chiffres
+  if (missingCount > 0) blocks.push(14, rows ? rows * 44 + 4 : 44); // titre de section + liste
+  if (hasNote) blocks.push(33);
+  if (missingCount > 0) blocks.push(46); // bouton plein
+  blocks.push(42); // sortie en texte nu
+  const gaps = (blocks.length - 1) * 12;
+  return blocks.reduce((sum, h) => sum + h, 0) + gaps + 16 + 8; // padding haut + bas
+}
+
+/* ── Hauteur de la feuille « ce qui manque » (handoff 20a) ──────────────
+   Même logique que `fillReportSheetHeight` ci-dessus : le contenu varie avec
+   la recette (nombre d'ingrédients manquants, condiments ou non) et avec
+   l'état (rien ne manque → une seule ligne + un bouton). */
+function missingSheetHeight(modal, shoppingItems) {
+  if (!modal) return 420;
+  const isManual = modal.mode === "manual";
+  const condimentItems = modal.condimentItems || [];
+  const hasIngredients = modal.items.length > 0;
+  const nothingMissing = !isManual && !hasIngredients && !condimentItems.length;
+
+  const blocks = [4, 46]; // poignée + en-tête
+  if (nothingMissing) {
+    blocks.push(44, 42); // ligne de compte (sauge) + bouton « Fermer » seul
+  } else {
+    blocks.push(44); // ligne de compte
+    // Carte de la liste : au-delà de 6 lignes (300px), elle défile plutôt que
+    // de pousser la feuille plus haut que l'écran.
+    if (hasIngredients) blocks.push(Math.min(6, modal.items.length) * 50);
+    if (condimentItems.length) {
+      const rows = Math.ceil(condimentItems.length / 3);
+      blocks.push(16 + rows * 34 + (rows - 1) * 7);
+    }
+    blocks.push(100); // les deux boutons d'action
+  }
+  const gaps = (blocks.length - 1) * 14;
+  return blocks.reduce((sum, h) => sum + h, 0) + gaps + 32; // padding haut (12) + bas (20)
+}
+
+/* `env(safe-area-inset-bottom)` n'est pas lisible depuis JS : le padding bas
+   de la feuille l'inclut, donc sa hauteur grandit d'autant sur les écrans à
+   indicateur d'accueil. Une sonde d'un élément le rend mesurable. */
+function safeAreaBottom() {
+  if (typeof document === "undefined") return 0;
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;left:-9999px;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px)";
+  document.body.appendChild(probe);
+  const inset = probe.getBoundingClientRect().height;
+  probe.remove();
+  return Number.isFinite(inset) ? inset : 0;
+}
+
 export function MealsView({
   meals,
   recipes,
@@ -155,6 +233,11 @@ export function MealsView({
   onAddMissingIngredients,
   onUpdateMeal,
   onToggleCook,
+  onEditRecipe,
+  onDeleteRecipe,
+  onToggleRecipeFavorite,
+  pendingPlanRecipe = null,
+  onConsumePendingPlanRecipe,
 }) {
   const safeRecipes = Array.isArray(recipes) ? recipes : [];
   const safeMeals = Array.isArray(meals) ? meals : [];
@@ -175,9 +258,33 @@ export function MealsView({
   // c'est donc à la vue de la tenir — le temps de la session et de la semaine.
   const [fillTrace, setFillTrace] = useState({ weekKey: "", entries: [] });
   const [picker, setPicker] = useState(null); // { dayIndex, slot, role }
+  // Sélecteur jour/repas ouvert depuis « Planifier cette recette » : la
+  // recette est déjà choisie, il ne reste qu'à choisir le créneau.
+  const [planPick, setPlanPick] = useState(null); // { recipe, dayIndex, slot }
+  // Le bandeau « stock déjà pris » se ferme sans redevenir permanent : on ne
+  // retient que la signature de la dernière alerte fermée, pas un simple
+  // booléen — sinon changer de créneau avec un nouveau conflit resterait
+  // muet après une première fermeture.
+  const [dismissedTakenKey, setDismissedTakenKey] = useState("");
   const [viewModal, setViewModal] = useState(null);
   const [missingModal, setMissingModal] = useState(null);
   const [fillReport, setFillReport] = useState(null);
+  /* Recalculée à chaque tirage : le contenu change avec le rapport, la
+     hauteur d'écran avec la rotation et la barre d'adresse mobile. */
+  const fillReportBreakpoint = useMemo(() => {
+    if (!fillReport) return 0.5;
+    const viewport = window.innerHeight || 812;
+    const wanted = (fillReportSheetHeight(fillReport) + safeAreaBottom()) / viewport;
+    return Math.min(0.9, Math.max(0.25, Math.round(wanted * 1000) / 1000));
+  }, [fillReport]);
+  /* Recalculée à chaque ouverture : le contenu change avec la recette posée,
+     la hauteur d'écran avec la rotation et la barre d'adresse mobile. */
+  const missingSheetBreakpoint = useMemo(() => {
+    if (!missingModal) return 0.5;
+    const viewport = window.innerHeight || 812;
+    const wanted = (missingSheetHeight(missingModal, shoppingItems) + safeAreaBottom()) / viewport;
+    return Math.min(0.92, Math.max(0.25, Math.round(wanted * 1000) / 1000));
+  }, [missingModal, shoppingItems]);
 
   const todayMonday = computeMonday(today);
   const targetMonday = addDays(todayMonday, weekOffset * 7);
@@ -186,6 +293,13 @@ export function MealsView({
   const weekDates = DAYS.map((_, index) => addDays(targetMonday, index));
   const todayIdx = (() => { const dow = today.getDay(); return dow === 0 ? 6 : dow - 1; })();
   const todayKey = dateToKey(today);
+  // Le créneau réel affiché en surtitre de la popup « ce qui manque » — figé
+  // à l'ouverture, pas relu depuis `missingModal` : si la semaine affichée
+  // change pendant que la feuille est ouverte, le libellé ne doit pas bouger
+  // sous l'utilisateur.
+  function slotLabelOf(dayIndex, slot) {
+    return `${DAYS[dayIndex]} ${weekDates[dayIndex].getDate()} · ${SLOT_LABELS[slot]}`;
+  }
 
   // Compat : un repas sans weekKey appartient à la semaine courante.
   const mealRows = DAYS.map((day, index) => (
@@ -301,6 +415,22 @@ export function MealsView({
   // Changer de créneau (ou de recette) remet les couverts sur la recette.
   useEffect(() => { setServings(null); }, [selected.dayIndex, selected.slot, current.recipeId, targetWeekKey]);
 
+  // Arrivée depuis « Planifier cette recette » (onglet Recettes) : le
+  // sélecteur jour/repas s'ouvre directement, préréglé sur le créneau
+  // actuellement affiché.
+  useEffect(() => {
+    if (!pendingPlanRecipe) return;
+    setPicker(null);
+    closeFill();
+    setPlanPick({
+      recipe: pendingPlanRecipe,
+      dayIndex: selected.dayIndex,
+      slot: selected.slot,
+      role: defaultPlanRole(pendingPlanRecipe),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPlanRecipe]);
+
   // La façon de manger ne change pas d'une semaine à l'autre : on la retient.
   useEffect(() => { storeMealFillPrefs(fill); }, [fill]);
 
@@ -336,9 +466,12 @@ export function MealsView({
     if (!missing.length && !missingCondiments.length) return;
     setMissingModal({
       recipeName: recipe.name,
+      category: recipe.category,
+      slotLabel: slotLabelOf(dayIndex, slot),
       mode: "inventory",
       items: missing,
       condimentItems: missingCondiments,
+      totalCount: (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).filter((item) => item?.name).length,
       // Ce qui attend déjà sur la liste part décoché : rien ne sert de le redemander.
       selectedIds: splitAlreadyListed(missing, shoppingItems).toAdd.map((item) => item.id),
       selectedCondiments: [],
@@ -363,17 +496,19 @@ export function MealsView({
   function fillPlanFor(filters) {
     return buildFillPlan({
       recipes: safeRecipes,
-      slots: slotList.map(({ dayIndex, slot, recipeId, text, starter, dessert }) => ({
+      slots: slotList.map(({ dayIndex, slot, recipeId, text, starter, dessert, cooked }) => ({
         dayIndex,
         slot,
         recipeId,
         text,
         starterRecipeId: starter?.id || "",
         dessertRecipeId: dessert?.id || "",
+        cooked,
       })),
       filters,
       currentMonth,
       stockByRecipeId,
+      inventory,
     });
   }
 
@@ -465,11 +600,22 @@ export function MealsView({
   function openShopping() {
     if (!current.recipe) return;
     const scaled = scaleRecipe(current.recipe, effectiveServings);
+    const slotLabel = slotLabelOf(selected.dayIndex, selected.slot);
     if (!linkMealsToInventory) {
       // Sans liaison : pas de comparaison au stock, on propose la liste complète.
       const items = Array.isArray(scaled.ingredients) ? scaled.ingredients.filter((item) => item?.name) : [];
       if (!items.length) return;
-      setMissingModal({ recipeName: scaled.name, mode: "manual", items, condimentItems: [], selectedIds: [], selectedCondiments: [] });
+      setMissingModal({
+        recipeName: scaled.name,
+        category: scaled.category,
+        slotLabel,
+        mode: "manual",
+        items,
+        condimentItems: [],
+        servings: effectiveServings,
+        selectedIds: [],
+        selectedCondiments: [],
+      });
       return;
     }
     // La même liste que le bouton : sinon il annonce « Courses · 1 » et la
@@ -478,9 +624,12 @@ export function MealsView({
     const missingCondiments = computeMissingCondiments(scaled, inventory);
     setMissingModal({
       recipeName: scaled.name,
+      category: scaled.category,
+      slotLabel,
       mode: "inventory",
       items: missing,
       condimentItems: missingCondiments,
+      totalCount: (Array.isArray(scaled.ingredients) ? scaled.ingredients : []).filter((item) => item?.name).length,
       selectedIds: splitAlreadyListed(missing, shoppingItems).toAdd.map((item) => item.id),
       selectedCondiments: [],
     });
@@ -540,10 +689,152 @@ export function MealsView({
         slotLabel=${`${DAYS[picker.dayIndex]} ${weekDates[picker.dayIndex].getDate()}, ${SLOT_SHORT[picker.slot]}`}
         role=${picker.role}
         currentRecipeId=${currentIdByRole || ""}
+        weekSlots=${buildWeekSlots()}
+        targetSlotKey=${slotKeyOf(picker.dayIndex, picker.slot)}
         onRemove=${() => applyPick("")}
         onCancel=${() => setPicker(null)}
         onSelect=${applyPick}
       />
+    `;
+  }
+
+  /* ── Sélecteur jour/repas : la recette est déjà choisie ── */
+
+  if (planPick) {
+    const recipe = planPick.recipe;
+    const chosenDate = weekDates[planPick.dayIndex];
+
+    const cancelPlanPick = () => {
+      setPlanPick(null);
+      onConsumePendingPlanRecipe?.();
+    };
+
+    const planRoleKey = ROLE_VALUE_KEYS[planPick.role] || "recipeId";
+
+    const confirmPlanPick = () => {
+      const target = readSlot(planPick.dayIndex, planPick.slot);
+      onUpdateMeal(target.day, target.slot, { [planRoleKey]: recipe.id }, target.weekKey);
+      checkInventoryAfterPick(recipe, planPick.dayIndex, planPick.slot, planPick.role);
+      setSelected({ dayIndex: planPick.dayIndex, slot: planPick.slot });
+      setPlanPick(null);
+      onConsumePendingPlanRecipe?.();
+    };
+
+    // Ce que le créneau choisi porte déjà pour chaque service — permet de
+    // voir, avant de valider, si « Planifier » va remplacer un plat déjà posé.
+    const targetEntry = readSlot(planPick.dayIndex, planPick.slot);
+    const planRoles = [
+      { id: "starter", label: "Entrée", recipe: targetEntry.starter, text: "" },
+      { id: "main", label: "Plat", recipe: targetEntry.recipe, text: targetEntry.text },
+      { id: "dessert", label: "Dessert", recipe: targetEntry.dessert, text: "" },
+    ];
+
+    const renderPlanCell = (dayIndex, slot) => {
+      const entry = readSlot(dayIndex, slot);
+      const date = weekDates[dayIndex];
+      const isPast = dateToKey(date) < todayKey;
+      const isOn = planPick.dayIndex === dayIndex && planPick.slot === slot;
+      // Le contenu affiché suit le service en cours de choix : planifier un
+      // dessert doit montrer ce qui est déjà en dessert sur chaque créneau,
+      // pas le plat principal.
+      const roleRecipe = planPick.role === "starter" ? entry.starter
+        : planPick.role === "dessert" ? entry.dessert
+        : entry.recipe;
+      const roleText = planPick.role === "main" ? entry.text : "";
+      const hasContent = Boolean(roleRecipe || roleText);
+      const name = roleRecipe?.name || roleText || "Libre";
+      return html`
+        <button
+          type="button"
+          key=${`${dayIndex}-${slot}`}
+          className=${`mrd-week-cell${hasContent ? "" : " is-empty"}${isOn ? " on" : ""}${isPast ? " past" : ""}`}
+          aria-pressed=${isOn ? "true" : "false"}
+          aria-label=${`${DAYS[dayIndex]} ${SLOT_LABELS[slot].toLowerCase()} : ${hasContent ? name : "libre"}`}
+          onClick=${() => setPlanPick((prev) => prev && ({ ...prev, dayIndex, slot }))}
+        >
+          <span className="mrd-week-cell-bar" aria-hidden="true"></span>
+          <span className=${`mrd-week-cell-icon ${categoryToneClass(roleRecipe?.category)}`} aria-hidden="true">
+            ${roleRecipe
+              ? html`<${CategoryIcon} categoryId=${roleRecipe.category} size=${15} framed=${false} />`
+              : html`<span className="mrd-week-cell-plus">+</span>`}
+          </span>
+          <span className="mrd-week-cell-name">${name}</span>
+        </button>
+      `;
+    };
+
+    return html`
+      <section className="mpick">
+        <div className="mpick-hdr">
+          <button type="button" className="mpick-back" onClick=${cancelPlanPick} aria-label="Annuler">‹</button>
+          <span className="mpick-title">Planifier</span>
+        </div>
+
+        <div className="mrd-week-panel">
+          <div className="mrd-week-panel-hdr">
+            <span className=${`mrd-week-panel-thumb ${categoryToneClass(recipe.category)}`} aria-hidden="true">
+              <${CategoryIcon} categoryId=${recipe.category} size=${26} framed=${false} />
+            </span>
+            <span className="mrd-week-panel-titles">
+              <span className="mrd-week-panel-kicker">Recette choisie</span>
+              <span className="mrd-week-panel-title">${recipe.name || "Sans titre"}</span>
+            </span>
+          </div>
+          <div className="mrd-week-panel-body">
+            <div className="mrd-week-panel-rows">
+              ${planRoles.map((role) => html`
+                <button type="button" key=${role.id}
+                  className=${`mrd-week-panel-row${planPick.role === role.id ? " on" : ""}`}
+                  aria-pressed=${planPick.role === role.id ? "true" : "false"}
+                  onClick=${() => setPlanPick((prev) => prev && ({ ...prev, role: role.id }))}>
+                  <span className="mrd-week-panel-role">${role.label}</span>
+                  <span className=${`mrd-week-panel-name${role.recipe || role.text ? "" : " is-empty"}`}>${role.recipe?.name || role.text || "Libre"}</span>
+                  <span className="mrd-week-panel-cue" aria-hidden="true">${planPick.role === role.id ? "✓" : ""}</span>
+                </button>
+              `)}
+            </div>
+          </div>
+        </div>
+
+        <div className="mrd-week-nav">
+          <button type="button" className="mrd-week-arrow" aria-label="Semaine précédente" onClick=${() => setWeekOffset((n) => n - 1)}>‹</button>
+          <span className="mrd-week-title">
+            <span className="mrd-week-range">${weekRange}</span>
+            <span className="mrd-week-kicker">${weekKicker}</span>
+          </span>
+          <button type="button" className="mrd-week-arrow" aria-label="Semaine suivante" onClick=${() => setWeekOffset((n) => n + 1)}>›</button>
+        </div>
+
+        <div className="mrd-week-heads" aria-hidden="true">
+          <span></span>
+          <span>☀️ Midi</span>
+          <span>🌙 Soir</span>
+        </div>
+
+        <div className="mrd-week-grid">
+          ${DAYS.map((day, dayIndex) => {
+            const date = weekDates[dayIndex];
+            const dateKey = dateToKey(date);
+            const isToday = dateKey === todayKey;
+            const isPast = dateKey < todayKey;
+            return html`
+              <div className="mrd-week-row" key=${day}>
+                <div className=${`mrd-week-rail${isToday ? " today" : ""}${isPast ? " past" : ""}`}>
+                  <span className="mrd-week-rail-abbr">${DAY_ABBR[dayIndex]}</span>
+                  <span className="mrd-week-rail-num">${date.getDate()}</span>
+                </div>
+                ${SLOTS.map((slot) => renderPlanCell(dayIndex, slot))}
+              </div>
+            `;
+          })}
+        </div>
+
+        <div className="mpick-foot">
+          <button type="button" className="mpick-cta on" onClick=${confirmPlanPick}>
+            Ajouter ${PLAN_ROLE_PHRASE[planPick.role] || "en plat"} à ${DAY_ABBR[planPick.dayIndex]} ${chosenDate.getDate()} · ${SLOT_LABELS[planPick.slot]}
+          </button>
+        </div>
+      </section>
     `;
   }
 
@@ -610,6 +901,13 @@ export function MealsView({
        tant qu'on ne dit pas quel repas les prend déjà. */
     const takenSlots = [...new Set(weekOnlyForCurrent.flatMap((item) => item.takenBy || []))];
     const takenNames = [...new Set(weekOnlyForCurrent.map((item) => item.name))];
+    // Signature de cette alerte précise : changer de créneau, ou revenir sur
+    // celui-ci avec un stock différent, doit la faire réapparaître même si la
+    // précédente a été fermée.
+    const takenKey = takenNames.length
+      ? `${selected.dayIndex}-${selected.slot}-${takenNames.join("|")}-${takenSlots.join("|")}`
+      : "";
+    const showTaken = takenKey && takenKey !== dismissedTakenKey;
 
     return html`
       <div className="mrd-week-panel">
@@ -645,17 +943,6 @@ export function MealsView({
             `)}
           </div>
 
-          ${takenNames.length ? html`
-            <div className="mrd-week-taken">
-              <span className="mrd-week-taken-dot" aria-hidden="true"></span>
-              <span>
-                <strong>${takenNames.join(", ")}</strong> : ton stock part déjà dans
-                ${takenSlots.length ? html` ${takenSlots.join(", ")}` : html` un autre repas`}.
-                Il en faut une deuxième fois.
-              </span>
-            </div>
-          ` : null}
-
           <div className="mrd-week-panel-actions">
             <span className="mrd-week-servings">
               <button type="button" className="mrd-week-servings-btn" aria-label="Moins de couverts"
@@ -672,6 +959,19 @@ export function MealsView({
             </button>
           </div>
         </div>
+
+        ${showTaken ? html`
+          <div className="mrd-week-taken" role="status">
+            <span className="mrd-week-taken-dot" aria-hidden="true"></span>
+            <span className="mrd-week-taken-copy">
+              <strong>${takenNames.join(", ")}</strong> : ton stock part déjà dans
+              ${takenSlots.length ? html` ${takenSlots.join(", ")}` : html` un autre repas`}.
+              Il en faut une deuxième fois.
+            </span>
+            <button type="button" className="mrd-week-taken-close" aria-label="Fermer"
+              onClick=${() => setDismissedTakenKey(takenKey)}>✕</button>
+          </div>
+        ` : null}
       </div>
     `;
   }
@@ -830,158 +1130,204 @@ export function MealsView({
   /** Bilan du tirage : ce qui vient du stock, ce qu'il reste à acheter. */
   function renderFillReport() {
     if (!fillReport) return null;
-    const { total, stockCount, otherCount, stockAsked, items, missingCount, alreadyListedCount, emptyCourses } = fillReport;
-    const meals = (count) => `${count} repas`;
-    // Le partage stock / courses se compte en recettes : un créneau entrée +
-    // plat peut avoir une moitié en stock et l'autre à acheter.
-    const dishes = (count) => `${count} recette${count > 1 ? "s" : ""}`;
+    const { total, stockCount, missingItems, missingCount, alreadyListedCount, emptyCourses } = fillReport;
+    // Un service coché dont aucune recette ne passe les filtres reste vide :
+    // le dire, sinon la case « Dessert » a l'air de ne rien faire.
     const missingCourseLabels = (emptyCourses || [])
       .map((id) => FILL_COURSES.find((course) => course.id === id)?.label.toLowerCase())
       .filter(Boolean);
 
+    const noteParts = [];
+    if (alreadyListedCount) {
+      noteParts.push(alreadyListedCount > 1
+        ? `${alreadyListedCount} ingrédients sont déjà sur la liste de courses.`
+        : `Un ingrédient est déjà sur la liste de courses.`);
+    }
+    if (missingCourseLabels.length) {
+      const plural = missingCourseLabels.length > 1;
+      noteParts.push(`Aucune recette de ${missingCourseLabels.join(", ")} ne passait tes filtres : service${plural ? "s" : ""} resté${plural ? "s" : ""} vide${plural ? "s" : ""}.`);
+    }
+
+    const addLabel = missingCount === 1
+      ? "Ajouter l'élément à la liste"
+      : `Ajouter les ${missingCount} éléments à la liste`;
+
     return html`
-      <${MrdModal} isOpen=${true} onClose=${() => setFillReport(null)} className="task-modal">
-
-          <div className="task-modal-head">
-            <div>
-              <div className="miniTitle">Semaine remplie</div>
-              <div className="st">${meals(total)} ajouté${total > 1 ? "s" : ""}</div>
-            </div>
-            <button className="delbtn" onClick=${() => setFillReport(null)}>✕</button>
+      <${MrdModal}
+        isOpen=${true}
+        onClose=${() => setFillReport(null)}
+        sheet=${true}
+        sheetBreakpoint=${fillReportBreakpoint}
+        className="mrd-fillsheet-modal"
+      >
+        <div className="mrd-fillsheet">
+          <div className="mrd-fillsheet-head">
+            <span className="mrd-fillsheet-icon" aria-hidden="true">🍽️</span>
+            <span className="mrd-fillsheet-head-copy">
+              <span className="mrd-fillsheet-kicker">${weekRange}</span>
+              <span className="mrd-fillsheet-title">Semaine remplie</span>
+            </span>
+            <button type="button" className="mrd-fillsheet-close" onClick=${() => setFillReport(null)} aria-label="Fermer">✕</button>
           </div>
 
-          ${stockAsked ? html`
-            <div className="mrd-fill-report">
-              ${stockCount ? html`
-                <div className="mrd-fill-report-line ok">
-                  <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                  <span><strong>${dishes(stockCount)}</strong> avec ce que tu as déjà : ${items.length} article${items.length > 1 ? "s" : ""} du stock</span>
-                </div>
-                ${items.length ? html`
-                  <div className="mrd-fill-report-items">
-                    ${items.map((name) => html`<span className="mrd-fill-report-item" key=${name}>${name}</span>`)}
-                  </div>
-                ` : null}
-              ` : html`
-                <div className="mrd-fill-report-line">
-                  <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                  <span>Aucune recette n'était faisable avec ton stock.</span>
-                </div>
-              `}
-              ${otherCount ? html`
-                <div className="mrd-fill-report-line miss">
-                  <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                  <span><strong>${dishes(otherCount)}</strong> demande${otherCount > 1 ? "nt" : ""} des courses.</span>
-                </div>
-              ` : null}
-            </div>
-          ` : null}
-
-          ${/* Un service coché dont aucune recette ne passe les filtres reste
-                vide : le dire, sinon la case « Dessert » a l'air de ne rien faire. */null}
-          ${missingCourseLabels.length ? html`
-            <div className="mrd-fill-report">
-              <div className="mrd-fill-report-line miss">
-                <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                <span>Aucune recette de ${missingCourseLabels.join(", ")} ne passe tes filtres : ce service est resté vide.</span>
-              </div>
-            </div>
-          ` : null}
-
-          ${!stockAsked && missingCount ? html`
-            <div className="mrd-fill-report">
-              <div className="mrd-fill-report-line miss">
-                <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                <span><strong>${missingCount} article${missingCount > 1 ? "s" : ""}</strong> manque${missingCount > 1 ? "nt" : ""} pour cuisiner cette semaine.</span>
-              </div>
-            </div>
-          ` : null}
-
-          ${!missingCount && alreadyListedCount ? html`
-            <div className="mrd-fill-report">
-              <div className="mrd-fill-report-line ok">
-                <span className="mrd-fill-report-dot" aria-hidden="true"></span>
-                <span>Rien de plus à acheter : les <strong>${alreadyListedCount} article${alreadyListedCount > 1 ? "s" : ""}</strong> qui manquent attendent déjà dans ta liste de courses.</span>
-              </div>
-            </div>
-          ` : null}
-
-          <div className="task-modal-actions">
-            <button type="button" className="acn" onClick=${() => setFillReport(null)}>Voir la semaine</button>
-            ${missingCount ? html`
-              <button type="button" className="aok" onClick=${addFillMissingToShopping}>
-                🛒 Ajouter ${missingCount} article${missingCount > 1 ? "s" : ""}
-              </button>
-            ` : null}
+          <div className="mrd-fillsheet-stats">
+            <span className="mrd-fillsheet-stat">
+              <span className="mrd-fillsheet-stat-num">${total}</span>
+              <span className="mrd-fillsheet-stat-label">repas</span>
+            </span>
+            <span className="mrd-fillsheet-stat">
+              <span className="mrd-fillsheet-stat-num">${stockCount}</span>
+              <span className="mrd-fillsheet-stat-label">déjà en stock</span>
+            </span>
+            <span className="mrd-fillsheet-stat">
+              <span className="mrd-fillsheet-stat-num">${missingCount}</span>
+              <span className="mrd-fillsheet-stat-label">à acheter</span>
+            </span>
           </div>
+
+          ${missingCount ? html`
+            <span className="mrd-fillsheet-section-title">Ingrédients manquants</span>
+            <div className="mrd-fillsheet-list">
+              ${missingItems.map((item) => {
+                const qty = formatQuantityUnit(item.quantity, item.unit);
+                return html`
+                  <span className="mrd-fillsheet-row" key=${item.id || item.name}>
+                    <span className="mrd-fillsheet-row-name">${item.name}</span>
+                    ${qty ? html`<span className="mrd-fillsheet-row-qty">${qty}</span>` : null}
+                  </span>
+                `;
+              })}
+            </div>
+          ` : null}
+
+          ${noteParts.length ? html`<span className="mrd-fillsheet-note">${noteParts.join(" ")}</span>` : null}
+
+          ${missingCount ? html`
+            <button type="button" className="mrd-fillsheet-cta" onClick=${addFillMissingToShopping}>${addLabel}</button>
+          ` : null}
+          <button type="button" className="mrd-fillsheet-exit" onClick=${() => setFillReport(null)}>Voir la semaine</button>
+        </div>
       <//>
     `;
   }
 
+  /**
+   * Popup « ce qui manque » (handoff 20a) : feuille basse déclenchée juste
+   * après avoir posé une recette (`checkInventoryAfterPick`) ou depuis le
+   * bouton Courses du panneau de détail (`openShopping`). Dit le créneau réel
+   * et le compte, une seule liste cochable, les motifs (« déjà pris par… »,
+   * « déjà sur ta liste ») sous le nom plutôt qu'en pastille de bout de ligne.
+   */
   function renderMissingModal() {
     if (!missingModal) return null;
     const isManual = missingModal.mode === "manual";
     const condimentItems = missingModal.condimentItems || [];
     const hasIngredients = missingModal.items.length > 0;
-    const nothingMissing = !hasIngredients && !condimentItems.length;
-    const stillToAdd = splitAlreadyListed(missingModal.items, shoppingItems).toAdd;
-    const allAlreadyListed = hasIngredients && !stillToAdd.length;
-    // Le bouton ne s'affiche que s'il y a vraiment quelque chose à envoyer :
-    // « Ajouter à la liste » qui n'ajoute rien est pire que pas de bouton.
-    const canSubmit = missingModal.selectedIds.length > 0 || (missingModal.selectedCondiments || []).length > 0;
+    const nothingMissing = !isManual && !hasIngredients && !condimentItems.length;
+    const closeModal = () => setMissingModal(null);
+    const iconTone = categoryToneClass(missingModal.category);
+    const head = html`
+      <div className="mrd-miss-head">
+        <span className=${`mrd-miss-icon ${iconTone}`} aria-hidden="true">
+          <${CategoryIcon} categoryId=${missingModal.category} size=${21} framed=${false} />
+        </span>
+        <span className="mrd-miss-head-copy">
+          <span className="mrd-miss-kicker">${missingModal.slotLabel}</span>
+          <span className="mrd-miss-title">${missingModal.recipeName}</span>
+        </span>
+        <button type="button" className="mrd-miss-close" onClick=${closeModal} aria-label="Fermer">✕</button>
+      </div>
+    `;
+
+    // « Rien ne manque » : uniquement atteignable depuis le bouton Courses —
+    // checkInventoryAfterPick sort avant d'ouvrir la feuille dans ce cas.
+    if (nothingMissing) {
+      return html`
+        <${MrdModal} isOpen=${true} onClose=${closeModal} sheet=${true} sheetBreakpoint=${missingSheetBreakpoint} className="mrd-miss-modal">
+          <div className="mrd-miss">
+            ${head}
+            <div className="mrd-miss-count mrd-miss-count--ok">
+              <span className="mrd-miss-count-dot" aria-hidden="true"></span>
+              <span className="mrd-miss-count-text">✓ Tout est disponible dans ton inventaire.</span>
+            </div>
+            <div className="mrd-miss-actions">
+              <button type="button" className="mrd-miss-submit" onClick=${closeModal}>Fermer</button>
+            </div>
+          </div>
+        <//>
+      `;
+    }
+
+    const split = splitAlreadyListed(missingModal.items, shoppingItems);
+    const allAlreadyListed = !isManual && hasIngredients && !split.toAdd.length;
+    // Ce qui reste à demander d'abord, ce qui attend déjà sur la liste ensuite.
+    const orderedItems = isManual ? missingModal.items : [...split.toAdd, ...split.listed];
+    const n = missingModal.selectedIds.length + (missingModal.selectedCondiments || []).length;
+
+    const countTone = isManual ? "mrd-miss-count--neutral" : allAlreadyListed ? "mrd-miss-count--ok" : "mrd-miss-count--warn";
+    const countText = isManual
+      ? html`Les ${missingModal.items.length} ingrédients de la recette, à ${missingModal.servings} couvert${missingModal.servings > 1 ? "s" : ""}.`
+      : allAlreadyListed
+        ? "✓ Tout ce qui manque attend déjà dans ta liste de courses."
+        : html`<strong>${missingModal.items.length} ingrédient${missingModal.items.length > 1 ? "s" : ""} sur ${missingModal.totalCount}</strong> ne ${missingModal.items.length > 1 ? "sont" : "est"} pas dans ton inventaire.`;
 
     return html`
-      <${MrdModal} isOpen=${true} onClose=${() => setMissingModal(null)} className="task-modal">
+      <${MrdModal} isOpen=${true} onClose=${closeModal} sheet=${true} sheetBreakpoint=${missingSheetBreakpoint} className="mrd-miss-modal">
+        <div className="mrd-miss">
+          ${head}
 
-          <div className="task-modal-head">
-            <div>
-              <div className="miniTitle">${isManual ? "Liste de courses" : "Inventaire"}</div>
-              <div className="st">${missingModal.recipeName}</div>
-            </div>
-            <button className="delbtn" onClick=${() => setMissingModal(null)}>✕</button>
+          <div className=${`mrd-miss-count ${countTone}`}>
+            <span className="mrd-miss-count-dot" aria-hidden="true"></span>
+            <span className="mrd-miss-count-text">${countText}</span>
           </div>
-          ${!isManual && nothingMissing
-            ? html`<div className="mini" style=${{ marginBottom: "16px", color: "var(--mrd-sageDeep)" }}>✓ Tout est disponible dans votre inventaire.</div>`
-            : null}
-          ${!isManual && allAlreadyListed
-            ? html`<div className="mini" style=${{ marginBottom: "16px", color: "var(--mrd-sageDeep)" }}>✓ Tout ce qui manque attend déjà dans ta liste de courses.</div>`
-            : null}
+
           ${hasIngredients ? html`
-            <div className="miniTitle" style=${{ marginBottom: "6px" }}>${isManual ? "Ingrédients" : "Manquants"}</div>
-            <div className="settings-stack" style=${{ gap: "6px", marginBottom: "14px" }}>
-              ${missingModal.items.map((item) => {
-                const listed = isAlreadyListed(item, shoppingItems);
+            <div className="mrd-miss-list">
+              ${orderedItems.map((item) => {
+                const checked = missingModal.selectedIds.includes(item.id);
+                const listed = !isManual && isAlreadyListed(item, shoppingItems);
+                const taken = !isManual && item.takenBy?.length;
+                const qty = formatQuantityUnit(item.quantity, item.unit);
                 return html`
-                  <label key=${item.id} className="sitem" style=${{ justifyContent: "space-between", padding: "8px 10px", marginBottom: "0" }}>
-                    <div className="help" style=${{ gap: "10px" }}>
-                      <input type="checkbox" checked=${missingModal.selectedIds.includes(item.id)} onChange=${() => toggleMissingIngredient(item.id)}/>
-                      <span>${item.name}</span>
-                      ${listed ? html`<span className="mrd-listed-tag">✓ déjà demandé</span>` : null}
-                      ${item.takenBy?.length ? html`<span className="mrd-taken-tag">déjà pris par ${item.takenBy.join(", ")}</span>` : null}
-                    </div>
-                    ${formatQuantityUnit(item.quantity, item.unit) ? html`<span className="mini">${formatQuantityUnit(item.quantity, item.unit)}</span>` : null}
+                  <label key=${item.id} className="mrd-miss-row">
+                    <input type="checkbox" className="mrd-miss-native-cb" checked=${checked} onChange=${() => toggleMissingIngredient(item.id)}/>
+                    <span className=${`mrd-miss-check${checked ? " on" : ""}`} aria-hidden="true">${checked ? "✓" : ""}</span>
+                    <span className="mrd-miss-row-body">
+                      <span className="mrd-miss-row-name">${item.name}</span>
+                      ${taken ? html`<span className="mrd-miss-row-reason mrd-miss-row-reason--warn">déjà prise par ${item.takenBy.join(", ")}</span>` : null}
+                      ${listed ? html`<span className="mrd-miss-row-reason mrd-miss-row-reason--ok">✓ déjà sur ta liste</span>` : null}
+                    </span>
+                    ${qty ? html`<span className="mrd-miss-row-qty">${qty}</span>` : null}
                   </label>
                 `;
               })}
             </div>
           ` : null}
+
           ${condimentItems.length ? html`
-            <div className="miniTitle" style=${{ marginBottom: "4px" }}>Condiments manquants</div>
-            <div className="settings-stack" style=${{ gap: "6px", marginBottom: "14px" }}>
-              ${condimentItems.map((item) => html`
-                <label key=${item.id} className="sitem" style=${{ padding: "8px 10px", marginBottom: "0" }}>
-                  <div className="help" style=${{ gap: "10px" }}>
-                    <input type="checkbox" checked=${(missingModal.selectedCondiments || []).includes(item.id)} onChange=${() => toggleMissingCondiment(item.id)}/>
-                    <span>${item.name}</span>
-                  </div>
-                </label>
-              `)}
+            <div className="mrd-miss-condiments">
+              <span className="mrd-miss-kicker">Condiments</span>
+              <div className="mrd-miss-pills">
+                ${condimentItems.map((item) => {
+                  const on = (missingModal.selectedCondiments || []).includes(item.id);
+                  return html`
+                    <button type="button" key=${item.id}
+                      className=${`mrd-miss-pill${on ? " on" : ""}`}
+                      aria-pressed=${on ? "true" : "false"}
+                      onClick=${() => toggleMissingCondiment(item.id)}>
+                      ${on ? "✓" : "＋"} ${item.name}
+                    </button>
+                  `;
+                })}
+              </div>
             </div>
           ` : null}
-          <div className="task-modal-actions">
-            <button type="button" className="acn" onClick=${() => setMissingModal(null)}>Fermer</button>
-            ${canSubmit ? html`<button type="button" className="aok" onClick=${addSelectedMissingIngredients}>Ajouter à la liste</button>` : null}
+
+          <div className="mrd-miss-actions">
+            <button type="button" className="mrd-miss-submit" disabled=${n === 0} onClick=${addSelectedMissingIngredients}>Ajouter ${n} article${n > 1 ? "s" : ""} à la liste</button>
+            <button type="button" className="mrd-miss-later" onClick=${closeModal}>Plus tard</button>
           </div>
+        </div>
       <//>
     `;
   }
@@ -1056,8 +1402,15 @@ export function MealsView({
         key=${viewModal.id}
         recipe=${viewModal}
         variant="modal"
+        inventory=${inventory}
+        linkInventory=${linkMealsToInventory}
         initialServings=${effectiveServings}
         onClose=${() => setViewModal(null)}
+        onEdit=${onEditRecipe ? (recipe) => onEditRecipe(recipe.id) : null}
+        onDelete=${onDeleteRecipe ? (recipe) => { onDeleteRecipe(recipe.id); setViewModal(null); } : null}
+        onToggleFavorite=${onToggleRecipeFavorite ? (recipe) => onToggleRecipeFavorite(recipe.id, !recipe.favorite) : null}
+        onAddToShopping=${onAddMissingIngredients}
+        onPlan=${(recipe) => { setViewModal(null); setPlanPick({ recipe, dayIndex: selected.dayIndex, slot: selected.slot, role: defaultPlanRole(recipe) }); }}
       />` : null}
       ${renderMissingModal()}
       ${renderFillReport()}

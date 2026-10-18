@@ -6,6 +6,7 @@
  * service via `onUpdateMeal`. C'est ce qui le rend testable.
  */
 import { isQuickRecipe, matchesAvailability, matchesConstraints, matchesDiet } from "./recipeFilters.js";
+import { createStockLedger, takeFromLedger } from "./recipeStock.js";
 
 /** Les trois services d'un créneau, dans l'ordre où ils arrivent à table. */
 export const FILL_COURSES = ["starter", "main", "dessert"];
@@ -36,24 +37,12 @@ function slotRoleId(slot, course) {
   return slot?.[ROLE_FIELDS[course]] || "";
 }
 
-/**
- * « Omnivore » n'est pas une contrainte, c'est l'absence de contrainte : un
- * omnivore mange aussi les plats végé. Le traiter comme un label rendrait une
- * semaine vide à tous ceux qui n'ont jamais coché « omnivore » sur leurs
- * recettes — c'est-à-dire presque tout le monde, puisque c'est le régime par
- * défaut de la feuille.
- */
-function matchesFillDiet(recipe, diet) {
-  if (!diet || diet === "omnivore") return true;
-  return matchesDiet(recipe, diet);
-}
-
 function filterPool(recipes, course, { diet, constraints, quick, season }, { currentMonth }) {
   const categories = COURSE_CATEGORIES[course] || [];
   return recipes.filter((recipe) => {
     if (!recipe?.id) return false;
     if (!categories.includes(recipe.category || "")) return false;
-    if (!matchesFillDiet(recipe, diet)) return false;
+    if (!matchesDiet(recipe, diet)) return false;
     if (!matchesConstraints(recipe, constraints)) return false;
     if (quick && !isQuickRecipe(recipe)) return false;
     if (season && !matchesAvailability(recipe, currentMonth)) return false;
@@ -85,10 +74,15 @@ export function normalizeCourses(courses) {
 /**
  * @param {object[]} recipes         toutes les recettes
  * @param {object[]} slots           les 14 créneaux : `{ dayIndex, slot, recipeId, text,
- *                                   starterRecipeId, dessertRecipeId }`
+ *                                   starterRecipeId, dessertRecipeId, cooked }`
  * @param {object}   filters         `{ diet, constraints[], courses{}, quick, season, stock, scope }`
  * @param {number}   currentMonth    mois courant (1–12), pour « de saison »
- * @param {Map}      stockByRecipeId état de stock par recette (vide si l'inventaire n'est pas lié)
+ * @param {Map}      stockByRecipeId état de stock par recette face au stock COMPLET (vide si
+ *                                   l'inventaire n'est pas lié) — ne sert plus qu'à ordonner la
+ *                                   file (les recettes qui ont l'air faisables passent devant) ;
+ *                                   la vérité finale (`fromStock`) vient du budget partagé ci-dessous.
+ * @param {object[]} inventory       inventaire brut, pour le budget partagé entre tous les services
+ *                                   tirés dans ce même appel (voir plus bas)
  * @param {Function} random          injectable pour les tests
  * @returns {{ entries: object[], slotCount: number, stockCount: number, otherCount: number,
  *            stockAsked: boolean, emptyCourses: string[] }}
@@ -101,6 +95,7 @@ export function buildFillPlan({
   filters = {},
   currentMonth = 1,
   stockByRecipeId = new Map(),
+  inventory = [],
   random = Math.random,
 } = {}) {
   const stockAsked = Boolean(filters.stock);
@@ -121,6 +116,34 @@ export function buildFillPlan({
   const isReady = (recipe) => Boolean(stockByRecipeId?.get(recipe.id)?.ready);
   const entries = [];
   const emptyCourses = [];
+
+  /* Un seul budget de stock pour tout le tirage, comme `computeWeekStock` :
+     deux services qui piochent dans le même produit — ou la même recette
+     recyclée faute de mieux — ne doivent pas se croire chacun faisables avec
+     le stock entier. Parti de l'inventaire, entamé par tout ce qui reste en
+     place ailleurs dans la semaine (un créneau déjà cuisiné ne compte pas :
+     l'inventaire porte déjà sa déduction). */
+  let ledger = null;
+  if (stockAsked) {
+    ledger = createStockLedger(inventory);
+    const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+    const targetedSlots = new Map(courses.map((course) => [
+      course,
+      new Set(filters.scope === "all" ? targets : targets.filter((slot) => !slotRoleId(slot, course))),
+    ]));
+    slots.forEach((slot) => {
+      if (slot.cooked) return;
+      FILL_COURSES.forEach((course) => {
+        if (targetedSlots.get(course)?.has(slot)) return; // sera écrasé par ce tirage
+        const existingId = slotRoleId(slot, course);
+        if (!existingId) return;
+        const recipe = recipeById.get(existingId);
+        (Array.isArray(recipe?.ingredients) ? recipe.ingredients : [])
+          .filter((item) => item?.name)
+          .forEach((ingredient) => takeFromLedger(ledger, ingredient));
+      });
+    });
+  }
 
   courses.forEach((course) => {
     // En portée « cases vides », une entrée ou un dessert déjà choisi reste en
@@ -159,12 +182,23 @@ export function buildFillPlan({
 
     roleTargets.forEach((slot, index) => {
       const recipe = queue[index % queue.length];
+      /* `isReady` n'a servi qu'à ordonner la file plus haut — un recyclage
+         (bibliothèque trop courte) ou un produit partagé avec un autre
+         service peut très bien vider ce que ce premier passage croyait
+         disponible. Seul le budget partagé, puisé pour de vrai à la pose,
+         décide si CETTE pose précise est couverte. */
+      let fromStock = false;
+      if (ledger) {
+        const ingredients = (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).filter((item) => item?.name);
+        const shortfalls = ingredients.map((ingredient) => takeFromLedger(ledger, ingredient)).filter(Boolean);
+        fromStock = ingredients.length > 0 && shortfalls.length === 0;
+      }
       entries.push({
         dayIndex: slot.dayIndex,
         slot: slot.slot,
         role: course,
         recipeId: recipe.id,
-        fromStock: stockAsked && isReady(recipe),
+        fromStock,
       });
     });
   });

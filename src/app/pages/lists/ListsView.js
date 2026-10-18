@@ -1,6 +1,7 @@
 import { DEFAULT_MEMBER_COLOR } from "../../config/constants.js";
 import { html, useEffect, useMemo, useRef, useState } from "../../lib.js";
 import { findSimilarItem, formatQuantityUnit, suggestItems } from "../../utils/productUtils.js";
+import { groupItemsByCategory } from "../../config/productCategories.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
 import { SegmentedTabs } from "../../components/SegmentedTabs.js";
 import { MrdModal } from "../../components/MrdModal.js";
@@ -569,7 +570,8 @@ export function ListsView({
     `;
   }
 
-  function renderDetailSection(title, items, showAddBtn) {
+  function renderDetailSection(title, items, showAddBtn, groupByCategory = false) {
+    const categoryGroups = groupByCategory ? groupItemsByCategory(items) : null;
     return html`
       <div className="ldv-section">
         <div className="ldv-section-head">
@@ -582,11 +584,24 @@ export function ListsView({
               `
             : null}
         </div>
-        <div className="ldv-card">
-          ${items.length
-            ? items.map((item) => renderDetailItem(item))
-            : html`<div className="ldv-empty">Cette section est vide</div>`}
-        </div>
+        ${categoryGroups
+          ? (categoryGroups.length
+              ? categoryGroups.map((group) => html`
+                  <div key=${group.id} className="ldv-cat-group">
+                    <span className="ldv-cat-title">${group.emoji} ${group.label}</span>
+                    <div className="ldv-card">
+                      ${group.items.map((item) => renderDetailItem(item))}
+                    </div>
+                  </div>
+                `)
+              : html`<div className="ldv-card"><div className="ldv-empty">Cette section est vide</div></div>`)
+          : html`
+              <div className="ldv-card">
+                ${items.length
+                  ? items.map((item) => renderDetailItem(item))
+                  : html`<div className="ldv-empty">Cette section est vide</div>`}
+              </div>
+            `}
       </div>
     `;
   }
@@ -785,12 +800,14 @@ export function ListsView({
               selectedList.isShoppingList ? "À acheter" : "Articles",
               pendingItems,
               true,
+              selectedList.isShoppingList,
             )}
             ${purchasedItems.length
               ? renderDetailSection(
                   selectedList.isShoppingList ? "Achetés" : "Cochés",
                   purchasedItems,
                   false,
+                  selectedList.isShoppingList,
                 )
               : null}
           `

@@ -1,5 +1,4 @@
 import { html, useEffect, useMemo, useState, useRef } from "../../lib.js";
-import { IonFab, IonFabButton } from "@ionic/react";
 import { daysUntilExpiry, getCurrentAppDate } from "../../utils/date.js";
 import { findSimilarItem, formatQuantityUnit, normalizeProductName, suggestItems } from "../../utils/productUtils.js";
 import { EmojiPicker } from "../tasks/EmojiPicker.js";
@@ -8,7 +7,6 @@ import { MrdModal } from "../../components/MrdModal.js";
 // ─── constants ────────────────────────────────────────────────────
 
 const UNITS = [
-  { value: "", label: "Unité" },
   { value: "unité", label: "Unité" },
   { value: "g", label: "g" },
   { value: "kg", label: "kg" },
@@ -24,52 +22,7 @@ const SORT_OPTIONS = [
   { value: "price", label: "Prix" },
 ];
 
-const ACT = {
-  display: "inline-flex", alignItems: "center",
-  padding: "3px 9px", borderRadius: 7,
-  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-  cursor: "pointer", lineHeight: 1.4, whiteSpace: "nowrap",
-  flexShrink: 0, transition: "background 0.12s",
-};
-
-const INV_ACTION_SECONDARY = {
-  background: "var(--mrd-surf2)",
-  color: "var(--mrd-fg2)",
-  border: "1px solid var(--mrd-borderSoft)",
-};
-
-const INV_ACTION_RESTOCK = {
-  background: "var(--mrd-sageLt)",
-  color: "var(--mrd-sageDeep)",
-  border: "1px solid var(--mrd-sageMd)",
-};
-
-const INV_ACTION_RESTOCK_STRONG = {
-  background: "var(--mrd-sage)",
-  color: "var(--mrd-white)",
-  border: "1px solid var(--mrd-sage)",
-  boxShadow: "0 8px 18px oklch(54% 0.10 155 / 0.18)",
-};
-
-const LOCATION_PIN = String.fromCodePoint(0x1F4CD);
-const LONG_PRESS_MS = 480;
-const DRAG_CANCEL_DISTANCE = 10;
-
-const FORM_INP = {
-  width: "100%", boxSizing: "border-box",
-  padding: "11px 13px",
-  background: "var(--mrd-surf2)",
-  border: "1.5px solid var(--mrd-border)",
-  borderRadius: 12, fontSize: 16, fontWeight: 500,
-  color: "var(--mrd-fg)", outline: "none",
-  fontFamily: "inherit", appearance: "none", WebkitAppearance: "none",
-};
-
-const LBL = {
-  fontSize: 11, fontWeight: 700, color: "var(--mrd-fg3)",
-  textTransform: "uppercase", letterSpacing: "0.06em",
-  marginBottom: 6, display: "block",
-};
+const CHIP_LONG_PRESS_MS = 480;
 
 // ─── helpers ──────────────────────────────────────────────────────
 
@@ -89,29 +42,40 @@ function compareByName(a, b) {
   return String(a?.name || "").localeCompare(String(b?.name || ""), "fr", { sensitivity: "base" });
 }
 
-function compareInventoryByOrder(a, b) {
-  const leftOrder = typeof a?.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
-  const rightOrder = typeof b?.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
-  if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-  return compareByName(a, b);
+// Pastille DLC de la ligne produit — seulement si dlc ≤ 21 j (README « Ligne
+// produit »), quatre cas distincts par couleur et par texte.
+function expiryPillInfo(expiryDate) {
+  const d = daysUntilExpiry(expiryDate);
+  if (d === null || d > 21) return null;
+  if (d < 0) return { text: `Dépassé de ${Math.abs(d)} j`, color: "var(--mrd-invDangerText)", bg: "var(--mrd-invDangerBg)" };
+  if (d === 0) return { text: "Expire aujourd'hui", color: "var(--mrd-invDangerText)", bg: "var(--mrd-invDangerBg)" };
+  if (d <= 7) return { text: `Expire dans ${d} j`, color: "var(--mrd-amber)", bg: "var(--mrd-invAmberBg)" };
+  return { text: `DLC dans ${d} j`, color: "var(--mrd-fg2)", bg: "var(--mrd-surf2)" };
 }
 
-function expiryDisplay(expiryDate) {
-  const d = daysUntilExpiry(expiryDate);
-  if (d === null) return null;
-  if (d < 0) {
-    const ago = Math.abs(d);
-    return { text: `Dépassé depuis ${ago} jour${ago > 1 ? "s" : ""}`, color: "var(--mrd-danger)", bg: "var(--mrd-dangerLt)" };
-  }
-  if (d === 0) return { text: "Expire aujourd'hui !", color: "var(--mrd-danger)", bg: "var(--mrd-dangerLt)" };
-  if (d <= 7) return { text: `Expire dans ${d} jour${d > 1 ? "s" : ""}`, color: "var(--mrd-amber)", bg: "var(--mrd-amberLt)" };
-  const [y, mo, dy] = expiryDate.split("-");
-  return { text: `DLC ${dy}/${mo}/${y}`, color: "var(--mrd-amber)", bg: "var(--mrd-amberLt)" };
+// Le pas du compteur dépend de l'unité (README « compteur de quantité ») :
+// g/ml se comptent par 50, cl par 25, tout le reste (unité, kg, l…) par 1.
+function quantityStep(unit) {
+  const u = String(unit || "").trim();
+  if (u === "g" || u === "ml") return 50;
+  if (u === "cl") return 25;
+  return 1;
+}
+
+// Libellé compact du compteur — "unité" s'abrège en "u." dans ce contexte
+// serré, contrairement à formatQuantityUnit() utilisé ailleurs dans l'app.
+function stepperQtyLabel(item) {
+  const q = String(item?.quantity ?? "").trim();
+  const u = String(item?.unit || "").trim();
+  if (!q) return "0";
+  if (!u) return q;
+  if (u === "unité") return `${q} u.`;
+  return `${q} ${u}`;
 }
 
 function sortItems(arr, sortMode) {
   const items = [...arr];
-  if (sortMode === "alpha") return items.sort(compareInventoryByOrder);
+  if (sortMode === "alpha") return items.sort(compareByName);
   if (sortMode === "recent") return items.sort((a, b) => (b.purchaseDate || "").localeCompare(a.purchaseDate || ""));
   if (sortMode === "expiry") {
     return items.sort((a, b) => {
@@ -162,6 +126,61 @@ function getStorageLocationDisplay(location) {
   };
 }
 
+// Recherche souple : minuscules + sans accents, pas de dépluriel (contrairement
+// à normalizeProductName) — un nom de rangement ne s'accorde pas comme un produit.
+function searchKey(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function safeAreaBottom() {
+  if (typeof document === "undefined") return 0;
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;left:-9999px;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px)";
+  document.body.appendChild(probe);
+  const inset = probe.getBoundingClientRect().height;
+  probe.remove();
+  return Number.isFinite(inset) ? inset : 0;
+}
+
+// Estime la hauteur de la feuille de rangement pour caler le palier
+// d'ouverture de la feuille (voir MrdModal). Approximatif par nature : la
+// grille de tuiles défile déjà en interne (max-height), donc le nombre de
+// rangements ne fait grossir la feuille que jusqu'à ce plafond.
+function rangerSheetHeight({ hasMemoryCard, locationCount, wideGrid, showCreate, noLocations }) {
+  const blocks = [46]; // en-tête (vignette + titre, ou titre seul en bulk)
+  if (hasMemoryCard) blocks.push(62); // carte mémoire
+  if (noLocations) {
+    blocks.push(20); // « Tu n'as pas encore de rangement. »
+  } else {
+    const cap = wideGrid ? 340 : 168;
+    const cols = wideGrid ? 1 : 2;
+    const rows = Math.max(1, Math.ceil(Math.max(1, locationCount) / cols));
+    const gridHeight = Math.min(cap, rows * 52 + (rows - 1) * 8);
+    blocks.push(20 + 42 + 8 + gridHeight); // bloc liste : padding + recherche + grille
+    blocks.push(44); // rangée « Nouveau rangement » / « Sans rangement »
+  }
+  if (showCreate || noLocations) blocks.push(74); // création de rangement dépliée
+  blocks.push(50 + 8 + 42); // pied : bouton plein + Annuler
+  const gaps = (blocks.length - 1) * 14;
+  return blocks.reduce((sum, h) => sum + h, 0) + gaps + 32; // padding haut + bas de la feuille
+}
+
+// Estime la hauteur de la feuille d'ajout pour caler son palier d'ouverture
+// (voir MrdModal) — sans ça elle s'ouvre au défaut 0.92 quel que soit son
+// contenu, laissant un grand vide sous un formulaire court.
+function addSheetHeight({ hasDup, hasLocs, showDetails }) {
+  const blocks = [22, 66]; // en-tête (surtitre + ✕), champ nom
+  if (hasDup) blocks.push(56);
+  blocks.push(40 + 30); // compteur quantité + rangée d'unités
+  if (hasLocs) blocks.push(32);
+  blocks.push(34); // deux bascules
+  if (showDetails) blocks.push(116);
+  blocks.push(48); // bouton plein
+  const gaps = (blocks.length - 1) * 14;
+  return blocks.reduce((sum, h) => sum + h, 0) + gaps + 32;
+}
+
 export function InventoryView({
   inventory,
   knownProducts = [],
@@ -178,20 +197,19 @@ export function InventoryView({
   onRenameStorageLocation,
   onDeleteStorageLocation,
   onSetItemLocation,
-  onReorderStorageLocations,
-  onReorderInventoryItems,
+  onSetOrganiserMode = () => {},
+  externalOpenCreate = 0,
 }) {
   const safeInventory = Array.isArray(inventory) ? inventory : [];
   const productIndex = Array.isArray(knownProducts) && knownProducts.length ? knownProducts : safeInventory;
   const safeLocations = Array.isArray(storageLocations) ? storageLocations : [];
   const safeMemory = productLocationMemory && typeof productLocationMemory === "object" ? productLocationMemory : {};
 
-  // search + sort
+  // search + sort — cycle au tap : A → Z, Récent, Péremption, Prix
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState("alpha");
-  const [showSort, setShowSort] = useState(false);
 
-  // modal
+  // modal (feuille d'ajout / édition)
   const [showModal, setShowModal] = useState(false);
   const [editingItemId, setEditingItemId] = useState("");
   const [form, setForm] = useState(emptyForm());
@@ -200,11 +218,15 @@ export function InventoryView({
   const [suggestions, setSuggestions] = useState([]);
   const [showExtraFields, setShowExtraFields] = useState(false);
 
-  // organiser mode + tabs
-  const [activeTab, setActiveTab] = useState("all");
+  // interrupteur « Ranger par emplacement », chip actif, filtre péremption,
+  // ligne dépliée (une seule à la fois) et bloc « Produits finis »
+  const [activeChip, setActiveChip] = useState("all");
+  const [expiryFilterOn, setExpiryFilterOn] = useState(false);
+  const [invOpen, setInvOpen] = useState("");
+  const [finishedOpen, setFinishedOpen] = useState(false);
 
-  // location management (via tab ⋮ and inline +)
-  const [locMenuId, setLocMenuId] = useState("");
+  // gestion des rangements depuis les chips (⋮ = appui long, + = création)
+  const [chipMenuId, setChipMenuId] = useState("");
   const [renamingLocId, setRenamingLocId] = useState("");
   const [renamingLocEmoji, setRenamingLocEmoji] = useState("");
   const [renamingLocName, setRenamingLocName] = useState("");
@@ -220,6 +242,8 @@ export function InventoryView({
   const [bulkRangerMode, setBulkRangerMode] = useState(false);
   const [rangerSearch, setRangerSearch] = useState("");
   const [rangerSelectedLocId, setRangerSelectedLocId] = useState(null);
+  const [rangerShowCreate, setRangerShowCreate] = useState(false);
+  const rangerSearchRef = useRef(null);
 
   // selection
   const [selectionMode, setSelectionMode] = useState(false);
@@ -228,27 +252,15 @@ export function InventoryView({
   // kebab menu (per item)
   const [openMenuId, setOpenMenuId] = useState("");
 
-  // item drag-and-drop
-  const [dragState, setDragState] = useState(null);
-  const dragStateRef = useRef(null);
-  const pressStateRef = useRef(null);
-  const itemNodeRefs = useRef(new Map());
   const previousOrganiserMode = useRef(organiserMode);
-
-  // tab drag-and-drop
-  const [tabDragId, setTabDragId] = useState("");
-  const [tabDropIndex, setTabDropIndex] = useState(-1);
-  const tabLpTimer = useRef(null);
-  const tabLpFired = useRef(false);
-  const tabBarRef = useRef(null);
   const unassignedCount = safeInventory.filter((i) => !i.storageLocationId && i.stockState !== "empty").length;
 
   // derived
-  const hasUnassignedTab = unassignedCount > 0;
-  const activeLocation = safeLocations.find((location) => location.id === activeTab) || null;
-  const effectiveTab = activeLocation
+  const hasUnassignedChip = unassignedCount > 0;
+  const activeLocation = safeLocations.find((location) => location.id === activeChip) || null;
+  const effectiveChip = activeLocation
     ? activeLocation.id
-    : activeTab === "unassigned" && hasUnassignedTab
+    : activeChip === "unassigned" && hasUnassignedChip
       ? "unassigned"
       : "all";
 
@@ -256,163 +268,126 @@ export function InventoryView({
   const memoryLocId = rangerItem ? safeMemory[normalizeProductName(rangerItem.name || "")] : null;
   const memoryLoc = memoryLocId ? safeLocations.find((l) => l.id === memoryLocId) : null;
 
-  const { activeItems, finishedItems } = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let base = q ? safeInventory.filter((i) => String(i.name || "").toLowerCase().includes(q)) : safeInventory;
-    if (organiserMode && effectiveTab !== "all") {
-      if (effectiveTab === "unassigned") base = base.filter((i) => !i.storageLocationId);
-      else base = base.filter((i) => i.storageLocationId === effectiveTab);
-    }
-    return {
-      activeItems: sortItems(base.filter((i) => i.stockState !== "empty"), sortMode),
-      finishedItems: sortItems(base.filter((i) => i.stockState === "empty"), sortMode),
-    };
-  }, [safeInventory, search, sortMode, organiserMode, effectiveTab]);
+  // Le rangement mémorisé a déjà sa propre carte au-dessus : il ne
+  // réapparaît pas dans la grille (sauf en sélection multiple, où la carte
+  // mémoire ne s'affiche pas).
+  const rangerLocationsBase = safeLocations.filter((l) => bulkRangerMode || !memoryLoc || l.id !== memoryLoc.id);
+  const rangerSearchKey = searchKey(rangerSearch);
+  const rangerFilteredLocations = rangerSearchKey
+    ? rangerLocationsBase.filter((l) => searchKey(getStorageLocationDisplay(l).name || l.name).includes(rangerSearchKey))
+    : rangerLocationsBase;
+  const rangerNoMatch = Boolean(rangerSearchKey) && rangerFilteredLocations.length === 0;
+  const rangerWideGrid = rangerLocationsBase.some((l) => (getStorageLocationDisplay(l).name || l.name || "").length > 16);
+  const rangerNoLocations = safeLocations.length === 0;
+  const rangerEffectiveShowCreate = rangerShowCreate || rangerNoLocations;
 
-  const expiringItems = activeItems
+  // Deux paliers (création dépliée ou non) : une feuille ion-modal fige sa
+  // liste de paliers à l'ouverture, donc les deux doivent y être d'avance
+  // pour que « + Nouveau rangement » puisse agrandir la feuille en place.
+  const rangerBreakpointFor = (showCreate) => {
+    const viewport = (typeof window !== "undefined" && window.innerHeight) || 812;
+    const wanted = (rangerSheetHeight({
+      hasMemoryCard: Boolean(memoryLoc) && !bulkRangerMode,
+      locationCount: rangerLocationsBase.length,
+      wideGrid: rangerWideGrid,
+      showCreate,
+      noLocations: rangerNoLocations,
+    }) + safeAreaBottom()) / viewport;
+    return Math.min(0.9, Math.max(0.3, Math.round(wanted * 1000) / 1000));
+  };
+  const rangerSheetBreakpoints = useMemo(() => {
+    if (!rangerItemId) return [0.5];
+    return [...new Set([rangerBreakpointFor(false), rangerBreakpointFor(true)])];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangerItemId, memoryLoc, bulkRangerMode, rangerLocationsBase.length, rangerWideGrid, rangerNoLocations]);
+  const rangerSheetBreakpoint = rangerEffectiveShowCreate
+    ? Math.max(...rangerSheetBreakpoints)
+    : rangerSheetBreakpoints[0];
+
+  // Ordre du pipeline (README « Comportement ») : chip → recherche →
+  // péremption → tri. Chaque étage ne touche pas aux données, seuls le
+  // compteur, Fini, En stock et la feuille d'ajout écrivent.
+  const chipFilteredInventory = useMemo(() => {
+    if (!organiserMode || effectiveChip === "all") return safeInventory;
+    if (effectiveChip === "unassigned") return safeInventory.filter((i) => !i.storageLocationId);
+    return safeInventory.filter((i) => i.storageLocationId === effectiveChip);
+  }, [safeInventory, organiserMode, effectiveChip]);
+
+  const searchedInventory = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? chipFilteredInventory.filter((i) => String(i.name || "").toLowerCase().includes(q)) : chipFilteredInventory;
+  }, [chipFilteredInventory, search]);
+
+  const finishedItems = useMemo(
+    () => sortItems(searchedInventory.filter((i) => i.stockState === "empty"), sortMode),
+    [searchedInventory, sortMode],
+  );
+  const activeBeforeExpiry = useMemo(
+    () => searchedInventory.filter((i) => i.stockState !== "empty"),
+    [searchedInventory],
+  );
+  const expiringItems = useMemo(() => activeBeforeExpiry
     .filter((item) => { const d = daysUntilExpiry(item.expiryDate); return d !== null && d <= 7; })
-    .sort((a, b) => (daysUntilExpiry(a.expiryDate) ?? 9999) - (daysUntilExpiry(b.expiryDate) ?? 9999));
-  const visibleExpiringCount = expiringItems.length;
-  const visibleActiveCount = activeItems.length;
+    .sort((a, b) => (daysUntilExpiry(a.expiryDate) ?? 9999) - (daysUntilExpiry(b.expiryDate) ?? 9999)),
+  [activeBeforeExpiry]);
+  const activeItems = useMemo(
+    () => sortItems(expiryFilterOn ? expiringItems : activeBeforeExpiry, sortMode),
+    [activeBeforeExpiry, expiringItems, expiryFilterOn, sortMode],
+  );
+  const visibleActiveCount = activeBeforeExpiry.length;
+  const mostUrgentExpiring = expiringItems[0] || null;
 
   useEffect(() => {
     if (previousOrganiserMode.current && !organiserMode) {
-      setActiveTab("all");
-      setLocMenuId("");
+      setActiveChip("all");
+      setChipMenuId("");
+      setInvOpen("");
     }
     previousOrganiserMode.current = organiserMode;
   }, [organiserMode]);
 
+  // Au-dessus de ~12 rangements, le focus part dans la recherche à
+  // l'ouverture ; en dessous, le clavier masquerait les tuiles pour rien.
   useEffect(() => {
-    dragStateRef.current = dragState;
-    if (dragState) {
-      document.body.style.userSelect = "none";
-      document.body.style.webkitUserSelect = "none";
-    } else {
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
-    }
-    return () => {
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
-    };
-  }, [dragState]);
+    if (!rangerItemId || rangerNoLocations) return;
+    if (rangerLocationsBase.length <= 12) return;
+    const id = setTimeout(() => rangerSearchRef.current?.focus(), 50);
+    return () => clearTimeout(id);
+  }, [rangerItemId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    function clearPendingPress() {
-      if (pressStateRef.current?.timer) clearTimeout(pressStateRef.current.timer);
-      pressStateRef.current = null;
+    if (activeChip === "unassigned" && !hasUnassignedChip) {
+      setActiveChip("all");
     }
-
-    function findClosestHoverItemId(pointerY, visibleIds) {
-      let bestId = visibleIds[0] || "";
-      let bestDistance = Infinity;
-      visibleIds.forEach((itemId) => {
-        const node = itemNodeRefs.current.get(itemId);
-        if (!node) return;
-        const rect = node.getBoundingClientRect();
-        const centerY = rect.top + rect.height / 2;
-        const distance = Math.abs(pointerY - centerY);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestId = itemId;
-        }
-      });
-      return bestId;
-    }
-
-    function handlePointerMove(event) {
-      const activeDrag = dragStateRef.current;
-      if (activeDrag) {
-        if (event.cancelable) event.preventDefault();
-        const hoverItemId = findClosestHoverItemId(event.clientY, activeDrag.visibleIds);
-        setDragState((previous) => (previous
-          ? {
-              ...previous,
-              pointerY: event.clientY,
-              pointerX: event.clientX,
-              hoverItemId: hoverItemId || previous.hoverItemId,
-            }
-          : previous));
-        return;
-      }
-
-      const pendingPress = pressStateRef.current;
-      if (!pendingPress) return;
-      const movedX = Math.abs(event.clientX - pendingPress.startX);
-      const movedY = Math.abs(event.clientY - pendingPress.startY);
-      if (movedX > DRAG_CANCEL_DISTANCE || movedY > DRAG_CANCEL_DISTANCE) {
-        clearPendingPress();
-      }
-    }
-
-    function handlePointerEnd() {
-      clearPendingPress();
-      const activeDrag = dragStateRef.current;
-      if (!activeDrag) return;
-
-      const sourceIndex = activeDrag.visibleIds.indexOf(activeDrag.itemId);
-      const targetIndex = activeDrag.visibleIds.indexOf(activeDrag.hoverItemId);
-      if (sourceIndex >= 0 && targetIndex >= 0 && sourceIndex !== targetIndex) {
-        onReorderInventoryItems(activeDrag.itemId, targetIndex, activeDrag.visibleIds);
-      }
-      setDragState(null);
-    }
-
-    window.addEventListener("pointermove", handlePointerMove, { passive: false });
-    window.addEventListener("pointerup", handlePointerEnd);
-    window.addEventListener("pointercancel", handlePointerEnd);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerEnd);
-      window.removeEventListener("pointercancel", handlePointerEnd);
-      clearPendingPress();
-    };
-  }, [onReorderInventoryItems]);
-
-  // Non-passive touchmove during tab drag — prevents page scroll
-  useEffect(() => {
-    if (!tabDragId) return undefined;
-
-    const strippedForEffect = safeLocations.filter((l) => l.id !== tabDragId);
-
-    function onTouchMove(e) {
-      if (!tabLpFired.current) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      if (!touch) return;
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (!el) return;
-      const tabEl = el.closest ? el.closest("[data-tab-id]") : null;
-      if (!tabEl) return;
-      const overId = tabEl.getAttribute("data-tab-id");
-      if (!overId || overId === tabDragId) return;
-      const overInStripped = strippedForEffect.findIndex((l) => l.id === overId);
-      if (overInStripped === -1) return;
-      const rect = tabEl.getBoundingClientRect();
-      const newDropIndex = touch.clientX < rect.left + rect.width / 2
-        ? overInStripped
-        : overInStripped + 1;
-      setTabDropIndex(newDropIndex);
-    }
-
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    return () => document.removeEventListener("touchmove", onTouchMove);
-  }, [tabDragId]);
-
-  useEffect(() => {
-    if (activeTab === "unassigned" && !hasUnassignedTab) {
-      setActiveTab("all");
-    }
-  }, [activeTab, hasUnassignedTab]);
+  }, [activeChip, hasUnassignedChip]);
 
   // global click handler to close menus
   function handleSectionClick() {
     if (showStorageEmojiPicker) return;
     if (openMenuId) setOpenMenuId("");
-    if (locMenuId) setLocMenuId("");
-    if (showSort) setShowSort(false);
+    if (chipMenuId) setChipMenuId("");
     if (showAddLocInput) { setShowAddLocInput(false); setAddLocInputValue(""); setAddLocEmoji(""); }
+  }
+
+  // ─── tri, chips, filtre péremption, ligne dépliée ──────────────
+  function cycleSortMode() {
+    const idx = SORT_OPTIONS.findIndex((o) => o.value === sortMode);
+    setSortMode(SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].value);
+  }
+  function selectChip(chipId) {
+    setActiveChip(chipId);
+    setInvOpen("");
+  }
+  function toggleLocationsOn() {
+    onSetOrganiserMode(!organiserMode);
+    setInvOpen("");
+  }
+  function toggleExpiryFilter() {
+    setExpiryFilterOn((v) => !v);
+    setInvOpen("");
+  }
+  function toggleInvOpen(itemId) {
+    setInvOpen((current) => (current === itemId ? "" : itemId));
   }
 
   // ─── modal handlers ───────────────────────────────────────────
@@ -422,6 +397,16 @@ export function InventoryView({
     setSimilarWarning(null);
     setBypassSimilar(false); setSuggestions([]); setShowExtraFields(false); setShowModal(true);
   }
+
+  // FAB « + » posé au niveau de la page (App.js, hors d'ion-content) pour
+  // rester fixe à l'écran plutôt que de défiler avec la liste — il ne peut
+  // donc pas appeler openCreateModal() directement, d'où ce compteur externe
+  // (même mécanique que le FAB des tâches).
+  const lastExternalOpenCreateRef = useRef(externalOpenCreate);
+  useEffect(() => {
+    if (externalOpenCreate > lastExternalOpenCreateRef.current) openCreateModal();
+    lastExternalOpenCreateRef.current = externalOpenCreate;
+  }, [externalOpenCreate]); // eslint-disable-line react-hooks/exhaustive-deps
   function openEditModal(item) {
     setOpenMenuId("");
     setEditingItemId(item.id);
@@ -471,106 +456,17 @@ export function InventoryView({
   }
   function handleRowClick(e, item) {
     if (openMenuId) { setOpenMenuId(""); return; }
-    if (selectionMode) toggleSelect(item.id);
-  }
-  function registerItemNode(itemId, node) {
-    if (node) {
-      itemNodeRefs.current.set(itemId, node);
-    } else {
-      itemNodeRefs.current.delete(itemId);
-    }
-  }
-  function preventItemSelection(event) {
-    if (event?.cancelable) event.preventDefault();
-  }
-  function handleItemPointerDown(event, itemId, sectionKey, visibleIds) {
-    if (selectionMode) return;
-    if (sortMode !== "alpha") return;
-    if (event.button !== undefined && event.button !== 0) return;
-    if (!Array.isArray(visibleIds) || visibleIds.length < 2) return;
-    if (event.target?.closest?.("button, input, select, textarea, a")) return;
-
-    const itemNode = itemNodeRefs.current.get(itemId);
-    if (!itemNode) return;
-    if (pressStateRef.current?.timer) clearTimeout(pressStateRef.current.timer);
-
-    const startX = event.clientX;
-    const startY = event.clientY;
-    pressStateRef.current = {
-      itemId,
-      startX,
-      startY,
-      timer: setTimeout(() => {
-        const rect = itemNode.getBoundingClientRect();
-        setDragState({
-          itemId,
-          sectionKey,
-          visibleIds,
-          hoverItemId: itemId,
-          pointerX: startX,
-          pointerY: startY,
-          offsetY: startY - rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height,
-        });
-        setOpenMenuId("");
-        pressStateRef.current = null;
-      }, LONG_PRESS_MS),
-    };
-  }
-  function getDragPreviewForList(list, sectionKey) {
-    if (!dragState || dragState.sectionKey !== sectionKey || !Array.isArray(list) || list.length < 2) return null;
-    const sourceIndex = list.findIndex((item) => item.id === dragState.itemId);
-    const hoverIndex = list.findIndex((item) => item.id === dragState.hoverItemId);
-    if (sourceIndex < 0 || hoverIndex < 0) return null;
-    if (sourceIndex === hoverIndex) {
-      return {
-        anchorItemId: list[sourceIndex]?.id || "",
-        position: "before",
-        height: dragState.height || 72,
-        sourceIndex,
-        hoverIndex,
-      };
-    }
-    return {
-      anchorItemId: list[hoverIndex]?.id || "",
-      position: sourceIndex < hoverIndex ? "after" : "before",
-      height: dragState.height || 72,
-      sourceIndex,
-      hoverIndex,
-    };
-  }
-  function getDragMotionClass(itemId, list, sectionKey) {
-    const preview = getDragPreviewForList(list, sectionKey);
-    if (!preview) return "";
-    const currentIndex = list.findIndex((item) => item.id === itemId);
-    if (currentIndex < 0) return "";
-    if (itemId === dragState?.itemId) return "drag-source";
-    if (preview.sourceIndex < preview.hoverIndex && currentIndex > preview.sourceIndex && currentIndex <= preview.hoverIndex) {
-      return "reorder-shift-up";
-    }
-    if (preview.sourceIndex > preview.hoverIndex && currentIndex >= preview.hoverIndex && currentIndex < preview.sourceIndex) {
-      return "reorder-shift-down";
-    }
-    return "";
-  }
-  function renderDropPlaceholder(preview, suffix = "") {
-    if (!preview?.anchorItemId) return null;
-    return html`
-      <div
-        key=${`inv-drop-${preview.anchorItemId}-${preview.position}-${suffix}`}
-        className="inv-drop-placeholder"
-        style=${{ height: `${Math.max(54, Math.round(preview.height || 72))}px` }}
-      ></div>
-    `;
+    if (selectionMode) { toggleSelect(item.id); return; }
+    toggleInvOpen(item.id);
   }
   function decrementItemQuantity(item) {
     const currentQty = parseFloat(String(item.quantity || "0").replace(",", "."));
-    if (!Number.isFinite(currentQty) || currentQty <= 0) return;
-    const nextQty = Math.round((currentQty - 1) * 100) / 100;
+    const base = Number.isFinite(currentQty) ? currentQty : 0;
+    if (base <= 0) return;
+    const nextQty = Math.max(0, Math.round((base - quantityStep(item.unit)) * 100) / 100);
     if (nextQty <= 0) {
       onUpdateInventoryItem(item.id, { quantity: "0", stockState: "empty", needsRestock: true });
+      setInvOpen("");
     } else {
       onUpdateInventoryItem(item.id, { quantity: String(nextQty) });
     }
@@ -578,8 +474,19 @@ export function InventoryView({
   function incrementItemQuantity(item) {
     const currentQty = parseFloat(String(item.quantity || "0").replace(",", "."));
     const base = Number.isFinite(currentQty) ? currentQty : 0;
-    const nextQty = Math.round((base + 1) * 100) / 100;
+    const nextQty = Math.round((base + quantityStep(item.unit)) * 100) / 100;
     onUpdateInventoryItem(item.id, { quantity: String(nextQty) });
+  }
+  function markItemFinished(item) {
+    onUpdateInventoryItem(item.id, { stockState: "empty", needsRestock: true });
+    setInvOpen("");
+  }
+  function markItemInStock(item) {
+    onUpdateInventoryItem(item.id, { stockState: "in_stock", needsRestock: false });
+  }
+  function sendItemToShopping(item) {
+    onSendInventoryToShopping(item.id);
+    setInvOpen("");
   }
   function bulkFinished() { selectedIds.forEach((id) => onUpdateInventoryItem(id, { stockState: "empty", needsRestock: true })); exitSelectionMode(); }
   function bulkShopping() { selectedIds.forEach((id) => onSendInventoryToShopping(id)); exitSelectionMode(); }
@@ -591,18 +498,23 @@ export function InventoryView({
     setRangerNewLocName("");
     setRangerNewLocEmoji("");
     setRangerSearch("");
+    setRangerShowCreate(false);
     setRangerSelectedLocId(null);
   }
 
   // ─── ranger handlers ──────────────────────────────────────────
   function openRanger(itemId) {
     const item = safeInventory.find((i) => i.id === itemId);
+    const itemMemoryLocId = item ? safeMemory[normalizeProductName(item.name || "")] : null;
     setRangerItemId(itemId);
     setRangerNewLocName("");
     setRangerNewLocEmoji("");
     setBulkRangerMode(false);
     setRangerSearch("");
-    setRangerSelectedLocId(item ? (item.storageLocationId || "") : null);
+    setRangerShowCreate(false);
+    // La mémoire est présélectionnée quand l'article n'a pas déjà un
+    // rangement à lui : sinon on écraserait un choix déjà fait.
+    setRangerSelectedLocId(item ? (item.storageLocationId || itemMemoryLocId || null) : null);
   }
   function closeRanger() {
     setRangerItemId("");
@@ -611,6 +523,7 @@ export function InventoryView({
     setBulkRangerMode(false);
     setShowStorageEmojiPicker("");
     setRangerSearch("");
+    setRangerShowCreate(false);
     setRangerSelectedLocId(null);
   }
   function applyStorageEmoji(emoji) {
@@ -658,71 +571,38 @@ export function InventoryView({
     closeRanger();
   }
 
-  // ─── tab drag handlers ────────────────────────────────────────
-  function lockBodySelection() {
-    document.body.style.userSelect = "none";
-    document.body.style.webkitUserSelect = "none";
+  // ─── gestion des rangements (chips) ────────────────────────────
+  // Pas dans la maquette : appui long sur une chip ouvre un petit popover
+  // renommer/supprimer, pour ne pas perdre cette gestion qui existait via
+  // le ⋮ de l'ancien onglet actif.
+  const chipLpTimer = useRef(null);
+  const chipLpFired = useRef(null);
+  function handleChipTouchStart(locId) {
+    chipLpFired.current = false;
+    clearTimeout(chipLpTimer.current);
+    chipLpTimer.current = setTimeout(() => {
+      chipLpFired.current = locId;
+      setChipMenuId(locId);
+    }, CHIP_LONG_PRESS_MS);
   }
-  function unlockBodySelection() {
-    document.body.style.userSelect = "";
-    document.body.style.webkitUserSelect = "";
+  function handleChipTouchEnd() {
+    clearTimeout(chipLpTimer.current);
   }
-
-  function handleTabTouchStart(e, locId) {
-    if (tabDragId) return;
-    tabLpFired.current = false;
-    tabLpTimer.current = setTimeout(() => {
-      tabLpFired.current = true;
-      lockBodySelection();
-      const originalIdx = safeLocations.findIndex((l) => l.id === locId);
-      setTabDragId(locId);
-      setTabDropIndex(originalIdx);
-    }, 480);
-  }
-
-  function handleTabTouchEnd(e, locId) {
-    clearTimeout(tabLpTimer.current);
-    unlockBodySelection();
-    if (!tabLpFired.current) return;
-    e.preventDefault();
-    if (tabDragId && tabDropIndex >= 0 && typeof onReorderStorageLocations === "function") {
-      const fromIdx = safeLocations.findIndex((l) => l.id === tabDragId);
-      if (fromIdx !== -1) {
-        const dragged = safeLocations[fromIdx];
-        const stripped = safeLocations.filter((l) => l.id !== tabDragId);
-        stripped.splice(Math.min(tabDropIndex, stripped.length), 0, dragged);
-        const newIds = stripped.map((l) => l.id);
-        if (newIds.join(",") !== safeLocations.map((l) => l.id).join(",")) {
-          onReorderStorageLocations(newIds);
-        }
-      }
-    }
-    setTabDragId("");
-    setTabDropIndex(-1);
-    tabLpFired.current = false;
-  }
-
-  function cancelTabDrag() {
-    clearTimeout(tabLpTimer.current);
-    unlockBodySelection();
-    setTabDragId("");
-    setTabDropIndex(-1);
-    tabLpFired.current = false;
-  }
-
-  // ─── location handlers ────────────────────────────────────────
   function submitAddLoc() {
     if (!addLocInputValue.trim()) return;
     const parsed = splitStorageLocationLabel(addLocInputValue);
+    const newId = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     onAddStorageLocation({
+      id: newId,
       name: parsed.name || addLocInputValue.trim(),
       emoji: String(addLocEmoji || parsed.emoji || "").trim(),
     });
     setAddLocInputValue(""); setAddLocEmoji(""); setShowAddLocInput(false);
+    selectChip(newId);
   }
   function startRenameLoc(loc) {
     const display = getStorageLocationDisplay(loc);
-    setLocMenuId("");
+    setChipMenuId("");
     setRenamingLocId(loc.id);
     setRenamingLocEmoji(display.emoji || "");
     setRenamingLocName(display.name || loc.name);
@@ -736,387 +616,245 @@ export function InventoryView({
     });
     setRenamingLocId(""); setRenamingLocEmoji(""); setRenamingLocName("");
   }
-
-  // ─── render: single product row ───────────────────────────────
-  function renderItem(item, isFinished, list, sectionKey) {
-    const qtyLabel = formatQuantityUnit(item.quantity, item.unit);
-    const actionLocName = organiserMode && item.storageLocationId && !activeLocation
-      ? getStorageLocationDisplay(safeLocations.find((l) => l.id === item.storageLocationId) || null).label || null
-      : null;
-    const locName = null;
-    const expiry = expiryDisplay(item.expiryDate);
-    const isSelected = selectedIds.includes(item.id);
-    const menuOpen = openMenuId === item.id;
-    const dragMotionClass = getDragMotionClass(item.id, list, sectionKey);
-    const isDragging = dragState?.itemId === item.id;
-    const rowCursor = selectionMode
-      ? "pointer"
-      : (sortMode === "alpha" && Array.isArray(list) && list.length > 1 ? "grab" : "default");
-
-    const metaParts = [];
-    if (item.price) metaParts.push(`${item.price} €`);
-    if (item.note) metaParts.push(item.note);
-    const metaLine = metaParts.join(" · ");
-    const numericQty = parseFloat(String(item.quantity || "").replace(",", "."));
-    const canStepQty = !isFinished && Number.isFinite(numericQty);
-
-    return html`
-      <div key=${item.id}
-        ref=${(node) => registerItemNode(item.id, node)}
-        className=${`ldv-item${isFinished ? " ldv-item-done" : ""}${isSelected ? " ldv-item-sel" : ""}${isDragging ? " drag-source" : ""}${dragMotionClass ? ` ${dragMotionClass}` : ""}`}
-        style=${{ userSelect: "none", WebkitUserSelect: "none", cursor: rowCursor, alignItems: "flex-start", paddingTop: 11, paddingBottom: 11 }}
-        onPointerDown=${(event) => handleItemPointerDown(event, item.id, sectionKey, list.map((entry) => entry.id))}
-        onSelectStart=${preventItemSelection}
-        onDragStart=${preventItemSelection}
-        onClick=${(e) => handleRowClick(e, item)}
-      >
-        ${selectionMode ? html`
-          <button type="button"
-            className=${`ldv-chk inv-select-chk${isSelected ? " on" : ""}`}
-            style=${{ marginTop: 1, flexShrink: 0 }}
-            onClick=${(e) => { e.stopPropagation(); toggleSelect(item.id); }}>
-            ${isSelected ? "✓" : ""}
-          </button>
-        ` : null}
-
-        <div className="ldv-item-body" style=${{ gap: 2 }}>
-          <span style=${{
-            fontSize: 14, fontWeight: 600, color: "var(--mrd-fg)", lineHeight: 1.3,
-            textDecoration: isFinished ? "line-through" : "none",
-          }}>${item.name}</span>
-
-          ${canStepQty ? html`
-            <div className="inv-qty-stepper" onClick=${(e) => e.stopPropagation()}>
-              <button type="button" className="inv-qty-step-btn"
-                onClick=${() => decrementItemQuantity(item)}
-                aria-label="Diminuer la quantité">−</button>
-              <span className="inv-qty-step-value">${qtyLabel}</span>
-              <button type="button" className="inv-qty-step-btn"
-                onClick=${() => incrementItemQuantity(item)}
-                aria-label="Augmenter la quantité">+</button>
-            </div>
-          ` : (qtyLabel ? html`<span className="ldv-item-qty" style=${{ whiteSpace: "normal" }}>${qtyLabel}</span>` : null)}
-
-          ${metaLine ? html`<span className="ldv-item-qty" style=${{ whiteSpace: "normal" }}>${metaLine}</span>` : null}
-
-          ${locName ? html`
-            <span style=${{ fontSize: 11, color: "var(--mrd-fg3)", display: "flex", alignItems: "center", gap: 3 }}>
-              <span>📍</span><span style=${{ fontWeight: 500 }}>${locName}</span>
-            </span>
-          ` : null}
-
-          ${expiry ? html`
-            <span style=${{
-              fontSize: 10, fontWeight: 600, color: expiry.color,
-              background: expiry.bg || "none",
-              padding: "2px 7px",
-              borderRadius: 999,
-              display: "inline-block", lineHeight: 1.5, marginTop: 1,
-            }}>${expiry.text}</span>
-          ` : null}
-
-          ${!selectionMode ? html`
-            <div className="inv-item-action-row">
-              ${organiserMode ? html`
-                <button type="button"
-                  onClick=${(e) => { e.stopPropagation(); openRanger(item.id); }}
-                  style=${item.storageLocationId
-                    ? { ...ACT, ...INV_ACTION_SECONDARY }
-                    : { ...ACT, background: "var(--mrd-aLt)", color: "var(--mrd-a)", border: "none" }}>
-                  ${item.storageLocationId ? "Déplacer" : "Ranger"}
-                </button>
-              ` : null}
-              <button type="button"
-                onClick=${(e) => { e.stopPropagation(); onSendInventoryToShopping(item.id); }}
-                style=${{ ...ACT, ...(isFinished ? INV_ACTION_RESTOCK_STRONG : INV_ACTION_RESTOCK) }}>
-                À racheter
-              </button>
-              ${isFinished ? html`
-                <button type="button"
-                  onClick=${(e) => { e.stopPropagation(); onUpdateInventoryItem(item.id, { stockState: "in_stock", needsRestock: false }); }}
-                  style=${{ ...ACT, ...INV_ACTION_SECONDARY }}>
-                  Remettre en stock
-                </button>
-              ` : html`
-                <button type="button"
-                  onClick=${(e) => { e.stopPropagation(); onUpdateInventoryItem(item.id, { stockState: "empty", needsRestock: true }); }}
-                  style=${{ ...ACT, ...INV_ACTION_SECONDARY, color: "var(--mrd-fg3)" }}>
-                  Fini
-                </button>
-              `}
-              ${actionLocName ? html`
-                <span className="inv-item-loc-inline">
-                  <span>📍</span><span>${actionLocName}</span>
-                </span>
-              ` : null}
-            </div>
-          ` : null}
-        </div>
-
-        ${!selectionMode ? html`
-          <div className="task-menu-wrap ldv-menu-wrap">
-            <button type="button" className="task-menu-btn ldv-item-kebab"
-              onClick=${(e) => { e.stopPropagation(); setOpenMenuId(menuOpen ? "" : item.id); }}>
-              ⋮
-            </button>
-            ${menuOpen ? html`
-              <div className="task-menu-dropdown ldv-item-dropdown">
-                <button type="button" className="task-menu-item"
-                  onClick=${(e) => { e.stopPropagation(); openEditModal(item); }}>
-                  Modifier
-                </button>
-                <button type="button" className="task-menu-item task-menu-item-danger"
-                  onClick=${(e) => { e.stopPropagation(); onDeleteInventoryItem(item.id); setOpenMenuId(""); }}>
-                  Supprimer
-                </button>
-              </div>
-            ` : null}
-          </div>
-        ` : null}
-      </div>
-    `;
+  function deleteChipLocation(id) {
+    onDeleteStorageLocation(id);
+    setChipMenuId("");
+    if (effectiveChip === id) selectChip("all");
   }
 
-  // ─── render: grouped section (ldv-card style) ─────────────────
-  function renderItemSection(items, isFinished) {
-    if (!items.length) return null;
-    const count = items.length;
-    const sectionKey = isFinished ? "finished" : "active";
-    const preview = getDragPreviewForList(items, sectionKey);
-    return html`
-      <div className="ldv-section" style=${{ marginBottom: 4 }}>
-        ${isFinished ? html`
-          <div className="ldv-section-head">
-            <span className="ldv-section-title">Produits finis</span>
-            <span className="ldv-section-count">${count} article${count > 1 ? "s" : ""}</span>
-            <button type="button"
-              onClick=${onClearFinishedInventory}
-              style=${{ fontSize: 11, fontWeight: 600, color: "var(--mrd-fg3)", background: "none", border: "1px solid var(--mrd-borderSoft)", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", marginLeft: "auto" }}>
-              Vider
-            </button>
-          </div>
-        ` : null}
-        <div className="ldv-card">
-          ${items.flatMap((item, index) => {
-            const parts = [];
-            if (preview && preview.anchorItemId === item.id && preview.position === "before") {
-              parts.push(renderDropPlaceholder(preview, `before-${index}`));
-            }
-            parts.push(renderItem(item, isFinished, items, sectionKey));
-            if (preview && preview.anchorItemId === item.id && preview.position === "after") {
-              parts.push(renderDropPlaceholder(preview, `after-${index}`));
-            }
-            return parts;
-          })}
-        </div>
-      </div>
-    `;
-  }
-
-  // ─── render: tab bar with drag-and-drop for locations ─────────
-  function renderTabBar() {
+  // ─── render: en-tête (titre, recherche+tri, interrupteur, chips) ──
+  function renderChips() {
     if (!organiserMode) return null;
-
-    // Build display order: move tabDragId to its preview position
-    const strippedLocs = safeLocations.filter((l) => l.id !== tabDragId);
-    let displayLocs;
-    if (tabDragId && tabDropIndex >= 0) {
-      const dragged = safeLocations.find((l) => l.id === tabDragId);
-      displayLocs = [...strippedLocs];
-      if (dragged) displayLocs.splice(Math.min(tabDropIndex, displayLocs.length), 0, dragged);
-    } else {
-      displayLocs = [...safeLocations];
-    }
-
-    const isDragActive = Boolean(tabDragId);
-
     return html`
-      <div className="inv-organiser-row">
-        <div className="mrd-subtabs inv-organiser-tabs" role="tablist" aria-label="Rangements" ref=${tabBarRef}
-          style=${{ userSelect: "none", WebkitUserSelect: "none" }}>
-
-          <button type="button" role="tab"
-            aria-selected=${effectiveTab === "all" ? "true" : "false"}
-            className=${`mrd-subtab-btn${effectiveTab === "all" ? " on" : ""}`}
-            onClick=${() => setActiveTab("all")}
-          >Tout</button>
-
-          ${hasUnassignedTab ? html`
-            <button type="button" role="tab"
-              aria-selected=${effectiveTab === "unassigned" ? "true" : "false"}
-              className=${`mrd-subtab-btn${effectiveTab === "unassigned" ? " on" : ""}`}
-              onClick=${() => setActiveTab("unassigned")}
-            >
-              Non rangé
-              <span style=${{ fontSize: 10, opacity: 0.8, marginLeft: 3 }}>${unassignedCount}</span>
-            </button>
-          ` : null}
-
-          ${displayLocs.map((loc) => {
-            const isDragging = tabDragId === loc.id;
-            const cnt = safeInventory.filter((i) => i.storageLocationId === loc.id && i.stockState !== "empty").length;
-            return html`
-              <button
-                key=${loc.id}
-                data-tab-id=${loc.id}
-                type="button"
-                role="tab"
-                aria-selected=${effectiveTab === loc.id && !isDragging ? "true" : "false"}
-                className=${`mrd-subtab-btn${effectiveTab === loc.id && !isDragging ? " on" : ""}`}
-                style=${{
-                  position: "relative",
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                  transform: isDragging ? "scale(1.07)" : "scale(1)",
-                  opacity: isDragActive && !isDragging ? 0.45 : 1,
-                  boxShadow: isDragging ? "0 6px 20px oklch(27% 0.05 48 / 0.28)" : "none",
-                  zIndex: isDragging ? 10 : 1,
-                  transition: isDragging
-                    ? "box-shadow 0.12s"
-                    : "opacity 0.15s, transform 0.18s, box-shadow 0.18s",
-                  touchAction: isDragActive ? "none" : undefined,
-                  pointerEvents: isDragging ? "none" : undefined,
-                  cursor: isDragActive ? (isDragging ? "grabbing" : "default") : "grab",
-                }}
-                onClick=${() => { if (!tabLpFired.current) setActiveTab(loc.id); }}
-                onTouchStart=${(e) => handleTabTouchStart(e, loc.id)}
-                onTouchEnd=${(e) => handleTabTouchEnd(e, loc.id)}
-                onTouchCancel=${cancelTabDrag}
+      <div className="mrd-inv-chips">
+        <button type="button" className=${`mrd-inv-chip${effectiveChip === "all" ? " mrd-inv-chip--on" : ""}`}
+          aria-pressed=${effectiveChip === "all"} onClick=${() => selectChip("all")}>
+          Tout
+        </button>
+        ${safeLocations.map((loc) => {
+          const display = getStorageLocationDisplay(loc);
+          const cnt = safeInventory.filter((i) => i.storageLocationId === loc.id && i.stockState !== "empty").length;
+          const on = effectiveChip === loc.id;
+          const isRenaming = renamingLocId === loc.id;
+          return html`
+            <div key=${loc.id} className="mrd-inv-chip-wrap">
+              <button type="button" className=${`mrd-inv-chip${on ? " mrd-inv-chip--on" : ""}`}
+                aria-pressed=${on}
+                onClick=${() => { if (!chipLpFired.current) selectChip(loc.id); chipLpFired.current = ""; }}
+                onTouchStart=${() => handleChipTouchStart(loc.id)}
+                onTouchEnd=${handleChipTouchEnd}
+                onTouchCancel=${handleChipTouchEnd}
+                onMouseDown=${() => handleChipTouchStart(loc.id)}
+                onMouseUp=${handleChipTouchEnd}
+                onMouseLeave=${handleChipTouchEnd}
               >
-                ${getStorageLocationDisplay(loc).label || loc.name}
-                ${cnt > 0 ? html`<span style=${{ fontSize: 10, opacity: 0.75, marginLeft: 3 }}>${cnt}</span>` : null}
+                <span>${display.emoji || "📦"} ${display.name || loc.name}</span>
+                ${cnt > 0 ? html`<span className="mrd-inv-chip-count">${cnt}</span>` : null}
               </button>
-            `;
-          })}
-        </div>
-
-        <button
-          type="button"
-          className="inv-organiser-add"
-          onClick=${(e) => {
-            e.stopPropagation();
-            setLocMenuId("");
-            setRenamingLocId("");
-            setRenamingLocEmoji("");
-            setAddLocInputValue("");
-            setAddLocEmoji("");
-            setRenamingLocName("");
-            setShowAddLocInput(true);
-          }}
-          title="Créer un rangement"
-        >+</button>
-      </div>
-    `;
-  }
-
-  function renderLocationEditor() {
-    if (!organiserMode) return null;
-    if (!showAddLocInput && !renamingLocId) return null;
-    const isEditing = Boolean(renamingLocId);
-    const emojiValue = isEditing ? renamingLocEmoji : addLocEmoji;
-    const value = isEditing ? renamingLocName : addLocInputValue;
-    const setValue = isEditing ? setRenamingLocName : setAddLocInputValue;
-    const submit = isEditing ? () => submitRenameLoc(renamingLocId) : submitAddLoc;
-    const cancel = () => {
-      setShowAddLocInput(false);
-      setAddLocEmoji("");
-      setAddLocInputValue("");
-      setRenamingLocId("");
-      setRenamingLocEmoji("");
-      setRenamingLocName("");
-      setShowStorageEmojiPicker("");
-    };
-
-    return html`
-      <div className="inv-organiser-editor">
-        <button
-          type="button"
-          title="Choisir un emoji"
-          onClick=${(e) => {
-            e.stopPropagation();
-            setShowStorageEmojiPicker("editor");
-          }}
-          className=${`inv-organiser-editor-emoji${emojiValue ? "" : " is-empty"}`}
-        >
-          ${emojiValue || "＋"}
-        </button>
-        <input
-          value=${value}
-          onInput=${(e) => setValue(e.target.value)}
-          onKeyDown=${(e) => {
-            if (e.key === "Enter") submit();
-            if (e.key === "Escape") cancel();
-          }}
-          autoFocus
-          placeholder="Nom du rangement..."
-          onClick=${(e) => e.stopPropagation()}
-          className="inv-organiser-editor-input"
-        />
-        <button type="button" className="inv-organiser-editor-save" onClick=${(e) => { e.stopPropagation(); submit(); }} disabled=${!String(value || "").trim()}>
-          OK
-        </button>
-        <button type="button" className="inv-organiser-editor-cancel" onClick=${(e) => { e.stopPropagation(); cancel(); }}>
-          ✕
-        </button>
-      </div>
-    `;
-  }
-
-  function renderSelectedLocationHeading() {
-    if (!activeLocation) return null;
-    const display = getStorageLocationDisplay(activeLocation);
-    const menuOpen = locMenuId === activeLocation.id;
-
-    return html`
-      <div className="inv-selected-heading">
-        <div className="inv-selected-heading-left">
-          <div className="inv-selected-heading-label">${display.label || activeLocation.name}</div>
-          <span className="inv-selected-heading-count">${visibleActiveCount} article${visibleActiveCount !== 1 ? "s" : ""}</span>
-        </div>
-
-        ${selectionMode ? html`
-          <button type="button"
-            onClick=${(e) => { e.stopPropagation(); exitSelectionMode(); }}
-            style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", background: "var(--mrd-fg)", color: "var(--mrd-white)", border: "none", minHeight: 32, flexShrink: 0 }}>
-            Annuler
+              ${chipMenuId === loc.id ? html`
+                <div className="mrd-inv-chip-menu" onClick=${(e) => e.stopPropagation()}>
+                  <button type="button" onClick=${() => startRenameLoc(loc)}>Renommer</button>
+                  <button type="button" className="mrd-inv-chip-menu-danger" onClick=${() => deleteChipLocation(loc.id)}>Supprimer</button>
+                </div>
+              ` : null}
+              ${isRenaming ? html`
+                <div className="mrd-inv-chip-create" onClick=${(e) => e.stopPropagation()}>
+                  <button type="button" className="mrd-inv-chip-create-emoji" onClick=${(e) => { e.stopPropagation(); setShowStorageEmojiPicker("editor"); }}>${renamingLocEmoji || "📦"}</button>
+                  <input className="mrd-inv-chip-create-input" value=${renamingLocName}
+                    onInput=${(e) => setRenamingLocName(e.target.value)}
+                    onKeyDown=${(e) => { if (e.key === "Enter") submitRenameLoc(loc.id); if (e.key === "Escape") setRenamingLocId(""); }}
+                    autoFocus />
+                  <button type="button" className="mrd-inv-chip-create-ok" disabled=${!renamingLocName.trim()} onClick=${() => submitRenameLoc(loc.id)}>OK</button>
+                  <button type="button" className="mrd-inv-chip-create-cancel" onClick=${() => { setRenamingLocId(""); setRenamingLocEmoji(""); setRenamingLocName(""); }}>✕</button>
+                </div>
+              ` : null}
+            </div>
+          `;
+        })}
+        ${hasUnassignedChip ? html`
+          <button type="button" className=${`mrd-inv-chip${effectiveChip === "unassigned" ? " mrd-inv-chip--on" : ""}`}
+            aria-pressed=${effectiveChip === "unassigned"} onClick=${() => selectChip("unassigned")}>
+            <span>📍 Non rangé</span><span className="mrd-inv-chip-count">${unassignedCount}</span>
           </button>
+        ` : null}
+        ${showAddLocInput ? html`
+          <div className="mrd-inv-chip-create" onClick=${(e) => e.stopPropagation()}>
+            <button type="button" className="mrd-inv-chip-create-emoji" onClick=${(e) => { e.stopPropagation(); setShowStorageEmojiPicker("editor"); }}>${addLocEmoji || "📦"}</button>
+            <input className="mrd-inv-chip-create-input" value=${addLocInputValue}
+              onInput=${(e) => setAddLocInputValue(e.target.value)}
+              onKeyDown=${(e) => { if (e.key === "Enter") submitAddLoc(); if (e.key === "Escape") setShowAddLocInput(false); }}
+              placeholder="Nom du rangement…" autoFocus onClick=${(e) => e.stopPropagation()} />
+            <button type="button" className="mrd-inv-chip-create-ok" disabled=${!addLocInputValue.trim()} onClick=${(e) => { e.stopPropagation(); submitAddLoc(); }}>OK</button>
+            <button type="button" className="mrd-inv-chip-create-cancel" onClick=${(e) => { e.stopPropagation(); setShowAddLocInput(false); setAddLocInputValue(""); setAddLocEmoji(""); }}>✕</button>
+          </div>
         ` : html`
-          <button type="button"
-            onClick=${(e) => { e.stopPropagation(); setSelectionMode(true); setSelectedIds([]); }}
-            style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 500, fontFamily: "inherit", cursor: "pointer", background: "none", color: "var(--mrd-fg3)", border: "1px solid var(--mrd-borderSoft)", minHeight: 32, flexShrink: 0 }}>
-            Sélectionner
-          </button>
+          <button type="button" className="mrd-inv-chip-add"
+            onClick=${(e) => { e.stopPropagation(); setAddLocInputValue(""); setAddLocEmoji(""); setShowAddLocInput(true); }}
+            title="Créer un rangement" aria-label="Créer un rangement">+</button>
         `}
+      </div>
+    `;
+  }
 
-        ${organiserMode ? html`
-          <div className="task-menu-wrap">
-            <button
-              type="button"
-              className="task-menu-btn inv-selected-heading-menu"
-              onClick=${(e) => { e.stopPropagation(); setLocMenuId(menuOpen ? "" : activeLocation.id); }}
-            >
-              ⋮
-            </button>
-            ${menuOpen ? html`
-              <div className="task-menu-dropdown" style=${{ top: "calc(100% + 6px)", right: 0, minWidth: 150, zIndex: 70 }} onClick=${(e) => e.stopPropagation()}>
-                <button type="button" className="task-menu-item" onClick=${() => startRenameLoc(activeLocation)}>
-                  Modifier
-                </button>
-                <button
-                  type="button"
-                  className="task-menu-item task-menu-item-danger"
-                  onClick=${() => {
-                    onDeleteStorageLocation(activeLocation.id);
-                    setLocMenuId("");
-                    if (effectiveTab === activeLocation.id) setActiveTab("all");
-                  }}
-                >
-                  Supprimer
-                </button>
-              </div>
-            ` : null}
+  function renderHeader() {
+    return html`
+      <div className="mrd-inv-header">
+        <div className="mrd-inv-title-row">
+          <span className="mrd-inv-title">Inventaire</span>
+          <span className="mrd-inv-count">${visibleActiveCount} article${visibleActiveCount !== 1 ? "s" : ""}</span>
+          ${selectionMode ? html`
+            <button type="button" className="mrd-inv-select-btn mrd-inv-select-btn--cancel"
+              onClick=${(e) => { e.stopPropagation(); exitSelectionMode(); }}>Annuler</button>
+          ` : html`
+            <button type="button" className="mrd-inv-select-btn"
+              onClick=${(e) => { e.stopPropagation(); setSelectionMode(true); setSelectedIds([]); }}>Sélectionner</button>
+          `}
+        </div>
+        <div className="mrd-inv-searchrow">
+          <div className="mrd-inv-search">
+            <span className="mrd-inv-search-icon">🔍</span>
+            <input className="mrd-inv-search-input" value=${search}
+              onInput=${(e) => setSearch(e.target.value)} placeholder="Rechercher un produit" />
+          </div>
+          <button type="button" className="mrd-inv-sort-btn" onClick=${cycleSortMode}>
+            ${SORT_OPTIONS.find((o) => o.value === sortMode)?.label || "A → Z"}
+          </button>
+        </div>
+        <button type="button" role="switch" aria-checked=${organiserMode}
+          className=${`mrd-inv-switch-row${organiserMode ? " mrd-inv-switch-row--on" : ""}`}
+          onClick=${toggleLocationsOn}>
+          <span className="mrd-inv-switch-track"><span className="mrd-inv-switch-thumb"></span></span>
+          <span className="mrd-inv-switch-label">Ranger par emplacement</span>
+          <span className="mrd-inv-switch-state">${organiserMode ? "ACTIVÉ" : "DÉSACTIVÉ"}</span>
+        </button>
+        ${renderChips()}
+      </div>
+    `;
+  }
+
+  // ─── render: bandeau péremption (filtre, pas une liste) ────────
+  function urgentExpirySubtitle() {
+    if (!mostUrgentExpiring) return "";
+    const d = daysUntilExpiry(mostUrgentExpiring.expiryDate);
+    const phrase = d < 0 ? `est dépassé de ${Math.abs(d)} j` : d === 0 ? "expire aujourd'hui" : `expire dans ${d} j`;
+    return `${mostUrgentExpiring.name} ${phrase}`;
+  }
+  function renderExpiryBanner() {
+    if (!expiringItems.length && !expiryFilterOn) return null;
+    return html`
+      <button type="button" className=${`mrd-inv-expiry${expiryFilterOn ? " mrd-inv-expiry--on" : ""}`}
+        onClick=${toggleExpiryFilter} aria-pressed=${expiryFilterOn}>
+        <span className="mrd-inv-expiry-icon">⏰</span>
+        <span className="mrd-inv-expiry-text">
+          <span className="mrd-inv-expiry-title">${expiringItems.length} produit${expiringItems.length > 1 ? "s" : ""} à consommer cette semaine</span>
+          <span className="mrd-inv-expiry-sub">${expiryFilterOn ? "Filtre actif sur la liste" : urgentExpirySubtitle()}</span>
+        </span>
+        <span className="mrd-inv-expiry-action">${expiryFilterOn ? "Retirer" : "Filtrer"}</span>
+      </button>
+    `;
+  }
+
+  // ─── render: ligne produit (une seule action visible : le compteur) ──
+  function renderRow(item) {
+    const isSelected = selectedIds.includes(item.id);
+    const isOpen = invOpen === item.id;
+    const menuOpen = openMenuId === item.id;
+    const pill = expiryPillInfo(item.expiryDate);
+    const locLabel = item.storageLocationId
+      ? (getStorageLocationDisplay(safeLocations.find((l) => l.id === item.storageLocationId) || null).label || "")
+      : "Non rangé";
+    const meta = organiserMode
+      ? (item.note ? `${locLabel} · ${item.note}` : locLabel)
+      : (item.note || "");
+    const numericQty = parseFloat(String(item.quantity ?? "").replace(",", "."));
+    const canStep = Number.isFinite(numericQty);
+
+    return html`
+      <div key=${item.id} className=${`mrd-inv-row${isOpen ? " mrd-inv-row--open" : ""}${isSelected ? " mrd-inv-row--sel" : ""}`}>
+        <div className="mrd-inv-row-top" onClick=${(e) => handleRowClick(e, item)} aria-expanded=${isOpen}>
+          ${selectionMode ? html`
+            <button type="button" className=${`ldv-chk inv-select-chk${isSelected ? " on" : ""}`}
+              onClick=${(e) => { e.stopPropagation(); toggleSelect(item.id); }}>${isSelected ? "✓" : ""}</button>
+          ` : null}
+          <div className="mrd-inv-row-main">
+            <span className="mrd-inv-row-name">${item.name}</span>
+            ${meta ? html`<span className="mrd-inv-row-meta">${meta}</span>` : null}
+            ${pill ? html`<span className="mrd-inv-row-pill" style=${{ color: pill.color, background: pill.bg }}>${pill.text}</span>` : null}
+          </div>
+          ${!selectionMode && canStep ? html`
+            <div className="mrd-inv-counter" onClick=${(e) => e.stopPropagation()}>
+              <button type="button" className="mrd-inv-counter-btn" onClick=${() => decrementItemQuantity(item)} aria-label=${`Moins de ${item.name}`}>−</button>
+              <span className="mrd-inv-counter-val">${stepperQtyLabel(item)}</span>
+              <button type="button" className="mrd-inv-counter-btn" onClick=${() => incrementItemQuantity(item)} aria-label=${`Plus de ${item.name}`}>+</button>
+            </div>
+          ` : null}
+        </div>
+        ${isOpen && !selectionMode ? html`
+          <div className="mrd-inv-row-expand">
+            <button type="button" className="mrd-inv-row-btn mrd-inv-row-btn--finish" onClick=${() => markItemFinished(item)}>Fini</button>
+            <button type="button" className="mrd-inv-row-btn" onClick=${() => sendItemToShopping(item)}>À racheter</button>
+            ${organiserMode ? html`<button type="button" className="mrd-inv-row-btn" onClick=${() => openRanger(item.id)}>Ranger</button>` : null}
+            <div className="task-menu-wrap">
+              <button type="button" className="mrd-inv-row-btn mrd-inv-row-btn--kebab"
+                onClick=${(e) => { e.stopPropagation(); setOpenMenuId(menuOpen ? "" : item.id); }}>⋯</button>
+              ${menuOpen ? html`
+                <div className="task-menu-dropdown">
+                  <button type="button" className="task-menu-item" onClick=${(e) => { e.stopPropagation(); openEditModal(item); }}>Modifier</button>
+                  <button type="button" className="task-menu-item task-menu-item-danger"
+                    onClick=${(e) => { e.stopPropagation(); onDeleteInventoryItem(item.id); setOpenMenuId(""); }}>Supprimer</button>
+                </div>
+              ` : null}
+            </div>
           </div>
         ` : null}
+      </div>
+    `;
+  }
+
+  // ─── render: bloc « Produits finis » (replié par défaut) ──────
+  function renderFinishedBlock() {
+    if (!finishedItems.length) return null;
+    return html`
+      <div className="mrd-inv-finished">
+        <button type="button" className="mrd-inv-finished-head" onClick=${() => setFinishedOpen((v) => !v)}>
+          <span>Produits finis · ${finishedItems.length}</span>
+          <span className="mrd-inv-finished-caret">${finishedOpen ? "▲" : "▼"}</span>
+        </button>
+        ${finishedOpen && typeof onClearFinishedInventory === "function" ? html`
+          <button type="button" className="mrd-inv-finished-clear" onClick=${onClearFinishedInventory}>Vider</button>
+        ` : null}
+        ${finishedOpen ? finishedItems.map((item) => {
+          const isSelected = selectedIds.includes(item.id);
+          return html`
+            <div key=${item.id} className="mrd-inv-finished-row">
+              ${selectionMode ? html`
+                <button type="button" className=${`ldv-chk inv-select-chk${isSelected ? " on" : ""}`}
+                  onClick=${() => toggleSelect(item.id)}>${isSelected ? "✓" : ""}</button>
+              ` : null}
+              <span className="mrd-inv-finished-name">${item.name}</span>
+              <button type="button" className="mrd-inv-finished-btn" onClick=${() => markItemInStock(item)}>En stock</button>
+              <button type="button" className="mrd-inv-finished-btn mrd-inv-finished-btn--restock" onClick=${() => sendItemToShopping(item)}>À racheter</button>
+            </div>
+          `;
+        }) : null}
+      </div>
+    `;
+  }
+
+  // ─── render: état vide (5 variantes, README « Vide ») ──────────
+  function renderEmptyState() {
+    if (activeItems.length || finishedItems.length) return null;
+    let glyph = "📦", title = "Inventaire vide", sub = "Ajoute tes produits pour suivre ton stock.", showAdd = true;
+    if (search) { glyph = "🔍"; title = "Aucun résultat"; sub = "Essaie un autre mot-clé."; showAdd = false; }
+    else if (expiryFilterOn) { glyph = "✅"; title = "Rien à consommer d'urgence"; sub = "Aucune date de péremption proche."; showAdd = false; }
+    else if (effectiveChip === "unassigned") { glyph = "✅"; title = "Tout est rangé ✓"; sub = "Tous tes articles ont un emplacement."; showAdd = false; }
+    else if (effectiveChip !== "all") { glyph = "📦"; title = "Rangement vide"; sub = "Aucun produit ici pour le moment."; showAdd = true; }
+    return html`
+      <div className="mrd-inv-empty">
+        <span className="mrd-inv-empty-glyph">${glyph}</span>
+        <span className="mrd-inv-empty-title">${title}</span>
+        <span className="mrd-inv-empty-sub">${sub}</span>
+        ${showAdd ? html`<button type="button" className="mrd-inv-empty-btn" onClick=${openCreateModal}>+ Ajouter un article</button>` : null}
       </div>
     `;
   }
@@ -1133,75 +871,165 @@ export function InventoryView({
     const metaLine = metaParts.join(" · ");
 
     const canConfirm = rangerSelectedLocId !== null;
-    const selectValue = rangerSelectedLocId === null ? "" : rangerSelectedLocId;
+    const selectedLoc = rangerSelectedLocId ? safeLocations.find((l) => l.id === rangerSelectedLocId) : null;
+    const selectedLocName = selectedLoc ? (getStorageLocationDisplay(selectedLoc).name || selectedLoc.name) : "";
+    const submitLabel = !canConfirm
+      ? (bulkRangerMode ? `Ranger ${rangerCount} article${rangerCount > 1 ? "s" : ""}` : "Ranger")
+      : bulkRangerMode
+        ? `Ranger ${rangerCount} article${rangerCount > 1 ? "s" : ""} dans « ${selectedLocName} »`
+        : `Ranger dans « ${selectedLocName} »`;
+
+    const searchTrimmed = rangerSearch.trim();
+    const showCreateAsSearch = Boolean(searchTrimmed) && rangerNoMatch;
+
+    function renderCreateFields(insideEmptyState) {
+      return html`
+        <div className="mrd-ranger-create">
+          <div className="mrd-ranger-create-row">
+            <button type="button" className="mrd-ranger-create-emoji"
+              onClick=${() => setShowStorageEmojiPicker("ranger")}
+              title="Choisir un emoji">
+              ${rangerNewLocEmoji || "＋"}
+            </button>
+            <input
+              className="mrd-ranger-create-input"
+              value=${rangerNewLocName}
+              onInput=${(e) => setRangerNewLocName(e.target.value)}
+              onKeyDown=${(e) => {
+                if (e.key === "Enter") createAndAssign();
+                if (e.key === "Escape" && !insideEmptyState) {
+                  setRangerShowCreate(false);
+                  setRangerNewLocName("");
+                  setRangerNewLocEmoji("");
+                }
+              }}
+              placeholder="Nom du rangement…"
+              autoFocus
+            />
+            <button type="button" className="mrd-ranger-create-ok"
+              disabled=${!rangerNewLocName.trim()}
+              onClick=${createAndAssign}>
+              OK
+            </button>
+            ${insideEmptyState ? null : html`
+              <button type="button" className="mrd-ranger-create-cancel"
+                onClick=${() => { setRangerShowCreate(false); setRangerNewLocName(""); setRangerNewLocEmoji(""); }}
+                aria-label="Annuler la création">
+                ✕
+              </button>
+            `}
+          </div>
+        </div>
+      `;
+    }
 
     return html`
-      <${MrdModal} isOpen=${true} onClose=${closeRanger} className="task-modal-redesign mrd-modal-wide">
+      <${MrdModal}
+        isOpen=${true}
+        onClose=${closeRanger}
+        sheet=${true}
+        sheetBreakpoint=${rangerSheetBreakpoint}
+        sheetBreakpoints=${rangerSheetBreakpoints}
+        className="mrd-ranger-modal"
+      >
+        <div className="mrd-ranger" aria-label=${bulkRangerMode ? `Ranger ${rangerCount} articles` : "Ranger un produit"}>
 
-
-          <div className="mrd-mhd">
-            <span className="mrd-mtitle">
-              ${bulkRangerMode ? `Ranger ${rangerCount} article${rangerCount > 1 ? "s" : ""}` : "Ranger un produit"}
+          <div className="mrd-ranger-head">
+            ${bulkRangerMode ? null : html`<span className="mrd-ranger-thumb">📦</span>`}
+            <span className="mrd-ranger-titles">
+              ${bulkRangerMode || metaLine ? html`
+                <span className="mrd-ranger-eyebrow">
+                  ${bulkRangerMode ? `${rangerCount} article${rangerCount > 1 ? "s" : ""} sélectionné${rangerCount > 1 ? "s" : ""}` : metaLine}
+                </span>
+              ` : null}
+              <span className="mrd-ranger-title">
+                ${bulkRangerMode ? `Ranger ${rangerCount} article${rangerCount > 1 ? "s" : ""}` : `Ranger « ${rangerItem?.name || ""} »`}
+              </span>
             </span>
-            <button type="button" onClick=${closeRanger} className="mrd-mclose">✕</button>
+            <button type="button" className="mrd-ranger-close" onClick=${closeRanger} aria-label="Fermer">✕</button>
           </div>
 
-          <div className="mrd-mbody">
+          ${!bulkRangerMode && memoryLoc ? (() => {
+            const display = getStorageLocationDisplay(memoryLoc);
+            const selected = rangerSelectedLocId === memoryLoc.id;
+            return html`
+              <button type="button" role="radio" aria-checked=${selected}
+                aria-label=${`${display.name || memoryLoc.name} — là où tu l'as rangé la dernière fois`}
+                className="mrd-ranger-memory"
+                onClick=${() => setRangerSelectedLocId(memoryLoc.id)}>
+                <span className="mrd-ranger-memory-thumb">${display.emoji || "📦"}</span>
+                <span className="mrd-ranger-memory-info">
+                  <span className="mrd-ranger-memory-name">${display.name || memoryLoc.name}</span>
+                  <span className="mrd-ranger-memory-sub">là où tu l'as rangé la dernière fois</span>
+                </span>
+                ${selected ? html`<span className="mrd-ranger-memory-check">✓</span>` : null}
+              </button>
+            `;
+          })() : null}
 
-            ${!bulkRangerMode && rangerItem ? html`
-              <div style=${{ background: "var(--mrd-surf2)", borderRadius: 12, padding: "11px 14px" }}>
-                <div style=${{ fontWeight: 600, fontSize: 14, color: "var(--mrd-fg)", lineHeight: 1.3 }}>${rangerItem.name}</div>
-                ${metaLine ? html`<div style=${{ fontSize: 12, color: "var(--mrd-fg3)", marginTop: 3 }}>${metaLine}</div>` : null}
+          ${rangerNoLocations ? html`
+            <div className="mrd-ranger-empty-state">
+              <span className="mrd-ranger-empty">Tu n'as pas encore de rangement.</span>
+              ${renderCreateFields(true)}
+            </div>
+          ` : html`
+            <div className="mrd-ranger-locations">
+            <div className="mrd-ranger-locblock">
+              <div className="mrd-ranger-search">
+                <span className="mrd-ranger-search-icon">🔍</span>
+                <input
+                  ref=${rangerSearchRef}
+                  className="mrd-ranger-search-input"
+                  value=${rangerSearch}
+                  onInput=${(e) => setRangerSearch(e.target.value)}
+                  placeholder="Chercher un rangement…"
+                />
               </div>
-            ` : null}
-
-            <div>
-              <span className="mrd-mlbl">Lieu de rangement</span>
-              <div style=${{ position: "relative" }}>
-                <select
-                  value=${selectValue}
-                  onChange=${(e) => setRangerSelectedLocId(e.target.value)}
-                  style=${{ ...FORM_INP, paddingRight: 36, cursor: "pointer" }}
-                >
-                  <option value="">Non classé</option>
-                  ${memoryLoc && !bulkRangerMode ? html`
-                    <option value=${memoryLoc.id}>
-                      ${getStorageLocationDisplay(memoryLoc).label || memoryLoc.name} — Dernière fois
-                    </option>
-                  ` : null}
-                  ${safeLocations
-                    .filter((l) => !memoryLoc || l.id !== memoryLoc.id || bulkRangerMode)
-                    .map((loc) => html`
-                      <option key=${loc.id} value=${loc.id}>
-                        ${getStorageLocationDisplay(loc).label || loc.name}
-                      </option>
-                    `)}
-                </select>
-                <span style=${{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "var(--mrd-fg3)", pointerEvents: "none" }}>▼</span>
+              <div className=${`mrd-ranger-grid${rangerWideGrid ? " mrd-ranger-grid--wide" : ""}`} role="radiogroup" aria-label="Rangements">
+                ${rangerFilteredLocations.map((loc) => {
+                  const display = getStorageLocationDisplay(loc);
+                  const count = safeInventory.filter((i) => i.storageLocationId === loc.id && i.stockState !== "empty").length;
+                  const selected = rangerSelectedLocId === loc.id;
+                  return html`
+                    <button key=${loc.id} type="button" role="radio" aria-checked=${selected}
+                      aria-label=${`${display.name || loc.name}, ${count} produit${count > 1 ? "s" : ""}`}
+                      className=${`mrd-ranger-tile${selected ? " mrd-ranger-tile--selected" : ""}`}
+                      onClick=${() => setRangerSelectedLocId(loc.id)}>
+                      <span className="mrd-ranger-tile-emoji">${display.emoji || "📦"}</span>
+                      <span className="mrd-ranger-tile-info">
+                        <span className="mrd-ranger-tile-name">${display.name || loc.name}</span>
+                        <span className="mrd-ranger-tile-count">${count} produit${count > 1 ? "s" : ""}</span>
+                      </span>
+                    </button>
+                  `;
+                })}
               </div>
             </div>
 
-            <div style=${{ display: "flex", gap: 8, paddingTop: 4 }}>
-              <button type="button" onClick=${closeRanger}
-                style=${{ flex: "0 0 auto", padding: "12px 18px", borderRadius: 12, border: "1px solid var(--mrd-border)", background: "var(--mrd-surf2)", color: "var(--mrd-fg2)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Annuler
+            <div className="mrd-ranger-secrow">
+              <button type="button" className="mrd-ranger-newloc-btn"
+                onClick=${() => { if (showCreateAsSearch) createAndAssignFromSearch(); else setRangerShowCreate((v) => !v); }}>
+                ${showCreateAsSearch ? `＋ Créer « ${searchTrimmed} »` : "＋ Nouveau rangement"}
               </button>
-              <button type="button"
-                onClick=${submitRanger}
-                disabled=${!canConfirm}
-                style=${{
-                  flex: 1, padding: "12px 0", borderRadius: 12, border: "none",
-                  background: canConfirm ? "var(--mrd-aBtn)" : "var(--mrd-disabledBg)",
-                  fontSize: 14, fontWeight: 700,
-                  color: canConfirm ? "var(--mrd-white)" : "var(--mrd-disabledFg)",
-                  cursor: canConfirm ? "pointer" : "default",
-                  fontFamily: "inherit", transition: "background 0.15s, color 0.15s",
-                }}>
-                ${bulkRangerMode ? `Ranger ${rangerCount} article${rangerCount > 1 ? "s" : ""}` : "Ranger"}
+              <button type="button" className="mrd-ranger-noloc-btn" onClick=${() => assignLocation("")}>
+                Sans rangement
               </button>
             </div>
 
+            ${rangerShowCreate ? renderCreateFields(false) : null}
+            </div>
+          `}
+
+          <div className="mrd-ranger-footer">
+            <button type="button" className="mrd-ranger-submit" onClick=${submitRanger} disabled=${!canConfirm}>
+              ${submitLabel}
+            </button>
+            <button type="button" className="mrd-ranger-cancel" onClick=${closeRanger}>
+              Annuler
+            </button>
           </div>
+
+        </div>
       <//>
     `;
   }
@@ -1216,193 +1044,149 @@ export function InventoryView({
   }
 
   // ─── render: add/edit modal ───────────────────────────────────
+  // Paliers d'ouverture de la feuille d'ajout — toutes les combinaisons
+  // {doublon, détails dépliés} doivent être présentes d'avance : comme pour
+  // la feuille de rangement, `ion-modal` fige sa liste de paliers à l'ouverture.
+  const addSheetIsDuplicate = Boolean(similarWarning && !bypassSimilar);
+  const addSheetBreakpointFor = (hasDup, showDetails) => {
+    const viewport = (typeof window !== "undefined" && window.innerHeight) || 812;
+    const wanted = (addSheetHeight({ hasDup, hasLocs: organiserMode, showDetails }) + safeAreaBottom()) / viewport;
+    return Math.min(0.9, Math.max(0.3, Math.round(wanted * 1000) / 1000));
+  };
+  const addSheetBreakpoints = useMemo(() => {
+    if (!showModal) return [0.5];
+    return [...new Set([
+      addSheetBreakpointFor(false, false),
+      addSheetBreakpointFor(false, true),
+      addSheetBreakpointFor(true, false),
+      addSheetBreakpointFor(true, true),
+    ])];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, organiserMode]);
+  const addSheetBreakpoint = addSheetBreakpointFor(addSheetIsDuplicate, showExtraFields);
+
+  function stepFormQuantity(direction) {
+    const current = parseFloat(String(form.quantity || "0").replace(",", "."));
+    const base = Number.isFinite(current) ? current : 0;
+    const next = Math.max(0, Math.round((base + direction * quantityStep(form.unit)) * 100) / 100);
+    setForm((p) => ({ ...p, quantity: String(next) }));
+  }
+
   function renderModal() {
     if (!showModal) return null;
-    const DISC_BASE = {
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "7px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-      transition: "all 0.15s", cursor: "pointer", fontFamily: "inherit",
-    };
-    const INP_INNER = {
-      background: "var(--mrd-surf)", border: "1px solid var(--mrd-border)",
-      borderRadius: 10, padding: "9px 10px", fontSize: 16, fontWeight: 500,
-      color: "var(--mrd-fg)", outline: "none", fontFamily: "inherit",
-    };
+    const isDuplicate = Boolean(similarWarning && !bypassSimilar);
+    const chosenLoc = form.storageLocationId ? safeLocations.find((l) => l.id === form.storageLocationId) : null;
+    const submitLabel = form.stockState === "empty"
+      ? "Ajouter à la liste de courses"
+      : chosenLoc
+        ? `Ajouter dans « ${getStorageLocationDisplay(chosenLoc).name || chosenLoc.name} »`
+        : "Ajouter à l'inventaire";
+    const eyebrow = chosenLoc ? `Inventaire · ${getStorageLocationDisplay(chosenLoc).name || chosenLoc.name}` : "Inventaire";
+
     return html`
-      <${MrdModal} isOpen=${true} onClose=${closeModal} className="task-modal-redesign mrd-modal-wide">
-
-
-          <div className="mrd-mhd">
-            <span className="mrd-mtitle">${editingItemId ? "Modifier l'article" : "Ajouter un article"}</span>
-            <button type="button" onClick=${closeModal} className="mrd-mclose">✕</button>
+      <${MrdModal} isOpen=${true} onClose=${closeModal} sheet=${true}
+        sheetBreakpoint=${addSheetBreakpoint} sheetBreakpoints=${addSheetBreakpoints}
+        className="mrd-inv-add-modal">
+        <div className="mrd-inv-add">
+          <div className="mrd-inv-add-head">
+            <span className="mrd-inv-add-eyebrow">${eyebrow}</span>
+            <button type="button" onClick=${closeModal} className="mrd-inv-add-close" aria-label="Fermer">✕</button>
           </div>
 
-          <form onSubmit=${submitInventory} className="mrd-mbody">
+          <form onSubmit=${submitInventory} className="mrd-inv-add-body">
 
-            <!-- 1. Nom de l'article -->
-            <div>
-              <span className="mrd-mlbl">Nom de l'article</span>
-              <div style=${{ position: "relative" }}>
-                <input
-                  style=${{ ...FORM_INP, borderColor: "var(--mrd-a)" }}
-                  value=${form.name}
-                  onInput=${(e) => handleNameInput(e.target.value)}
-                  onBlur=${() => { setTimeout(() => setSuggestions([]), 150); }}
-                  placeholder="Ex : Lait, Tomates, Savon…"
-                  autocomplete="off" autoFocus
-                />
-                ${suggestions.length ? html`
-                  <div className="suggest-dropdown">
-                    ${suggestions.map((it) => html`
-                      <button key=${it.id} type="button" className="suggest-item" onMouseDown=${() => selectSuggestion(it)}>
-                        <span>${it.name}</span>
-                        <span className="mini" style=${{ marginLeft: 8, opacity: 0.7 }}>
-                          ${formatQuantityUnit(it.quantity, it.unit) ? `${formatQuantityUnit(it.quantity, it.unit)} · ` : ""}${knownProductMeta(it)}
-                        </span>
-                      </button>
-                    `)}
-                  </div>
-                ` : null}
-              </div>
-              ${similarWarning && !bypassSimilar ? html`
-                <div style=${{ background: "var(--mrd-amberLt)", border: "1px solid var(--mrd-amberMd)", borderRadius: 10, padding: "10px 12px", marginTop: 8 }}>
-                  <div style=${{ fontSize: 12, fontWeight: 700, color: "var(--mrd-amber)", marginBottom: 8 }}>
-                    Article similaire : « ${similarWarning.item.name} »
-                  </div>
-                  <div style=${{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    ${similarWarning.item && (similarWarning.item.source === "inventory" || safeInventory.some((e) => e.id === similarWarning.item.id))
-                      ? html`<button type="button" className="aok" style=${{ fontSize: 12, padding: "4px 10px" }} onClick=${() => { closeModal(); openEditModal(similarWarning.item); }}>Modifier l'existant</button>`
-                      : html`<button type="button" className="aok" style=${{ fontSize: 12, padding: "4px 10px" }} onClick=${() => selectSuggestion(similarWarning.item)}>Reprendre ce produit</button>`}
-                    <button type="button" className="clrbtn" style=${{ fontSize: 12, padding: "4px 10px" }} onClick=${() => setBypassSimilar(true)}>Créer quand même</button>
-                  </div>
+            <div style=${{ position: "relative" }}>
+              <input
+                className=${`mrd-inv-add-name${isDuplicate ? " mrd-inv-add-name--dup" : ""}`}
+                value=${form.name}
+                onInput=${(e) => handleNameInput(e.target.value)}
+                onBlur=${() => { setTimeout(() => setSuggestions([]), 150); }}
+                placeholder="Nom du produit"
+                autocomplete="off" autoFocus
+              />
+              ${suggestions.length ? html`
+                <div className="suggest-dropdown">
+                  ${suggestions.map((it) => html`
+                    <button key=${it.id} type="button" className="suggest-item" onMouseDown=${() => selectSuggestion(it)}>
+                      <span>${it.name}</span>
+                      <span className="mini" style=${{ marginLeft: 8, opacity: 0.7 }}>
+                        ${formatQuantityUnit(it.quantity, it.unit) ? `${formatQuantityUnit(it.quantity, it.unit)} · ` : ""}${knownProductMeta(it)}
+                      </span>
+                    </button>
+                  `)}
                 </div>
               ` : null}
             </div>
 
-            <!-- 1bis. Lieu de rangement (mode organiser uniquement) -->
+            ${isDuplicate ? html`
+              <div className="mrd-inv-add-dup">
+                « ${similarWarning.item.name} » est déjà dans l'inventaire. Modifie-le plutôt que d'en créer un second.
+                <div style=${{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                  ${similarWarning.item && (similarWarning.item.source === "inventory" || safeInventory.some((e) => e.id === similarWarning.item.id))
+                    ? html`<button type="button" className="aok" style=${{ fontSize: 12, padding: "4px 10px" }} onClick=${() => { closeModal(); openEditModal(similarWarning.item); }}>Modifier l'existant</button>`
+                    : html`<button type="button" className="aok" style=${{ fontSize: 12, padding: "4px 10px" }} onClick=${() => selectSuggestion(similarWarning.item)}>Reprendre ce produit</button>`}
+                  <button type="button" className="clrbtn" style=${{ fontSize: 12, padding: "4px 10px" }} onClick=${() => setBypassSimilar(true)}>Créer quand même</button>
+                </div>
+              </div>
+            ` : null}
+
+            <div className="mrd-inv-add-qtyrow">
+              <div className="mrd-inv-add-qty">
+                <button type="button" className="mrd-inv-add-qty-btn" onClick=${() => stepFormQuantity(-1)} aria-label="Diminuer la quantité">−</button>
+                <span className="mrd-inv-add-qty-val">${form.quantity}</span>
+                <button type="button" className="mrd-inv-add-qty-btn" onClick=${() => stepFormQuantity(1)} aria-label="Augmenter la quantité">+</button>
+              </div>
+              <div className="mrd-inv-add-units">
+                ${UNITS.map((u) => html`
+                  <button key=${u.value} type="button"
+                    className=${`mrd-inv-add-unit${form.unit === u.value ? " mrd-inv-add-unit--on" : ""}`}
+                    onClick=${() => setForm({ ...form, unit: u.value })}>${u.label}</button>
+                `)}
+              </div>
+            </div>
+
             ${organiserMode ? html`
-              <div>
-                <span className="mrd-mlbl">Lieu de rangement</span>
-                <div style=${{ position: "relative" }}>
-                  <select
-                    value=${form.storageLocationId || ""}
-                    onChange=${(e) => setForm({ ...form, storageLocationId: e.target.value })}
-                    style=${{
-                      ...FORM_INP, paddingRight: 36, cursor: "pointer",
-                      color: form.storageLocationId ? "var(--mrd-fg)" : "var(--mrd-fg3)",
-                    }}
-                  >
-                    <option value="">Non classé</option>
-                    ${safeLocations.map((loc) => html`
-                      <option key=${loc.id} value=${loc.id}>${getStorageLocationDisplay(loc).label || loc.name}</option>
-                    `)}
-                  </select>
-                  <span style=${{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "var(--mrd-fg3)", pointerEvents: "none" }}>▼</span>
-                </div>
-              </div>
-            ` : null}
-
-            <!-- 2. Bouton capsule "+ Plus d'informations" -->
-            <div>
-              <button type="button"
-                onClick=${() => setShowExtraFields((v) => !v)}
-                style=${{ ...DISC_BASE,
-                  background: showExtraFields ? "var(--mrd-aLt)" : "var(--mrd-surf2)",
-                  color: showExtraFields ? "var(--mrd-a)" : "var(--mrd-fg3)",
-                  border: "1px solid " + (showExtraFields ? "var(--mrd-aMd)" : "var(--mrd-border)"),
-                }}
-              >${showExtraFields ? "✓" : "+"} Plus d'informations</button>
-            </div>
-
-            <!-- 3. Encadré informations supplémentaires -->
-            ${showExtraFields ? html`
-              <div style=${{ display: "flex", flexDirection: "column", gap: 12, background: "var(--mrd-surf2)", borderRadius: 16, padding: "14px 14px 12px", border: "1px solid var(--mrd-borderSoft)" }}>
-
-                <div>
-                  <span className="mrd-mlbl" style=${{ marginBottom: 6 }}>Quantité</span>
-                  <div style=${{ display: "flex", gap: 8 }}>
-                    <input
-                      style=${{ ...INP_INNER, flex: 1 }}
-                      placeholder="Ex : 2, 500…"
-                      value=${form.quantity}
-                      onInput=${(e) => setForm({ ...form, quantity: e.target.value })}
-                    />
-                    <select
-                      style=${{
-                        ...INP_INNER, width: 90, flexShrink: 0, appearance: "none", WebkitAppearance: "none",
-                        color: form.unit ? "var(--mrd-fg)" : "var(--mrd-fg3)",
-                      }}
-                      value=${form.unit}
-                      onChange=${(e) => setForm({ ...form, unit: e.target.value })}
-                    >
-                      ${UNITS.map((u) => html`<option key=${u.value} value=${u.value}>${u.label}</option>`)}
-                    </select>
-                  </div>
-                </div>
-
-                <div style=${{ display: "flex", gap: 8 }}>
-                  <div style=${{ flex: 1 }}>
-                    <span className="mrd-mlbl" style=${{ marginBottom: 6 }}>Prix (€)</span>
-                    <input
-                      style=${{ ...INP_INNER, width: "100%", boxSizing: "border-box" }}
-                      placeholder="1,99"
-                      value=${form.price}
-                      onInput=${(e) => setForm({ ...form, price: e.target.value })}
-                    />
-                  </div>
-                  <div style=${{ flex: 1 }}>
-                    <span className="mrd-mlbl" style=${{ marginBottom: 6 }}>DLC</span>
-                    <input type="date"
-                      value=${form.expiryDate}
-                      onInput=${(e) => setForm({ ...form, expiryDate: e.target.value })}
-                      style=${{ ...INP_INNER, width: "100%", boxSizing: "border-box", cursor: "pointer" }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <span className="mrd-mlbl" style=${{ marginBottom: 6 }}>Note</span>
-                  <input
-                    style=${{ ...INP_INNER, width: "100%", boxSizing: "border-box" }}
-                    placeholder="Magasin, marque, variété…"
-                    value=${form.note}
-                    onInput=${(e) => setForm({ ...form, note: e.target.value })}
-                  />
-                </div>
-
-              </div>
-            ` : null}
-
-            <!-- 4. Barre d'actions : Annuler | En stock | Fini / Épuisé | Ajouter -->
-            <div style=${{ display: "flex", gap: 6, marginTop: 4 }}>
-              <button type="button" onClick=${closeModal}
-                style=${{ flex: 1, padding: "11px 4px", borderRadius: 12, border: "1.5px solid var(--mrd-border)", background: "transparent", fontSize: 12, fontWeight: 600, color: "var(--mrd-fg2)", cursor: "pointer", fontFamily: "inherit", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                Annuler
-              </button>
-              ${[{ v: "in_stock", label: "En stock" }, { v: "empty", label: "Fini / Épuisé" }].map(({ v, label }) => {
-                const on = form.stockState === v;
-                return html`
-                  <button key=${v} type="button"
-                    onClick=${() => setForm({ ...form, stockState: v })}
-                    style=${{
-                      flex: 1, padding: "11px 4px", borderRadius: 12,
-                      fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
-                      background: on ? "var(--mrd-aLt)" : "var(--mrd-surf2)",
-                      color: on ? "var(--mrd-a)" : "var(--mrd-fg2)",
-                      border: "1px solid " + (on ? "var(--mrd-aMd)" : "var(--mrd-borderSoft)"),
-                      transition: "all 0.12s", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
-                    ${label}
+              <div className="mrd-inv-add-locs">
+                <button type="button" className=${`mrd-inv-add-locchip${!form.storageLocationId ? " mrd-inv-add-locchip--on" : ""}`}
+                  onClick=${() => setForm({ ...form, storageLocationId: "" })}>Non classé</button>
+                ${safeLocations.map((loc) => html`
+                  <button key=${loc.id} type="button"
+                    className=${`mrd-inv-add-locchip${form.storageLocationId === loc.id ? " mrd-inv-add-locchip--on" : ""}`}
+                    onClick=${() => setForm({ ...form, storageLocationId: loc.id })}>
+                    ${getStorageLocationDisplay(loc).label || loc.name}
                   </button>
-                `;
-              })}
-              <button type="submit"
-                style=${{ flex: 1.5, padding: "11px 4px", borderRadius: 12, border: "none", background: "var(--mrd-aBtn)", fontSize: 13, fontWeight: 700, color: "var(--mrd-white)", cursor: "pointer", fontFamily: "inherit" }}>
-                ${editingItemId ? "Enregistrer" : "Ajouter"}
-              </button>
+                `)}
+              </div>
+            ` : null}
+
+            <div className="mrd-inv-add-toggles">
+              <button type="button" role="switch" aria-checked=${showExtraFields}
+                className=${`mrd-inv-add-toggle${showExtraFields ? " mrd-inv-add-toggle--on" : ""}`}
+                onClick=${() => setShowExtraFields((v) => !v)}>Plus de détails</button>
+              <button type="button" role="switch" aria-checked=${form.stockState === "empty"}
+                className=${`mrd-inv-add-toggle${form.stockState === "empty" ? " mrd-inv-add-toggle--on" : ""}`}
+                onClick=${() => setForm({ ...form, stockState: form.stockState === "empty" ? "in_stock" : "empty" })}>Article épuisé</button>
             </div>
 
+            ${showExtraFields ? html`
+              <div className="mrd-inv-add-details">
+                <div style=${{ display: "flex", gap: 8 }}>
+                  <input type="date" className="mrd-inv-add-details-input" style=${{ flex: 1 }}
+                    value=${form.expiryDate} onInput=${(e) => setForm({ ...form, expiryDate: e.target.value })} />
+                  <input className="mrd-inv-add-details-input" style=${{ width: 96 }}
+                    placeholder="Prix" value=${form.price} onInput=${(e) => setForm({ ...form, price: e.target.value })} />
+                </div>
+                <input className="mrd-inv-add-details-input"
+                  placeholder="Magasin, marque, variété…" value=${form.note}
+                  onInput=${(e) => setForm({ ...form, note: e.target.value })} />
+              </div>
+            ` : null}
+
+            <button type="submit" className="mrd-inv-add-submit" disabled=${!form.name.trim()}>
+              ${editingItemId ? "Enregistrer" : submitLabel}
+            </button>
           </form>
+        </div>
       <//>
     `;
   }
@@ -1416,7 +1200,7 @@ export function InventoryView({
       <div className="inv-bulkbar">
         <div className="inv-bulkbar-top">
           <span className="inv-bulkbar-count">
-            ${count} sÃ©lectionnÃ©${count > 1 ? "s" : ""}
+            ${count} sélectionné${count > 1 ? "s" : ""}
           </span>
           <button type="button" className="inv-bulkbar-cancel" onClick=${exitSelectionMode}>
             Annuler
@@ -1424,9 +1208,9 @@ export function InventoryView({
         </div>
         <div className="inv-bulkbar-actions" style=${{ gridTemplateColumns: `repeat(${actionCount}, minmax(0, 1fr))` }}>
           ${organiserMode ? html`
-            <button type="button" className="inv-bulkbar-btn" onClick=${bulkMove} disabled=${!count}>DÃ©placer</button>
+            <button type="button" className="inv-bulkbar-btn" onClick=${bulkMove} disabled=${!count}>Déplacer</button>
           ` : null}
-          <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-primary" onClick=${bulkShopping} disabled=${!count}>Ã€ racheter</button>
+          <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-primary" onClick=${bulkShopping} disabled=${!count}>À racheter</button>
           <button type="button" className="inv-bulkbar-btn" onClick=${bulkFinished} disabled=${!count}>Fini</button>
           <button type="button" className="inv-bulkbar-btn inv-bulkbar-btn-danger" onClick=${bulkDelete} disabled=${!count}>Supprimer</button>
         </div>
@@ -1436,171 +1220,28 @@ export function InventoryView({
 
   // ─── main render ──────────────────────────────────────────────
   return html`
-    <section className="rwrap" onClick=${handleSectionClick}>
-      ${renderTabBar()}
-      ${renderLocationEditor()}
-      <div style=${{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "stretch", marginBottom: 10 }}>
-        <div style=${{ position: "relative", minWidth: 0 }}>
-          <span style=${{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--mrd-fg3)", pointerEvents: "none" }}>🔍</span>
-          <input
-            style=${{ ...FORM_INP, paddingLeft: 32, paddingTop: 9, paddingBottom: 9, height: 42, borderColor: search ? "var(--mrd-a)" : "var(--mrd-border)" }}
-            placeholder="Rechercher..."
-            value=${search}
-            onInput=${(e) => setSearch(e.target.value)}
-          />
-        </div>
+    <section className="mrd-inv-screen" onClick=${handleSectionClick}>
+      ${renderHeader()}
 
-        <div style=${{ position: "relative", flexShrink: 0 }}>
-          <button type="button"
-            onClick=${(e) => { e.stopPropagation(); setShowSort((v) => !v); }}
-            style=${{
-              height: 42,
-              padding: "0 13px", borderRadius: 12, fontSize: 12, fontWeight: 600,
-              fontFamily: "inherit", cursor: "pointer",
-              border: "1.5px solid var(--mrd-border)",
-              background: showSort ? "var(--mrd-surf3)" : "var(--mrd-surf2)", color: "var(--mrd-fg2)",
-              display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
-            }}>
-            ${SORT_OPTIONS.find((s) => s.value === sortMode)?.label || "A → Z"}
-          </button>
-          ${showSort ? html`
-            <div style=${{
-              position: "absolute", right: 0, top: 46,
-              background: "var(--mrd-surf)", border: "1px solid var(--mrd-border)",
-              borderRadius: 13, padding: "4px 0", minWidth: 150, zIndex: 60,
-              boxShadow: "0 8px 24px oklch(27% 0.05 48 / 0.14)",
-            }}>
-              ${SORT_OPTIONS.map((opt) => html`
-                <button key=${opt.value} type="button"
-                  onClick=${(e) => { e.stopPropagation(); setSortMode(opt.value); setShowSort(false); }}
-                  style=${{
-                    display: "flex", alignItems: "center", gap: 8, width: "100%",
-                    padding: "10px 14px", background: sortMode === opt.value ? "var(--mrd-aLt)" : "none",
-                    border: "none", fontSize: 13,
-                    fontWeight: sortMode === opt.value ? 700 : 500,
-                    color: sortMode === opt.value ? "var(--mrd-a)" : "var(--mrd-fg)",
-                    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                  }}>
-                  ${sortMode === opt.value ? "✓ " : "  "}${opt.label}
-                </button>
-              `)}
-            </div>
-          ` : null}
-        </div>
-      </div>
+      <div className="mrd-inv-list">
+        ${renderExpiryBanner()}
+        ${activeItems.map((item) => renderRow(item))}
+        ${renderEmptyState()}
+        ${renderFinishedBlock()}
 
-      ${renderSelectedLocationHeading()}
-
-      ${activeLocation ? html`
-        ${visibleExpiringCount > 0 ? html`
-          <div style=${{ marginBottom: 6 }}>
-            <span style=${{ background: "var(--mrd-dangerLt)", color: "var(--mrd-danger)", borderRadius: 6, padding: "2px 8px", fontWeight: 700, fontSize: 11 }}>
-              ⚠ ${visibleExpiringCount} expirant${visibleExpiringCount > 1 ? "s" : ""}
-            </span>
+        ${safeInventory.length > 0 ? html`
+          <div style=${{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <button type="button" onClick=${onClearAllInventory} className="mrd-inv-clearall">
+              Vider l'inventaire
+            </button>
           </div>
         ` : null}
-      ` : html`
-        <div style=${{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-          <div style=${{ display: "flex", alignItems: "center", gap: 8, flex: 1, flexWrap: "wrap", minWidth: 0 }}>
-            <span style=${{ fontSize: 13, color: "var(--mrd-fg3)", fontWeight: 500 }}>
-              ${visibleActiveCount} article${visibleActiveCount !== 1 ? "s" : ""}
-            </span>
-            ${visibleExpiringCount > 0 ? html`
-              <span style=${{ background: "var(--mrd-dangerLt)", color: "var(--mrd-danger)", borderRadius: 6, padding: "1px 7px", fontWeight: 700, fontSize: 11 }}>
-                ⚠ ${visibleExpiringCount} expirant${visibleExpiringCount > 1 ? "s" : ""}
-              </span>
-            ` : null}
-          </div>
-          ${selectionMode ? html`
-            <button type="button"
-              onClick=${(e) => { e.stopPropagation(); exitSelectionMode(); }}
-              style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", background: "var(--mrd-fg)", color: "var(--mrd-white)", border: "none", minHeight: 32 }}>
-              Annuler
-            </button>
-          ` : html`
-            <button type="button"
-              onClick=${(e) => { e.stopPropagation(); setSelectionMode(true); setSelectedIds([]); }}
-              style=${{ padding: "5px 11px", borderRadius: 9, fontSize: 12, fontWeight: 500, fontFamily: "inherit", cursor: "pointer", background: "none", color: "var(--mrd-fg3)", border: "1px solid var(--mrd-borderSoft)", minHeight: 32 }}>
-              Sélectionner
-            </button>
-          `}
-        </div>
-      `}
-
-      ${expiringItems.length && !search ? html`
-        <div className="inv-expiring-section">
-          <div className="inv-expiring-head">
-            <span className="inv-expiring-icon">⏰</span>
-            <span className="inv-expiring-title">À consommer bientôt</span>
-            <span className="inv-expiring-count">${expiringItems.length} article${expiringItems.length > 1 ? "s" : ""}</span>
-          </div>
-          <div className="ldv-card inv-expiring-list">
-            ${expiringItems.map((item) => renderItem(item, false, expiringItems, "expiring"))}
-          </div>
-        </div>
-      ` : null}
-
-      ${renderItemSection(
-        expiringItems.length && !search
-          ? activeItems.filter((item) => !expiringItems.some((e) => e.id === item.id))
-          : activeItems,
-        false
-      )}
-
-      ${!activeItems.length && !finishedItems.length ? html`
-        <div className="inv-empty-state">
-          <div className="inv-empty-emoji">
-            ${search ? "🔍" : effectiveTab === "unassigned" ? "✅" : "📦"}
-          </div>
-          <div className="inv-empty-title">
-            ${search ? "Aucun résultat" : effectiveTab === "unassigned" ? "Tout est rangé ✓" : "Inventaire vide"}
-          </div>
-          <div className="inv-empty-sub">
-            ${search
-              ? "Essayez un autre mot-clé"
-              : effectiveTab === "unassigned"
-                ? "Tous tes articles ont un emplacement."
-                : "Ajoute tes produits pour suivre ton stock."}
-          </div>
-          ${!search && effectiveTab !== "unassigned" ? html`
-            <button className="aok inv-empty-btn" onClick=${openCreateModal}>
-              + Ajouter un article
-            </button>
-          ` : null}
-        </div>
-      ` : null}
-
-      ${finishedItems.length ? html`
-        <div style=${{ marginTop: activeItems.length ? 16 : 0 }}>
-          ${renderItemSection(finishedItems, true)}
-        </div>
-      ` : null}
-
-      ${safeInventory.length > 0 ? html`
-        <div style=${{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
-          <button type="button"
-            onClick=${onClearAllInventory}
-            style=${{ fontSize: 11, color: "var(--mrd-fg3)", background: "none", border: "1px solid var(--mrd-borderSoft)", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-            Vider l'inventaire
-          </button>
-        </div>
-      ` : null}
+      </div>
 
       ${renderModal()}
       ${renderRangerPicker()}
       ${renderStorageEmojiPicker()}
       ${renderBulkBar()}
-
-      ${/* `IonFab slot="fixed"` comme le FAB des tâches : le `slot` remonte
-           jusqu'à l'`ion-content` de la page, qui place le bouton hors du flux
-           de défilement et au-dessus de la safe area. */null}
-      <${IonFab} slot="fixed" vertical="bottom" horizontal="end">
-        <${IonFabButton} className="mrd-fab" onClick=${openCreateModal} title="Ajouter un article">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M12 5v14M5 12h14" stroke="var(--mrd-white)" stroke-width="2.2" stroke-linecap="round"/>
-          </svg>
-        <//>
-      <//>
     </section>
   `;
 }

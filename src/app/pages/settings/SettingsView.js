@@ -1,5 +1,6 @@
 import { APP_VERSION, DEFAULT_MEMBER_COLOR } from "../../config/constants.js";
-import { html, useEffect, useState } from "../../lib.js";
+import { IonActionSheet } from "@ionic/react";
+import { html, useEffect, useRef, useState } from "../../lib.js";
 import brandMarkWhite from "../../../assets/brand/mark-white.svg";
 import { applyTheme } from "../../utils/theme.js";
 import {
@@ -14,6 +15,9 @@ import { NewHouseholdWizard } from "./NewHouseholdWizard.js";
 import { scrollActivePageToTop } from "../../utils/scroll.js";
 import { MrdModal } from "../../components/MrdModal.js";
 import { confirmDialog, promptDialog } from "../../utils/dialogs.js";
+import { NOTIFICATION_CATALOG, REMINDER_MODAL_CATALOG, buildPopupPayload, countCatalogNotifications } from "../../config/notificationCatalog.js";
+import { showAppNotification } from "../../plugins/notifications.js";
+import { normalizeNotificationPayload } from "../../utils/notificationPayload.js";
 
 export function SettingsView({
   isOnboarding = false,
@@ -80,6 +84,9 @@ export function SettingsView({
   pushSyncing = false,
   pushError = "",
   onRequestPushPermission = async () => null,
+  onPreviewNotification = null,
+  onPreviewReminderModal = null,
+  onSendTestPush = null,
   settingsPage = "main",
   onSettingsPageChange = () => {},
   supportPage = "",
@@ -132,6 +139,24 @@ export function SettingsView({
   const [editPersonModalId, setEditPersonModalId] = useState("");
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  // Console notifications (compte dev) — cibles du test et journal des envois
+  const [notifLabSystem, setNotifLabSystem] = useState(true);
+  const [notifLabPopup, setNotifLabPopup] = useState(false);
+  const [notifLabPush, setNotifLabPush] = useState(false);
+  const [notifLabDelay, setNotifLabDelay] = useState(0);
+  const [notifLabRunning, setNotifLabRunning] = useState(false);
+  const [notifLabLog, setNotifLabLog] = useState([]);
+  const [notifLabOpenItem, setNotifLabOpenItem] = useState("");
+  const [showReminderSheet, setShowReminderSheet] = useState(false);
+  /* Deux overlays Ionic ne se présentent pas l'un par-dessus l'autre sans
+     casse : ouvrir la modale depuis le `handler` d'un bouton de la feuille
+     d'actions interrompt la sortie de celle-ci, et la modale reste montée mais
+     jamais présentée (`overlay-hidden`, contenu vide) — son `present()` ne se
+     résout même plus. On retient donc l'entrée choisie et on n'ouvre la modale
+     qu'une fois la feuille réellement refermée (`onDidDismiss`).
+     Une ref plutôt qu'un état : `onDidDismiss` est enregistré par Ionic et
+     capturerait un état périmé. */
+  const pendingReminderRef = useRef(null);
   function refreshNotificationPermission() {
     setNotificationPermission(getNotificationPermissionState());
   }
@@ -193,6 +218,102 @@ export function SettingsView({
   // les autres membres du foyer ne doivent pas voir/toucher ce panneau de debug.
   const DEV_ACCOUNT_EMAIL = "bohemianrollinghouse@gmail.com";
   const isDevAccount = String(userProfile?.email || "").trim().toLowerCase() === DEV_ACCOUNT_EMAIL;
+
+  // ── Console notifications (compte dev) ──────────────────────────────────
+  // Rejoue une entrée du catalogue avec exactement la charge utile de prod :
+  // notification système via l'adaptateur multi-plateforme, et/ou popup in-app
+  // via le même setter que reçoivent les vraies notifications.
+  function appendNotifLabLog(entry) {
+    setNotifLabLog((previous) => [entry, ...previous].slice(0, 25));
+  }
+
+  async function launchCatalogNotification(item) {
+    if (!item) return;
+    const permission = getNotificationPermissionState();
+    setNotificationPermission(permission);
+    // Même traduction qu'au point d'entrée des push dans App.js : la popup
+    // reçoit donc exactement ce qu'elle recevrait en vrai.
+    const payload = normalizeNotificationPayload(buildPopupPayload(item));
+    let systemStatus = "ignorée";
+
+    if (notifLabSystem) {
+      if (permission === "granted") {
+        await showAppNotification(item.title, {
+          body: item.body || "",
+          onClick: typeof onPreviewNotification === "function"
+            ? () => onPreviewNotification(payload)
+            : null,
+        });
+        systemStatus = "envoyée";
+      } else if (permission === "denied") {
+        systemStatus = "bloquée par l'appareil";
+      } else if (permission === "unsupported") {
+        systemStatus = "non supportée ici";
+      } else {
+        systemStatus = "permission non accordée";
+      }
+    }
+
+    let popupStatus = "ignorée";
+    if (notifLabPopup) {
+      if (typeof onPreviewNotification === "function") {
+        onPreviewNotification(payload);
+        popupStatus = "affichée";
+      } else {
+        popupStatus = "indisponible";
+      }
+    }
+
+    let pushStatus = "ignoré";
+    if (notifLabPush) {
+      if (typeof onSendTestPush !== "function") {
+        pushStatus = "indisponible";
+      } else {
+        try {
+          const result = await onSendTestPush({
+            title: item.title,
+            body: item.body || "",
+            data: item.channel === "push" ? (item.data || {}) : { type: item.data?.notifType || "local" },
+            delaySeconds: notifLabDelay,
+          });
+          const sent = Number(result?.sent) || 0;
+          const devices = Number(result?.devices) || 0;
+          pushStatus = sent > 0
+            ? `envoyé à ${sent}/${devices} appareil${devices > 1 ? "s" : ""}`
+            : `échec (${result?.errors?.join(", ") || "aucun envoi"})`;
+        } catch (error) {
+          pushStatus = `erreur : ${error?.message || error}`;
+        }
+      }
+    }
+
+    appendNotifLabLog({
+      id: `${item.id}-${Date.now()}`,
+      label: item.label,
+      channel: item.channel,
+      time: new Date().toLocaleTimeString("fr-FR"),
+      systemStatus,
+      popupStatus,
+      pushStatus,
+    });
+  }
+
+  async function launchAllCatalogNotifications() {
+    if (notifLabRunning) return;
+    setNotifLabRunning(true);
+    try {
+      for (const group of NOTIFICATION_CATALOG) {
+        for (const item of group.items) {
+          await launchCatalogNotification(item);
+          // Les notifications système envoyées d'un bloc sont fusionnées ou
+          // avalées par l'OS : on les espace pour toutes les voir arriver.
+          await new Promise((resolve) => setTimeout(resolve, 1400));
+        }
+      }
+    } finally {
+      setNotifLabRunning(false);
+    }
+  }
 
   function toggleSection(id) {
     setOpenSections((previous) => (previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]));
@@ -936,6 +1057,247 @@ export function SettingsView({
       `;
     }
 
+    if (settingsPage === "admin") {
+      if (!isDevAccount) {
+        return html`
+          <div className="mrd-set-page settings-subpage">
+            <${SubPageHeader} title="🛠️ Admin" />
+            <div className="settings-summary-card">
+              <strong>Accès réservé</strong>
+              <span>Cette section est réservée au compte développeur.</span>
+            </div>
+          </div>
+        `;
+      }
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="🛠️ Admin" />
+          <div className="settings-summary-card">
+            <strong>Outils développeur</strong>
+            <span>Visible uniquement pour ${DEV_ACCOUNT_EMAIL}. Rien ici n'écrit dans les données du foyer.</span>
+          </div>
+
+          <${SettingsGroup} title="Notifications">
+            <${SettingsRow}
+              icon="🪟"
+              label="Modales de rappel"
+              value=${`${REMINDER_MODAL_CATALOG.length} modales`}
+              onClick=${() => setShowReminderSheet(true)}
+            />
+            <${SettingsRow}
+              icon="🔔"
+              label="Console notifications"
+              value=${`${countCatalogNotifications()} notifs`}
+              onClick=${() => goSettingsPage("notiflab")}
+              last=${true}
+            />
+          <//>
+
+          <${SettingsGroup} title="Données">
+            <${SettingsRow}
+              icon="💾"
+              label="Export, maintenance, date de test"
+              onClick=${() => goSettingsPage("privacy")}
+              last=${true}
+            />
+          <//>
+
+          <${IonActionSheet}
+            isOpen=${showReminderSheet}
+            header="Modales de rappel"
+            subHeader="Ce qui s'ouvre après une notification"
+            className="mrd-quick-sheet"
+            onDidDismiss=${() => {
+              setShowReminderSheet(false);
+              const entry = pendingReminderRef.current;
+              pendingReminderRef.current = null;
+              if (entry && typeof onPreviewReminderModal === "function") onPreviewReminderModal(entry);
+            }}
+            buttons=${[
+              ...REMINDER_MODAL_CATALOG.map((entry) => ({
+                text: `${entry.icon}  ${entry.label}`,
+                handler: () => { pendingReminderRef.current = entry; },
+              })),
+              { text: "Annuler", role: "cancel" },
+            ]}
+          />
+        </div>
+      `;
+    }
+
+    if (settingsPage === "notiflab") {
+      if (!isDevAccount) {
+        return html`
+          <div className="mrd-set-page settings-subpage">
+            <${SubPageHeader} title="🔔 Console notifications" />
+            <div className="settings-summary-card">
+              <strong>Accès réservé</strong>
+              <span>Cette section est réservée au compte développeur.</span>
+            </div>
+          </div>
+        `;
+      }
+      return html`
+        <div className="mrd-set-page settings-subpage">
+          <${SubPageHeader} title="🔔 Console notifications" />
+
+          <div className="settings-summary-card">
+            <strong>${countCatalogNotifications()} notifications au catalogue</strong>
+            <span>
+              Toutes les notifications que l'app peut envoyer, avec leur déclencheur réel.
+              « Lancer » les rejoue avec la charge utile de production, sans toucher aux
+              données du foyer. Choisis d'abord ce que tu veux voir apparaître :
+              la bannière de l'appareil, la popup in-app, ou un vrai push serveur.
+            </span>
+          </div>
+
+          <${SettingsGroup} title="Cible du test">
+            <${SettingsToggleRow}
+              icon="📲"
+              label="Bannière locale"
+              sub=${
+                notificationPermission === "granted"
+                  ? "Bannière de l'appareil, immédiate. Ne passe pas par le serveur."
+                  : notificationPermission === "denied"
+                  ? "Bloquée — les envois seront ignorés par l'appareil."
+                  : notificationPermission === "unsupported"
+                  ? "Non disponible sur cet appareil."
+                  : "Permission non accordée — autorise-la d'abord."
+              }
+              value=${notifLabSystem}
+              onChange=${setNotifLabSystem}
+            />
+            <${SettingsToggleRow}
+              icon="🪟"
+              label="Popup in-app"
+              sub="Ouvre la modale, avec la charge utile déjà traduite comme en vrai."
+              value=${notifLabPopup}
+              onChange=${setNotifLabPopup}
+            />
+            <${SettingsToggleRow}
+              icon="☁️"
+              label="Push serveur (FCM réel)"
+              sub="Chaîne complète : Cloud Function → FCM/APNs → tes appareils. App ouverte : c'est la popup qui s'affiche ; app en arrière-plan : la bannière."
+              value=${notifLabPush}
+              onChange=${setNotifLabPush}
+              last=${true}
+            />
+            ${notifLabPush ? html`
+              <div className="settings-subpage-field">
+                <label>Délai avant envoi du push</label>
+                <p className="settings-subpage-help">
+                  Un délai laisse le temps de fermer l'app pour voir la bannière système
+                  au lieu de la popup. Le compte à rebours tourne sur le serveur.
+                </p>
+                <div className="segmented">
+                  ${[0, 10, 30].map((seconds) => html`
+                    <button
+                      key=${seconds}
+                      type="button"
+                      className=${`seg-btn${notifLabDelay === seconds ? " on" : ""}`}
+                      onClick=${() => setNotifLabDelay(seconds)}
+                    >${seconds === 0 ? "Immédiat" : `${seconds} s`}</button>
+                  `)}
+                </div>
+              </div>
+            ` : null}
+            ${notificationPermission !== "granted" && (notifLabSystem || notifLabPush) ? html`
+              <div className="settings-subpage-field">
+                <button
+                  type="button"
+                  className="aok"
+                  onClick=${async () => {
+                    await onRequestPushPermission();
+                    refreshNotificationPermission();
+                  }}
+                >Autoriser les notifications sur cet appareil</button>
+              </div>
+            ` : null}
+          <//>
+
+          <div className="settings-inline-actions notiflab-actions">
+            <button
+              type="button"
+              className="aok"
+              disabled=${notifLabRunning || (!notifLabSystem && !notifLabPopup && !notifLabPush)}
+              onClick=${launchAllCatalogNotifications}
+            >${notifLabRunning ? "Envoi en cours…" : "Tout lancer (1,4 s d'écart)"}</button>
+            <button
+              type="button"
+              className="ghost-btn"
+              disabled=${notifLabLog.length === 0}
+              onClick=${() => setNotifLabLog([])}
+            >Vider le journal</button>
+          </div>
+
+          ${NOTIFICATION_CATALOG.map((group) => html`
+            <${SettingsGroup} key=${group.id} title=${group.label}>
+              <div className="notiflab-group-hint">
+                <span>${group.hint}</span>
+                <code>${group.source}</code>
+              </div>
+              ${group.items.map((item, index) => html`
+                <div
+                  key=${item.id}
+                  className=${`notiflab-row${index === group.items.length - 1 ? " is-last" : ""}`}
+                >
+                  <div className="notiflab-row-head">
+                    <span className="notiflab-row-icon">${item.icon}</span>
+                    <button
+                      type="button"
+                      className="notiflab-row-copy"
+                      onClick=${() => setNotifLabOpenItem(notifLabOpenItem === item.id ? "" : item.id)}
+                    >
+                      <span className="notiflab-row-label">
+                        ${item.label}
+                        <span className=${`notiflab-chip is-${item.channel}`}>
+                          ${item.channel === "push" ? "push serveur" : "local"}
+                        </span>
+                      </span>
+                      <span className="notiflab-row-title">${item.title}</span>
+                      ${item.body ? html`<span className="notiflab-row-body">${item.body}</span>` : null}
+                    </button>
+                    <button
+                      type="button"
+                      className="notiflab-launch"
+                      disabled=${notifLabRunning || (!notifLabSystem && !notifLabPopup && !notifLabPush)}
+                      onClick=${() => launchCatalogNotification(item)}
+                    >Lancer</button>
+                  </div>
+                  ${notifLabOpenItem === item.id ? html`
+                    <div className="notiflab-row-detail">
+                      <p><strong>Déclencheur :</strong> ${item.trigger}</p>
+                      ${item.variant ? html`<p><strong>Variantes :</strong> ${item.variant}</p>` : null}
+                      <p><strong>${item.channel === "push" ? "Charge utile FCM envoyée" : "Charge utile"} :</strong></p>
+                      <pre>${JSON.stringify(buildPopupPayload(item), null, 2)}</pre>
+                      ${item.channel === "push" ? html`
+                        <p><strong>Ce que reçoit la popup après traduction :</strong></p>
+                        <pre>${JSON.stringify(normalizeNotificationPayload(buildPopupPayload(item)), null, 2)}</pre>
+                      ` : null}
+                    </div>
+                  ` : null}
+                </div>
+              `)}
+            <//>
+          `)}
+
+          ${notifLabLog.length > 0 ? html`
+            <${SettingsGroup} title="Journal des envois">
+              ${notifLabLog.map((entry, index) => html`
+                <div key=${entry.id} className=${`notiflab-log-row${index === notifLabLog.length - 1 ? " is-last" : ""}`}>
+                  <span className="notiflab-log-time">${entry.time}</span>
+                  <span className="notiflab-log-label">${entry.label}</span>
+                  <span className="notiflab-log-status">
+                    Bannière : ${entry.systemStatus} · Popup : ${entry.popupStatus} · Push : ${entry.pushStatus}
+                  </span>
+                </div>
+              `)}
+            <//>
+          ` : null}
+        </div>
+      `;
+    }
+
     if (settingsPage === "help") {
       const faqs = [
         { q: "Comment inviter quelqu'un dans mon foyer ?", a: "Va dans Reglages, puis Foyer. Les codes d'invitation actifs sont affiches avec les membres concernes." },
@@ -1281,7 +1643,7 @@ export function SettingsView({
         >
           <div className="settings-actions">
             <div className="miniTitle">Thème</div>
-            <div className="segmented settings-segmented">
+            <div className="segmented">
               <button className=${`seg-btn ${appearanceMode === "light" ? "on" : ""}`} onClick=${() => setAppearanceMode("light")}>☀️ Clair</button>
               <button className=${`seg-btn ${appearanceMode === "dark" ? "on" : ""}`} onClick=${() => setAppearanceMode("dark")}>🌙 Sombre</button>
             </div>
@@ -1457,20 +1819,28 @@ export function SettingsView({
         <//>
 
         ${isDevAccount ? html`
-          <!-- Données (réservé au compte développeur) -->
+          <!-- Admin : point d'entrée unique des outils développeur -->
           <${SectionCard}
-            id="privacy"
-            icon="💾"
-            title="Données"
-            subtitle="Export, maintenance, date de test."
-            open=${openSections.includes("privacy")}
+            id="admin"
+            icon="🛠️"
+            title="Admin"
+            subtitle="Modales, notifications, données de test."
+            open=${openSections.includes("admin")}
             onToggle=${toggleSection}
           >
             <div className="settings-row">
               <span>Visible uniquement pour</span>
               <strong>${DEV_ACCOUNT_EMAIL}</strong>
             </div>
-            <${SeeMoreLink} onClick=${() => goSettingsPage("privacy")}>Gérer les données<//>
+            <div className="settings-row">
+              <span>Modales de rappel</span>
+              <strong>${REMINDER_MODAL_CATALOG.length}</strong>
+            </div>
+            <div className="settings-row">
+              <span>Notifications au catalogue</span>
+              <strong>${countCatalogNotifications()}</strong>
+            </div>
+            <${SeeMoreLink} onClick=${() => goSettingsPage("admin")}>Ouvrir l'admin<//>
           <//>
         ` : null}
 

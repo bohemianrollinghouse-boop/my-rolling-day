@@ -67,8 +67,12 @@ if (!window.__e2eStubs) {
         id: this.createdFamilyId || FAMILY_ID, name: "Mon Foyer E2E",
         inviteCode: "E2ECODE", memberCount: 1,
         // `window.__E2E_PREMIUM` debloque Repas / Inventaire / Recettes
-        // (isPremium = currentFamily.premiumOverride, cf. src/app/App.js). Sans lui
-        // ces trois vues rendent le paywall et ne sont pas capturables.
+        // (isPremium = currentFamily.premium, cf. src/app/App.js — le champ
+        // est passe de `premiumOverride` a `premium` avec le webhook
+        // RevenueCat, MRD-36). Sans lui ces trois vues rendent le paywall et
+        // ne sont pas capturables. `premiumOverride` reste ecrit par
+        // compatibilite avec un ancien lecteur eventuel.
+        premium: Boolean(window.__E2E_PREMIUM),
         premiumOverride: Boolean(window.__E2E_PREMIUM),
       };
     },

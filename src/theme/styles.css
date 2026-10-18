@@ -102,6 +102,12 @@
 
   --mrd-amberDeep:  oklch(36% 0.05 58);
 
+  /* Inventaire (option 19a) — pastille DLC « proche » et bandeau péremption :
+     teinte ambre légèrement différente (hue 78) de l'ambre générale de l'app. */
+  --mrd-invAmberBg:     oklch(95% 0.05 78);
+  --mrd-invAmberBorder: oklch(87% 0.08 78);
+  --mrd-invAmberTitle:  oklch(41% 0.12 55);
+
   /* rouge — erreur et urgence uniquement */
 
   --mrd-danger:     oklch(42% 0.17 17);
@@ -109,6 +115,10 @@
   --mrd-dangerLt:   oklch(94% 0.05 15);
 
   --mrd-dangerMd:   oklch(90% 0.07 15);
+
+  /* Inventaire (option 19a) — pastille DLC « dépassé / aujourd'hui ». */
+  --mrd-invDangerText: oklch(52% 0.16 22);
+  --mrd-invDangerBg:   oklch(95% 0.035 22);
 
   --mrd-dangerDeep: oklch(38% 0.17 17);
 
@@ -185,6 +195,12 @@
   --mrd-aTint:       oklch(58% 0.13 28 / .08);
 
   --mrd-aTintMd:     oklch(58% 0.13 28 / .16);
+
+  /* accent teinté — carte « dernier rangement » (feuille de rangement, tour 21a) */
+
+  --mrd-aTintCard:   oklch(96% 0.035 40);
+
+  --mrd-aTintCardFg: oklch(48% 0.11 40);
 
   /* blancs translucides POSÉS SUR --mrd-aBtn — identiques en sombre,
      --mrd-aBtn ayant la même clarté dans les deux thèmes */
@@ -938,6 +954,10 @@ html[data-theme="dark"] {
 
   --mrd-amberDeep:   oklch(88% 0.065 68);
 
+  --mrd-invAmberBg:     oklch(28% 0.05 78);
+  --mrd-invAmberBorder: oklch(38% 0.07 78);
+  --mrd-invAmberTitle:  oklch(68% 0.12 55);
+
   /* rouge — teinte 14 pour se détacher nettement de l'accent */
 
   --mrd-danger:      oklch(68.5% 0.175 14);
@@ -945,6 +965,9 @@ html[data-theme="dark"] {
   --mrd-dangerLt:    oklch(28% 0.06 17);
 
   --mrd-dangerMd:    oklch(39% 0.09 17);
+
+  --mrd-invDangerText: oklch(72% 0.16 22);
+  --mrd-invDangerBg:   oklch(28% 0.035 22);
 
   --mrd-dangerDeep:  oklch(86% 0.075 17);
 
@@ -1033,6 +1056,10 @@ html[data-theme="dark"] {
   --mrd-aTint:       oklch(73.5% 0.105 32 / .14);
 
   --mrd-aTintMd:     oklch(73.5% 0.105 32 / .22);
+
+  --mrd-aTintCard:   oklch(29% 0.06 40);
+
+  --mrd-aTintCardFg: oklch(84% 0.09 40);
 
 }
 html[data-theme="dark"], html[data-theme="dark"] body { background: var(--mrd-bg); color: var(--mrd-fg); }
@@ -1862,6 +1889,32 @@ html[data-theme="dark"] .mrd-set-page { background: var(--mrd-bgDeep); }
 .settings-subpage-help, .settings-subpage-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--mrd-fg2); }
 .settings-static-value { font-family: var(--mrd-serif); font-size: 22px; font-weight: 600; color: var(--mrd-fg); }
 .settings-empty-row { padding: 18px 14px; color: var(--mrd-fg3); font-size: 13px; text-align: center; }
+/* Console notifications (compte developpeur) */
+.notiflab-actions { padding: 0 4px; }
+.notiflab-group-hint { display: flex; flex-direction: column; gap: 4px; padding: 11px 14px; border-bottom: 1px solid var(--mrd-borderSoft); font-size: 12px; line-height: 1.4; color: var(--mrd-fg2); background: var(--mrd-surf2); }
+.notiflab-group-hint code { font-size: 11px; color: var(--mrd-fg3); word-break: break-all; }
+.notiflab-row { border-bottom: 1px solid var(--mrd-borderSoft); }
+.notiflab-row.is-last { border-bottom: none; }
+.notiflab-row-head { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; }
+.notiflab-row-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--mrd-surf2); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.notiflab-row-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; border: none; background: transparent; padding: 0; margin: 0; font: inherit; text-align: left; cursor: pointer; color: var(--mrd-fg); }
+.notiflab-row-label { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; color: var(--mrd-fg); }
+.notiflab-chip { border-radius: 999px; padding: 2px 8px; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; font-weight: 800; }
+.notiflab-chip.is-local { background: var(--mrd-sageLt); color: var(--mrd-sageDeep); }
+.notiflab-chip.is-push { background: var(--mrd-amberLt); color: var(--mrd-amberDeep); }
+.notiflab-row-title { font-size: 12.5px; line-height: 1.35; color: var(--mrd-fg2); }
+.notiflab-row-body { font-size: 12px; line-height: 1.35; color: var(--mrd-fg3); white-space: pre-line; }
+.notiflab-launch { flex: none; border: 1px solid var(--mrd-border); border-radius: 999px; background: var(--mrd-surf2); color: var(--mrd-a); padding: 7px 13px; font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.notiflab-launch:active { background: var(--mrd-aLt); }
+.notiflab-launch:disabled { color: var(--mrd-disabledFg); background: var(--mrd-disabledBg); cursor: default; }
+.notiflab-row-detail { padding: 0 14px 13px 58px; display: flex; flex-direction: column; gap: 7px; }
+.notiflab-row-detail p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--mrd-fg2); }
+.notiflab-row-detail pre { margin: 0; padding: 10px; border-radius: 12px; background: var(--mrd-surf2); border: 1px solid var(--mrd-borderSoft); font-size: 11px; line-height: 1.4; color: var(--mrd-fg2); overflow-x: auto; }
+.notiflab-log-row { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-bottom: 1px solid var(--mrd-borderSoft); }
+.notiflab-log-row.is-last { border-bottom: none; }
+.notiflab-log-time { font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--mrd-fg3); }
+.notiflab-log-label { font-size: 13px; font-weight: 700; color: var(--mrd-fg); }
+.notiflab-log-status { font-size: 12px; color: var(--mrd-fg2); }
 .settings-switch { width: 46px; height: 28px; border-radius: 999px; border: none; background: var(--mrd-switchOff); padding: 2px; position: relative; flex-shrink: 0; cursor: pointer; transition: background .18s; }
 .settings-switch span { width: 24px; height: 24px; border-radius: 50%; background: var(--mrd-white); box-shadow: var(--mrd-shadowXl); display: block; transform: translateX(0); transition: transform .18s; }
 .settings-switch.on { background: var(--mrd-sage); }
@@ -1987,6 +2040,17 @@ html[data-theme="dark"] .settings-about-hero,
 html[data-theme="dark"] .settings-summary-card,
 html[data-theme="dark"] .settings-about-quote,
 html[data-theme="dark"] .settings-choice-card { background: var(--mrd-surf); border-color: var(--mrd-border); color: var(--mrd-fg); box-shadow: var(--mrd-shadowMd); }
+html[data-theme="dark"] .notiflab-row,
+html[data-theme="dark"] .notiflab-log-row,
+html[data-theme="dark"] .notiflab-group-hint,
+html[data-theme="dark"] .notiflab-launch,
+html[data-theme="dark"] .notiflab-row-detail pre { border-color: var(--mrd-border); }
+html[data-theme="dark"] .notiflab-group-hint,
+html[data-theme="dark"] .notiflab-row-icon,
+html[data-theme="dark"] .notiflab-launch,
+html[data-theme="dark"] .notiflab-row-detail pre { background: var(--mrd-surf2); }
+html[data-theme="dark"] .notiflab-row-label,
+html[data-theme="dark"] .notiflab-log-label { color: var(--mrd-fg); }
 html[data-theme="dark"] .settings-subpage-row,
 html[data-theme="dark"] .settings-member-row,
 html[data-theme="dark"] .settings-subpage-field,
@@ -2645,11 +2709,6 @@ html[data-theme="dark"] .notification-modal-close { background: transparent; bor
 .mrd-shell .lists-empty-title { font-size: 16px; font-weight: 600; color: var(--mrd-fg2); }
 .mrd-shell .lists-empty-sub { font-size: 13px; color: var(--mrd-fg3); line-height: 1.5; max-width: 220px; }
 .mrd-shell .lists-empty-btn { margin-top: 8px; padding: 11px 24px; font-size: 14px; font-weight: 600; border-radius: 99px; }
-.inv-empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 56px 24px 40px; text-align: center; animation: mrdSlideUp 0.3s ease; }
-.inv-empty-emoji { font-size: 44px; line-height: 1; }
-.inv-empty-title { font-size: 16px; font-weight: 700; color: var(--mrd-fg2); }
-.inv-empty-sub { font-size: 13px; color: var(--mrd-fg3); line-height: 1.5; max-width: 230px; }
-.inv-empty-btn { margin-top: 8px; padding: 11px 24px; font-size: 14px; font-weight: 600; border-radius: 99px; }
 .mrd-shell .lists-page-item { align-items: flex-start; gap: 10px; margin-bottom: 0; padding: 12px 14px; background: transparent; border: none; border-top: 1px solid var(--mrd-borderSoft); border-radius: 0; }
 .mrd-shell .lists-page-item:first-child { border-top: none; }
 .mrd-shell .lists-page-item.purchased { background: var(--mrd-surf2); }
@@ -3313,249 +3372,371 @@ html[data-theme="dark"] .mrd-shell .rcard-recipe-thumb {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--mrd-bg);
 }
-/* Header de la fiche : .mrd-back-hdr a déjà padding: 8px var(--mrd-sp) 0
-   → correspond exactement aux marges de l’app. Ne pas écraser. */
-.mrd-shell .recipe-sheet-header-actions {
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-/* Titre tronqué dans le header */
-.mrd-shell .recipe-sheet-hdr-title {
-  font-size: 18px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  flex: 1;
-}
-/* Corps de la fiche : padding horizontal = marges app, bottom = tab bar */
-.mrd-shell .recipe-sheet-body {
+
+/* ── Fiche recette — handoff 18b « Rangée pour la cuisine » ──────────────
+   Plus d'en-tête de navigation : les trois boutons (retour, favori, menu)
+   passent en flottant sur la photo. Un seul défilement, plus d'onglets
+   Ingrédients / Préparation — les deux cartes sont toujours dans le flux. */
+.mrd-shell .mrd-recipe-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overflow-x: hidden; /* un menu flottant qui déborde ferait sinon glisser la page */
+  padding-bottom: 12px;
+}
+
+/* — Héros photo (210px) — */
+.mrd-shell .mrd-recipe-hero {
+  position: relative;
+  height: 210px;
+  background: var(--mrd-amberLt);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.mrd-shell .mrd-recipe-hero-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mrd-shell .mrd-recipe-hero-fallback {
+  display: block;
+  margin-bottom: 44px; /* ne passe pas sous le bandeau titre */
+  opacity: .55;
+}
+.mrd-shell .mrd-recipe-hero-actions {
+  position: absolute;
+  top: 8px;
+  display: flex;
+  gap: 7px;
+}
+.mrd-shell .mrd-recipe-hero-actions--left { left: 14px; }
+.mrd-shell .mrd-recipe-hero-actions--right { right: 14px; }
+.mrd-shell .mrd-recipe-hero-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%; /* même cercle que `.mrd-back-btn`, pas le carré arrondi du handoff */
+  border: none;
+  background: oklch(100% 0 0 / .9);
+  color: oklch(45% 0.04 52);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.mrd-shell .mrd-recipe-hero-btn.on { color: var(--mrd-a); }
+.mrd-shell .mrd-recipe-menu-wrap { position: relative; }
+.mrd-shell .mrd-recipe-menu-dropdown { top: calc(100% + 6px); }
+.mrd-shell .mrd-recipe-hero-titlewrap {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 30px 18px 13px;
+  /* Assombri juste assez pour porter le titre blanc, sans plaquer un bandeau
+     opaque sur la photo. Constante quel que soit le thème de l'app : elle
+     porte sur une photo, pas sur le fond de l'écran. */
+  background: linear-gradient(oklch(24% 0.05 48 / 0) 0%, oklch(23% 0.05 48 / .55) 40%, oklch(22% 0.05 48 / .72) 100%);
   display: flex;
   flex-direction: column;
-  gap: var(--mrd-sp);
-  padding: 0 var(--mrd-sp) calc(96px + env(safe-area-inset-bottom, 0px));
-  /* overflow-y:auto rend overflow-x scrollable par défaut — un menu flottant
-     qui déborde ferait alors glisser toute la page horizontalement */
-  overflow-x: hidden;
+  gap: 5px;
 }
-/* Carte héros = .mrd-meal-card + espacements internes */
-.mrd-shell .recipe-sheet .recipe-sheet-hero.mrd-meal-card {
+.mrd-shell .mrd-recipe-title {
   margin: 0;
-  flex-shrink: 0; /* empêche le héros de se rétrécir — force le body à scroller */
-}
-.mrd-shell .recipe-sheet-hero-emoji {
-  font-size: 40px;
-  text-align: center;
-  line-height: 1;
-  margin-bottom: var(--mrd-sp);
-}
-.mrd-shell .recipe-sheet-hero-cat-icon {
-  display: flex;
-  justify-content: center;
-  margin-bottom: var(--mrd-sp);
-}
-.mrd-shell .recipe-sheet-hero-title {
-  font-family: "DM Sans", sans-serif;
+  font-family: var(--mrd-serif);
+  font-size: 28px;
   font-weight: 600;
-  font-size: 22px;
-  color: var(--mrd-fg);
-  text-align: center;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  margin: 0 0 var(--mrd-sp);
+  line-height: 1.08;
+  color: oklch(100% 0 0);
+  text-wrap: pretty;
 }
-.mrd-shell .recipe-sheet-hero-pills {
+.mrd-shell .mrd-recipe-facts {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--mrd-sp);
-  justify-content: center;
-  margin-bottom: var(--mrd-sp);
+  gap: 6px;
+  font-size: 11.5px;
+  color: oklch(100% 0 0);
 }
-.mrd-shell .recipe-sheet-hero-pill {
-  display: inline-flex;
+.mrd-shell .mrd-recipe-facts > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.mrd-shell .mrd-recipe-facts-dot { opacity: .5; }
+
+/* — Bande des temps — */
+.mrd-shell .mrd-recipe-times {
+  margin: 12px 14px 0;
+  border-radius: 18px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
+  display: flex;
+  align-items: stretch;
+}
+.mrd-shell .mrd-recipe-times-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  justify-content: center;
+  gap: 1px;
+  padding: 11px 0 10px;
 }
-.mrd-shell .recipe-sheet-hero-pill-dim {
-  font-weight: 500;
-  color: var(--mrd-fg3);
-  background: var(--mrd-surf2);
-  border: 1px solid var(--mrd-borderSoft);
+.mrd-shell .mrd-recipe-times-sep { flex: none; width: 1px; margin: 10px 0; background: var(--mrd-borderSoft); }
+.mrd-shell .mrd-recipe-times-label { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .mrd-recipe-times-value { font-size: 15px; font-weight: 700; color: var(--mrd-fg); }
+.mrd-shell .mrd-recipe-times-cell--total {
+  border-radius: 0 18px 18px 0;
+  background: var(--mrd-aLt);
 }
-.mrd-shell .recipe-sheet-tag {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--mrd-fg3);
-  background: var(--mrd-surf2);
-  border: 1px solid var(--mrd-borderSoft);
-}
-.mrd-shell .recipe-sheet-hero-pill-cat { color: var(--mrd-a); background: var(--mrd-aLt); border: 1px solid var(--mrd-aMd); font-weight: 600; }
-.mrd-shell .recipe-sheet-hero-pill--vegetarian { color: oklch(55% 0.10 155); background: var(--mrd-sageLt); border: 1px solid oklch(89% 0.05 152); }
-.mrd-shell .recipe-sheet-hero-pill--vegan { color: oklch(52% 0.10 150); background: oklch(94% 0.04 148); border: 1px solid oklch(88% 0.05 148); }
-.mrd-shell .recipe-sheet-hero-pill--omnivore { color: var(--mrd-fg2); background: oklch(95% 0.015 70); border: 1px solid var(--mrd-borderSoft); }
-.mrd-shell .recipe-sheet-hero-pill--pescetarian { color: oklch(52% 0.08 230); background: oklch(95% 0.03 230); border: 1px solid oklch(88% 0.04 230); }
-.mrd-shell .recipe-sheet-hero-pill--flexitarian { color: oklch(48% 0.08 145); background: oklch(96% 0.025 145); border: 1px solid oklch(90% 0.04 145); }
-.mrd-shell .recipe-sheet-hero-pill--lactose_free { color: oklch(50% 0.06 250); background: oklch(95% 0.02 250); border: 1px solid var(--mrd-borderSoft); }
-.mrd-shell .recipe-sheet-hero-pill--gluten_free { color: oklch(52% 0.09 95); background: oklch(96% 0.03 95); border: 1px solid oklch(90% 0.04 95); }
-.mrd-shell .recipe-sheet-hero-pill--halal { color: oklch(48% 0.08 155); background: oklch(95% 0.03 155); border: 1px solid var(--mrd-borderSoft); }
-.mrd-shell .recipe-sheet-hero-pill--kosher { color: oklch(45% 0.06 300); background: oklch(95% 0.025 300); border: 1px solid var(--mrd-borderSoft); }
-.mrd-shell .recipe-sheet-servings {
+.mrd-shell .mrd-recipe-times-cell--total .mrd-recipe-times-label { color: var(--mrd-a); opacity: .8; }
+.mrd-shell .mrd-recipe-times-cell--total .mrd-recipe-times-value { color: var(--mrd-a); }
+
+/* — Bande des couverts — */
+.mrd-shell .mrd-recipe-servings {
+  margin: 8px 14px 0;
+  padding: 8px 10px 8px 14px;
+  border-radius: 18px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--mrd-sp);
-  background: var(--mrd-surf2);
-  border-radius: var(--mrd-r);
-  padding: var(--mrd-sp);
-  border: 1px solid var(--mrd-borderSoft);
+  gap: 10px;
 }
-.mrd-shell .recipe-sheet-servings-btn {
+.mrd-shell .mrd-recipe-servings-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mrd-shell .mrd-recipe-servings-title { font-size: 13px; font-weight: 500; color: var(--mrd-fg); }
+.mrd-shell .mrd-recipe-servings-sub { font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .mrd-recipe-servings-btns { flex: none; display: flex; align-items: center; gap: 6px; }
+.mrd-shell .mrd-recipe-servings-btn {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 10px;
   border: 1px solid var(--mrd-border);
-  background: var(--mrd-surf);
-  font-size: 18px;
+  background: var(--mrd-bg);
+  color: var(--mrd-fg2);
+  font-size: 15px;
   line-height: 1;
-  color: var(--mrd-fg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
   cursor: pointer;
 }
-.mrd-shell .recipe-sheet-servings-center { text-align: center; }
-.mrd-shell .recipe-sheet-servings-value { font-size: 20px; font-weight: 800; color: var(--mrd-fg); line-height: 1.1; }
-.mrd-shell .recipe-sheet-servings-label { font-size: 10px; color: var(--mrd-fg3); font-weight: 500; }
-.mrd-shell .recipe-sheet .mrd-subtabs.recipe-sheet-tabs {
-  margin: 0;
-  flex-shrink: 0;
-  position: sticky;  /* reste visible pendant le scroll */
-  top: 0;
-  z-index: 2;
+
+/* — Cartes Ingrédients / Préparation — */
+.mrd-shell .mrd-recipe-card {
+  margin: 11px 14px 0;
+  border-radius: 18px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
+  padding: 12px 13px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mrd-shell .mrd-recipe-card-title {
+  font-family: var(--mrd-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--mrd-fg);
+}
+
+.mrd-shell .mrd-recipe-buy-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mrd-shell .mrd-recipe-buy-title { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-a); }
+.mrd-shell .mrd-recipe-buy-addall {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: var(--mrd-sans);
+  font-size: 11px;
+  color: var(--mrd-a);
+  cursor: pointer;
+}
+/* Teinte propre au bloc « à acheter », distincte de l'accent des CTA — pas
+   de var globale pour une seule carte ; la surcharge sombre juste en dessous. */
+.mrd-shell .mrd-recipe-buy-list {
+  margin-top: 6px;
+  border-radius: 13px;
+  border: 1px solid var(--mrd-recipe-buy-border, oklch(89% 0.05 30));
+  background: var(--mrd-recipe-buy-bg, oklch(98.5% 0.014 40));
+  padding: 1px 11px;
+  display: flex;
+  flex-direction: column;
+}
+.mrd-shell .mrd-recipe-buy-list--plain {
+  margin-top: 0;
+  border-color: var(--mrd-border);
   background: var(--mrd-bg);
 }
-.mrd-shell .recipe-sheet-panel-ingredients {
-  background: var(--mrd-surf);
-  border-radius: var(--mrd-r);
-  border: 1px solid var(--mrd-borderSoft);
-  overflow: hidden;
-  margin-bottom: 0;
-  box-shadow: var(--mrd-shadowSm);
-  flex-shrink: 0; /* empêche le panel de se comprimer — la liste est toujours complète */
+html[data-theme="dark"] .mrd-shell .mrd-recipe-buy-list {
+  --mrd-recipe-buy-border: oklch(32% 0.05 30);
+  --mrd-recipe-buy-bg: oklch(24% 0.025 40);
 }
-.mrd-shell .recipe-sheet-ing-row {
+.mrd-shell .mrd-recipe-buy-row {
+  min-height: 40px;
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--mrd-sp);
-  padding: 12px;
-  border-bottom: 1px solid var(--mrd-borderSoft);
+  gap: 9px;
+  border-bottom: 1px solid var(--mrd-recipe-buy-line, oklch(93% 0.03 34));
 }
-.mrd-shell .recipe-sheet-ing-row:last-child { border-bottom: none; }
-.mrd-shell .recipe-sheet-ing-name { font-size: 14px; color: var(--mrd-fg); font-weight: 500; }
-.mrd-shell .recipe-sheet-ing-qty {
+html[data-theme="dark"] .mrd-shell .mrd-recipe-buy-row { --mrd-recipe-buy-line: oklch(34% 0.04 34); }
+.mrd-shell .mrd-recipe-buy-list--plain .mrd-recipe-buy-row { --mrd-recipe-buy-line: var(--mrd-borderSoft); }
+.mrd-shell .mrd-recipe-buy-row:last-child { border-bottom: none; }
+.mrd-shell .mrd-recipe-buy-row-name { flex: 1; min-width: 0; font-size: 13px; color: var(--mrd-fg); }
+.mrd-shell .mrd-recipe-buy-row-qty { flex: none; font-size: 12.5px; font-weight: 500; color: var(--mrd-fg2); }
+.mrd-shell .mrd-recipe-buy-addall--plain {
+  margin-top: 8px;
+  width: 100%;
+  height: 42px;
+  border-radius: 13px;
+  border: none;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
   font-size: 13px;
   font-weight: 700;
-  color: var(--mrd-a);
-  background: var(--mrd-aLt);
-  border-radius: 8px;
-  padding: 3px 8px;
-  flex-shrink: 0;
-  max-width: 48%;
-  text-align: right;
 }
-.mrd-shell .recipe-sheet-legacy-ing,
-.mrd-shell .recipe-sheet-empty-block {
-  padding: 12px;
-  font-size: 14px;
+
+.mrd-shell .mrd-recipe-have-title { display: block; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-sageDeep); margin-bottom: 6px; }
+.mrd-shell .mrd-recipe-have-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.mrd-shell .mrd-recipe-have-pill {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--mrd-sageLt);
+  color: var(--mrd-sageDeep);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.mrd-shell .mrd-recipe-condiments { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.mrd-shell .mrd-recipe-condiments-title { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mrd-fg3); margin-right: 2px; }
+.mrd-shell .mrd-recipe-condiment-pill {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--mrd-surf2);
   color: var(--mrd-fg2);
-  line-height: 1.55;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.mrd-shell .mrd-recipe-legacy-ing,
+.mrd-shell .mrd-recipe-empty {
+  font-size: 13px;
+  color: var(--mrd-fg2);
+  line-height: 1.5;
   white-space: pre-wrap;
 }
-.mrd-shell .recipe-sheet-condiments-block {
-  padding: 12px;
-  border-top: 1px solid var(--mrd-borderSoft);
-  background: var(--mrd-bg);
-}
-.mrd-shell .recipe-sheet-condiments-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--mrd-fg3);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--mrd-sp);
-}
-.mrd-shell .recipe-sheet-panel-method {
-  background: var(--mrd-surf);
-  border-radius: var(--mrd-r);
-  padding: var(--mrd-sp);
-  border: 1px solid var(--mrd-borderSoft);
-  margin-bottom: 0;
-  box-shadow: var(--mrd-shadowSm);
-  flex-shrink: 0; /* même règle que le panel ingrédients */
-}
-.mrd-shell .recipe-sheet-method-text {
-  font-size: 14px;
-  color: var(--mrd-fg);
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-.mrd-shell .recipe-sheet-footer { margin-top: auto; padding-top: var(--mrd-sp); flex-shrink: 0; }
-.mrd-shell .recipe-sheet-cta-shopping {
-  width: 100%;
-  padding: 11px 14px;
-  border-radius: 10px;
-  border: none;
-  background: var(--mrd-sage);
-  color: var(--mrd-white);
-  font-size: 14px;
-  font-weight: 700;
+
+.mrd-shell .mrd-recipe-steps-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mrd-shell .mrd-recipe-steps-headcopy { display: flex; flex-direction: column; gap: 1px; }
+.mrd-shell .mrd-recipe-steps-count { font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .mrd-recipe-voice-btn {
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--mrd-aMd);
+  background: var(--mrd-aLt);
+  color: var(--mrd-a);
+  font-family: var(--mrd-sans);
+  font-size: 11.5px;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 4px 14px oklch(54% 0.10 155 / 0.28);
+  white-space: nowrap;
 }
-.mrd-shell .recipe-sheet-cta-shopping:active { transform: scale(0.99); }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--vegetarian {
-  background: oklch(22% 0.04 152); color: oklch(64% 0.10 155); border-color: oklch(32% 0.06 152);
+.mrd-shell .mrd-recipe-steps { display: flex; flex-direction: column; gap: 9px; }
+.mrd-shell .mrd-recipe-step-wrap { display: flex; flex-direction: column; gap: 6px; }
+.mrd-shell .mrd-recipe-step-group-title {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+  font-weight: 600;
+  margin-top: 4px;
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--vegan {
-  background: oklch(22% 0.035 150); color: oklch(62% 0.10 150); border-color: oklch(32% 0.05 150);
+.mrd-shell .mrd-recipe-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--omnivore {
-  background: oklch(23% 0.015 70); color: oklch(70% 0.03 52); border-color: oklch(32% 0.02 70);
+.mrd-shell .mrd-recipe-step-bullet {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-bg);
+  color: var(--mrd-fg2);
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--pescetarian {
-  background: oklch(20% 0.04 230); color: oklch(66% 0.08 230); border-color: oklch(30% 0.06 230);
+.mrd-shell .mrd-recipe-step-bullet--done { border: none; background: var(--mrd-sage); color: var(--mrd-white); }
+.mrd-shell .mrd-recipe-step-bullet--current { border-color: var(--mrd-aMd); background: var(--mrd-aLt); color: var(--mrd-a); }
+.mrd-shell .mrd-recipe-step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.mrd-shell .mrd-recipe-step-text { font-family: var(--mrd-sans); font-size: 13px; line-height: 1.45; color: var(--mrd-fg); text-wrap: pretty; }
+.mrd-shell .mrd-recipe-step-text.done { color: var(--mrd-fg3); text-decoration: line-through; }
+.mrd-shell .mrd-recipe-step-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.mrd-shell .mrd-recipe-step-badge {
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--mrd-surf2);
+  color: var(--mrd-fg2);
+  font-size: 10.5px;
+  white-space: nowrap;
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--flexitarian {
-  background: oklch(22% 0.04 145); color: oklch(62% 0.08 145); border-color: oklch(30% 0.05 145);
+
+/* — Barre d'action basse — */
+.mrd-shell .mrd-recipe-actionbar {
+  flex: none;
+  padding: 10px 14px calc(22px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--mrd-borderSoft);
+  background: var(--mrd-surf);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--lactose_free {
-  background: oklch(20% 0.03 250); color: oklch(66% 0.06 250); border-color: oklch(30% 0.04 250);
+.mrd-shell .mrd-recipe-actionbar-edit {
+  flex: none;
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 15px;
+  border: 1px solid var(--mrd-border);
+  background: transparent;
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  cursor: pointer;
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--gluten_free {
-  background: oklch(22% 0.04 95); color: oklch(64% 0.09 95); border-color: oklch(32% 0.05 95);
+.mrd-shell .mrd-recipe-actionbar-plan {
+  flex: 1;
+  height: 46px;
+  border-radius: 15px;
+  border: none;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-family: var(--mrd-sans);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--mrd-glowA);
 }
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--halal {
-  background: oklch(22% 0.04 155); color: oklch(62% 0.08 155); border-color: oklch(30% 0.05 155);
-}
-html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
-  background: oklch(20% 0.03 300); color: oklch(64% 0.06 300); border-color: oklch(30% 0.04 300);
-}
+
 /* ── Page création / édition recette ─────────────────────── */
 /* Overlay (même mécanique que --sheet) */
 /* Meme correction que pour la fiche : pas de `position: relative`, qui
@@ -3579,21 +3760,6 @@ html[data-theme="dark"] .mrd-shell .recipe-sheet-hero-pill--kosher {
 /* ── Page création/édition recette — compacte avec menus flottants ── */
 /* Zone photo — mode édition */
 @keyframes mrdPhotoSpin { to { transform: rotate(360deg); } }
-/* Photo dans la fiche recette */
-.mrd-shell .recipe-sheet-hero-photo {
-  width: 100%; max-height: 220px;
-  border-radius: calc(var(--mrd-r) - 2px);
-  overflow: hidden; margin-bottom: var(--mrd-sp);
-}
-.mrd-shell .recipe-sheet-hero-photo img {
-  width: 100%; height: 220px; object-fit: cover; display: block;
-}
-.mrd-shell .recipe-sheet-hero-cat-icon .recipe-drink-fallback-svg--hero {
-  width: 108px;
-  height: 108px;
-  object-fit: contain;
-  display: block;
-}
 /* Titre éditable — centré, même style que la fiche lecture */
 /* Régime alimentaire — 4 boutons directs dans le formulaire */
 /* Rangée de capsules — centrée */
@@ -3881,6 +4047,14 @@ html[data-theme="dark"] ion-searchbar.notes-search-input {
   flex-direction: column;
 }
 
+/* Feuille : le contenu se borne au point d'ouverture, pas a la hauteur pleine
+   de `ion-modal`. Sinon il deborde sous l'ecran d'exactement la part masquee
+   et le pied colle en bas (le CTA de 7c) devient intouchable. La variable est
+   posee par `MrdModal.js` et suit le glissement. */
+.mrd-modal-sheet .mrd-modal-inner.mrd-shell {
+  height: var(--sheet-fill, 100%);
+}
+
 .mrd-modal::part(content) {
   border: 1px solid var(--mrd-borderSoft);
   overflow-y: auto;
@@ -3936,12 +4110,23 @@ html[data-theme="dark"] .mrd-modal::part(content) {
 /* Feuille basse glissable — pour les ecrans qui occupaient deja toute la
    hauteur (fiche recette, panneau des repas). La poignee et le glissement
    viennent d Ionic ; `.mrd-recipe-view-sheet` les dessinait a la main. */
+/* `--border-radius` doit rester UNE seule longueur pour une feuille. Ionic
+   la reinjecte dans des longhands d un seul coin :
+
+     :host(.modal-sheet) .modal-wrapper {
+       border-start-start-radius: var(--border-radius);
+       border-end-end-radius: 0;
+     }
+
+   Une valeur en quatre temps (`22px 22px 0 0`) y est invalide, la declaration
+   tombe, et le rayon calcule vaut 0 : la feuille sortait a bords carres. Le
+   bas est deja mis a 0 par Ionic — inutile de l ecrire ici. */
 .mrd-modal-sheet {
   --width: 100%;
   --max-width: 680px;
   --height: 100%;
   --max-height: 100%;
-  --border-radius: var(--mrd-rLg) var(--mrd-rLg) 0 0;
+  --border-radius: var(--mrd-rLg);
 }
 .mrd-modal-sheet::part(content) {
   border: none;
@@ -4200,21 +4385,6 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
 .mrd-shell section > .sh .aok.mrd-hide-in-shell { display: none; }
 .mrd-shell .inventory-link-toggle.on .inventory-link-toggle-box { background: var(--mrd-sage); border-color: var(--mrd-sage); color: var(--mrd-white); }
 /* ── Inventory: storage locations ── */
-.inv-organiser-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-bottom: 10px; }
-.inv-organiser-tabs { min-height: 42px; justify-content: flex-start; }
-.inv-organiser-tabs .mrd-subtab-btn { flex: 0 0 auto; min-width: auto; }
-.inv-organiser-add { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 24px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--mrd-glowA); font-family: inherit; flex-shrink: 0; }
-.inv-organiser-editor { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.inv-organiser-editor-emoji { width: 56px; min-width: 56px; height: 42px; border: 1.5px solid var(--mrd-border); border-radius: 12px; background: var(--mrd-surf2); padding: 10px 8px; font-size: 18px; line-height: 1; text-align: center; color: var(--mrd-fg); outline: none; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-.inv-organiser-editor-emoji.is-empty { color: var(--mrd-fg3); font-size: 16px; }
-.inv-organiser-editor-input { flex: 1; min-width: 0; width: 100%; border: 1.5px solid var(--mrd-a); border-radius: 12px; background: var(--mrd-surf); padding: 10px 12px; font-size: 16px; font-weight: 500; color: var(--mrd-fg); outline: none; font-family: inherit; }
-.inv-organiser-editor-save { height: 40px; padding: 0 12px; border-radius: 10px; background: var(--mrd-aBtn); color: var(--mrd-white); border: none; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
-.inv-organiser-editor-cancel { height: 40px; min-width: 40px; padding: 0 12px; border-radius: 10px; background: var(--mrd-surf2); color: var(--mrd-fg3); border: 1px solid var(--mrd-borderSoft); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
-.inv-selected-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 0 2px; }
-.inv-selected-heading-left { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
-.inv-selected-heading-label { font-family: var(--mrd-serif); font-size: 22px; font-weight: 600; color: var(--mrd-fg); letter-spacing: -0.02em; line-height: 1.1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.inv-selected-heading-count { font-size: 12px; font-weight: 500; color: var(--mrd-fg3); white-space: nowrap; flex-shrink: 0; }
-.inv-selected-heading-menu { width: 30px; height: 30px; color: var(--mrd-fg3); font-size: 18px; }
 /* ── Liste detail view (ldv-*) ───────────────────────────── */
 .mrd-shell .ldv-topbar {
   display: flex;
@@ -4429,12 +4599,16 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
 .mrd-shell .ldv-section-add:hover { background: oklch(52% 0.14 28); }
 .mrd-shell .ldv-section-clear-btn { font-size: 12px; font-weight: 600; color: var(--mrd-fg3); background: none; border: 1px solid var(--mrd-border); border-radius: 99px; padding: 3px 10px; cursor: pointer; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
 .mrd-shell .ldv-section-clear-btn:hover { color: oklch(48% 0.18 25); border-color: oklch(48% 0.18 25); }
-.mrd-shell .inv-expiring-section { margin-bottom: 16px; }
-.mrd-shell .inv-expiring-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-.mrd-shell .inv-expiring-icon { font-size: 15px; }
-.mrd-shell .inv-expiring-title { font-size: 12px; font-weight: 700; color: var(--mrd-amber); text-transform: uppercase; letter-spacing: 0.05em; }
-.mrd-shell .inv-expiring-count { font-size: 11px; font-weight: 600; color: var(--mrd-fg3); margin-left: auto; }
-.mrd-shell .inv-expiring-list { border: 1.5px solid oklch(88% 0.08 70); }
+.mrd-shell .ldv-cat-group { display: flex; flex-direction: column; gap: 6px; }
+.mrd-shell .ldv-cat-group + .ldv-cat-group { margin-top: 14px; }
+.mrd-shell .ldv-cat-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+  padding: 0 4px;
+}
 .mrd-shell .ldv-card {
   background: var(--mrd-surf);
   border: 1px solid var(--mrd-borderSoft);
@@ -4472,14 +4646,6 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
 }
 .mrd-shell .ldv-item.reorder-shift-down {
   transform: translateY(8px);
-}
-.mrd-shell .inv-drop-placeholder {
-  margin: 6px 12px;
-  border: 1.5px dashed var(--mrd-a);
-  border-radius: 16px;
-  background: var(--mrd-aLt);
-  box-shadow: var(--mrd-glowASoft);
-  transition: height 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
 }
 .mrd-shell .ldv-chk.inv-select-chk {
   width: 28px;
@@ -4560,194 +4726,6 @@ html[data-theme="dark"] .gs-result-btn:hover { background: var(--mrd-surf); }
   max-width: 100%;
 }
 .mrd-shell .ldv-item-done .ldv-item-note { opacity: 0.45; }
-.mrd-shell .inv-qty-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 1px;
-}
-.mrd-shell .inv-qty-step-btn {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  border: 1px solid var(--mrd-borderSoft);
-  background: var(--mrd-surf2);
-  color: var(--mrd-fg2);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
-  font-family: inherit;
-}
-.mrd-shell .inv-qty-step-btn:active { background: var(--mrd-border); }
-.mrd-shell .inv-qty-step-value {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mrd-fg3);
-  min-width: 16px;
-  text-align: center;
-}
-.mrd-shell .inv-item-action-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  margin-top: 6px;
-}
-.mrd-shell .inv-item-loc-inline {
-  margin-left: auto;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  min-width: max-content;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--mrd-fg3);
-  white-space: nowrap;
-  text-align: right;
-}
-.mrd-shell .inv-item-loc-inline > span:first-child { display: none; }
-.mrd-shell .inv-item-loc-inline::before { content: "📍"; }
-.mrd-shell .inv-bulkbar {
-  background: var(--mrd-aBtn) !important;
-  border-radius: 20px !important;
-  padding: 12px 12px 10px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 10px !important;
-  box-shadow: var(--mrd-glowA);
-}
-.mrd-shell .inv-bulkbar-count {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mrd-white);
-  white-space: nowrap;
-}
-.mrd-shell .inv-bulkbar-actions {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-}
-.mrd-shell .inv-bulkbar-btn {
-  width: 100%;
-  min-width: 0;
-  min-height: 36px;
-  justify-content: center;
-  padding: 8px 10px !important;
-  border-radius: 11px !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
-  text-align: center;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn {
-  background: var(--mrd-onA-mid) !important;
-  color: var(--mrd-white) !important;
-  border: 1px solid var(--mrd-onA-line) !important;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn-primary {
-  background: var(--mrd-sageLt) !important;
-  color: var(--mrd-sageDeep) !important;
-  border: 1px solid var(--mrd-sageMd) !important;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn-danger {
-  background: var(--mrd-dangerLt) !important;
-  color: var(--mrd-danger) !important;
-  border: 1px solid var(--mrd-dangerMd) !important;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.mrd-shell .inv-bulkbar {
-  position: absolute !important;
-  left: 12px !important;
-  right: 12px !important;
-  bottom: 78px !important;
-  z-index: 50 !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  transform: none !important;
-  pointer-events: all !important;
-  background: var(--mrd-surf) !important;
-  border: 1px solid var(--mrd-borderSoft) !important;
-  border-radius: 24px !important;
-  padding: 12px !important;
-  gap: 10px !important;
-  box-shadow: var(--mrd-shadowLg) !important;
-}
-.mrd-shell .inv-bulkbar-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.mrd-shell .inv-bulkbar-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mrd-fg3);
-  white-space: nowrap;
-}
-.mrd-shell .inv-bulkbar-cancel {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--mrd-border);
-  background: var(--mrd-surf2);
-  color: var(--mrd-a);
-  font-size: 12px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.mrd-shell .inv-bulkbar-actions {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-}
-.mrd-shell .inv-bulkbar-btn {
-  width: 100%;
-  min-width: 0;
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 10px !important;
-  border-radius: 12px !important;
-  border: 1px solid var(--mrd-border) !important;
-  background: var(--mrd-surf2) !important;
-  color: var(--mrd-fg2) !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
-  text-align: center;
-  white-space: nowrap;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn-primary {
-  background: var(--mrd-sageLt) !important;
-  color: var(--mrd-sageDeep) !important;
-  border-color: var(--mrd-sageMd) !important;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn-danger {
-  background: var(--mrd-dangerLt) !important;
-  color: var(--mrd-danger) !important;
-  border-color: var(--mrd-dangerMd) !important;
-}
-.mrd-shell .inv-bulkbar .inv-bulkbar-btn:disabled,
-.mrd-shell .inv-bulkbar .inv-bulkbar-cancel:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 .mrd-shell .ldv-item-kebab { font-size: 20px; width: 28px; height: 32px; color: var(--mrd-fg3); }
 .mrd-shell .ldv-empty { padding: 20px; color: var(--mrd-fg3); font-size: 13px; }
 .mrd-shell .ldv-add-btn {
@@ -5159,38 +5137,10 @@ html[data-theme="dark"] .mrd-shell .task-modal-redesign input[type="time"] {
   text-decoration: line-through;
 }
 /* ── Fiche recette dans les repas (modal pleine hauteur) ── */
-.mrd-recipe-view-sheet {
-  width: 100%;
-  max-width: 680px;
-  height: 92dvh;
-  max-height: 92dvh;
-  border-radius: 24px 24px 0 0;
-  background: var(--mrd-canvas);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--mrd-shadowSheet);
-  animation: mrdSheetUp .25s ease;
-}
-@keyframes mrdSheetUp {
-  from { transform: translateY(40px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-.mrd-recipe-view-sheet .recipe-sheet-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  display: flex;
-  flex-direction: column;
-  gap: var(--mrd-sp);
-  padding: 0 var(--mrd-sp) 40px;
-}
-.mrd-recipe-view-sheet .recipe-sheet-header {
-  background: var(--mrd-canvas);
-  border-bottom: 1px solid var(--mrd-borderSoft);
-  padding: 12px var(--mrd-sp);
-}
+/* Largeur, hauteur et rayon viennent de `.mrd-modal-sheet` (base commune de
+   toutes les feuilles) depuis la migration `ion-modal` — voir `MrdModal.js`.
+   Rien à redéclarer ici : le contenu (`.recipe-sheet`, handoff 18b) gère son
+   propre défilement interne. */
 /* ── Accordéon régime alimentaire dans le picker de repas ── */
 /* ── Palette de couleurs badge ── */
 .badge-palette-grid {
@@ -7411,7 +7361,7 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 .mrd-week-spacer { flex: 0 0 auto; min-height: 0; }
 
 /* ── 2a · panneau bas (détail ou feuille de remplissage) ───── */
-.mrd-week-panel { flex: none; margin: 6px 12px 8px; border-radius: 22px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); box-shadow: var(--mrd-shadowSheet); overflow: hidden; animation: mrdWeekPanel .16s ease-out; }
+.mrd-week-panel { position: relative; flex: none; margin: 6px 12px 8px; border-radius: 22px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); box-shadow: var(--mrd-shadowSheet); overflow: hidden; animation: mrdWeekPanel .16s ease-out; }
 @keyframes mrdWeekPanel { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
 .mrd-week-panel-hdr { display: flex; align-items: center; gap: 11px; padding: 12px 14px 11px; background: var(--mrd-aLt); }
@@ -7430,15 +7380,63 @@ html[data-theme="dark"] .voice-listen-veil { background: oklch(16% 0.02 50 / .55
 .mrd-week-panel-rows { display: flex; flex-direction: column; gap: 4px; }
 .mrd-week-panel-row { display: flex; align-items: center; gap: 9px; width: 100%; height: 28px; padding: 0 10px; border: none; border-radius: 10px; background: var(--mrd-bg); text-align: left; cursor: pointer; }
 .mrd-week-panel-row:hover { background: var(--mrd-surf2); }
+/* Rangée sélectionnée : choix du service dans le flux « Planifier ». */
+.mrd-week-panel-row.on { background: var(--mrd-aLt); }
+.mrd-week-panel-row.on .mrd-week-panel-role,
+.mrd-week-panel-row.on .mrd-week-panel-name { color: var(--mrd-a); }
 .mrd-week-panel-role { flex: none; width: 48px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--mrd-fg3); }
 .mrd-week-panel-name { flex: 1; min-width: 0; font-size: 13px; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mrd-week-panel-name.is-empty { color: var(--mrd-fg3); }
 .mrd-week-panel-cue { flex: none; width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; background: var(--mrd-surf); color: var(--mrd-fg3); }
+.mrd-week-panel-row.on .mrd-week-panel-cue { background: var(--mrd-aBtn); color: var(--mrd-white); }
 
-/* Avertissement « ce stock part déjà dans un autre repas de la semaine ». */
-.mrd-week-taken { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 11px; background: var(--mrd-dangerLt); color: var(--mrd-dangerDeep); font-size: 11.5px; line-height: 1.35; }
+/* Avertissement « ce stock part déjà dans un autre repas de la semaine ».
+   Flottant, en position absolue : la grille au-dessus est en `flex: 1;
+   min-height: 0`, donc tout ajout de hauteur au panneau la comprimait et
+   faisait visuellement « sauter » les créneaux déjà remplis. Ancré au panneau
+   (qui porte déjà `position: relative`), pas à `.mrd-week-panel-body` — sa
+   place dans le flux a changé (après le corps, pas dedans) mais son rendu
+   reste au même endroit, par-dessus le pied d'actions. */
+.mrd-week-taken {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 30px 8px 10px;
+  border-radius: 11px;
+  background: var(--mrd-dangerLt);
+  color: var(--mrd-dangerDeep);
+  font-size: 11.5px;
+  line-height: 1.35;
+  box-shadow: var(--mrd-shadowMd);
+  animation: mrdWeekTakenIn .16s ease-out;
+}
+@keyframes mrdWeekTakenIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .mrd-week-taken-dot { flex: none; width: 6px; height: 6px; margin-top: 5px; border-radius: 999px; background: var(--mrd-danger); }
+.mrd-week-taken-copy { flex: 1; min-width: 0; }
 .mrd-week-taken strong { font-weight: 600; }
+.mrd-week-taken-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--mrd-dangerDeep);
+  font-size: 11px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: .75;
+}
+.mrd-week-taken-close:hover { opacity: 1; background: oklch(100% 0 0 / .25); }
 
 .mrd-week-panel-actions { display: flex; align-items: center; gap: 6px; }
 .mrd-week-servings { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; height: 32px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); }
@@ -7834,22 +7832,418 @@ html[data-theme="dark"] .mpick-rail-item.on .mpick-rail-dot { background: var(--
 .mpick-months .mpick-chip { flex: none; }
 .mpick-chip--sm { height: 24px; padding: 0 9px; font-size: 11px; }
 
-/* Bilan du tirage automatique (modale) */
-.mrd-fill-report { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.mrd-fill-report-line { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; color: var(--mrd-fg2); }
-.mrd-fill-report-dot { flex: none; width: 7px; height: 7px; margin-top: 5px; border-radius: 999px; background: var(--mrd-fg3); }
-.mrd-fill-report-line.ok .mrd-fill-report-dot { background: var(--mrd-sage); }
-.mrd-fill-report-line.miss .mrd-fill-report-dot { background: var(--mrd-amber); }
-.mrd-fill-report-line strong { color: var(--mrd-fg); font-weight: 600; }
-.mrd-fill-report-items { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 15px; }
-.mrd-fill-report-item { padding: 3px 8px; border-radius: 999px; background: var(--mrd-sageLt); color: var(--mrd-sageDeep); font-size: 11px; }
+/* Bilan du tirage automatique — feuille « Semaine remplie » (handoff 17c).
+   Même grammaire que les autres feuilles du tour 17 (voir `.rsrc-sheet` /
+   `.rimp-sheet`) : voile propre à .38, feuille à rayon 26px, cartes à
+   filets internes, un bouton plein puis une sortie en texte nu. */
+.mrd-fillsheet-modal {
+  --border-radius: 26px;
+}
+.mrd-fillsheet-modal::part(backdrop) {
+  background: oklch(27% 0.05 48 / .38);
+}
+html[data-theme="dark"] .mrd-fillsheet-modal::part(backdrop) {
+  background: oklch(8% 0.012 60 / .38);
+}
+.mrd-shell .mrd-fillsheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--mrd-bg);
+  min-height: 100%;
+}
+.mrd-shell .mrd-fillsheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.mrd-shell .mrd-fillsheet-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--mrd-sageLt);
+  border: 1px solid var(--mrd-sageMd);
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+}
+.mrd-shell .mrd-fillsheet-head-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mrd-shell .mrd-fillsheet-kicker {
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .mrd-fillsheet-title {
+  font-family: var(--mrd-serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--mrd-fg);
+}
+.mrd-shell .mrd-fillsheet-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  border: 1px solid var(--mrd-border);
+  background: var(--mrd-surf);
+  color: var(--mrd-fg2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.mrd-shell .mrd-fillsheet-stats {
+  display: flex;
+  gap: 7px;
+}
+.mrd-shell .mrd-fillsheet-stat {
+  flex: 1;
+  border-radius: 15px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mrd-shell .mrd-fillsheet-stat-num {
+  font-family: var(--mrd-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--mrd-fg);
+}
+.mrd-shell .mrd-fillsheet-stat-label {
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .mrd-fillsheet-section-title {
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .mrd-fillsheet-list {
+  border-radius: 15px;
+  background: var(--mrd-surf);
+  border: 1px solid var(--mrd-border);
+  padding: 2px 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: 136px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mrd-shell .mrd-fillsheet-row {
+  min-height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--mrd-borderSoft);
+}
+.mrd-shell .mrd-fillsheet-row:last-child {
+  border-bottom: none;
+}
+.mrd-shell .mrd-fillsheet-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  /* Encre propre à cette feuille, entre --mrd-fg et --mrd-fg2 : voir le
+     handoff (Design Tokens, « Encre corps »). Pas de var globale pour un
+     seul écran ; la surcharge sombre juste en dessous. */
+  color: var(--mrd-fillsheet-ink, oklch(35% 0.045 50));
+}
+html[data-theme="dark"] .mrd-shell .mrd-fillsheet-row-name {
+  --mrd-fillsheet-ink: oklch(88% 0.025 70);
+}
+.mrd-shell .mrd-fillsheet-row-qty {
+  flex: none;
+  font-size: 12px;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .mrd-fillsheet-note {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--mrd-fg3);
+}
+.mrd-shell .mrd-fillsheet-cta {
+  height: 46px;
+  border-radius: 15px;
+  border: none;
+  background: var(--mrd-aBtn);
+  color: var(--mrd-white);
+  font-family: var(--mrd-sans);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mrd-shell .mrd-fillsheet-exit {
+  height: 42px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  color: var(--mrd-fg2);
+  font-family: var(--mrd-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
 
-/* « Deja demande » : marque un manquant qui attend deja sur la liste de courses */
-.mrd-listed-tag { flex: none; padding: 2px 7px; border-radius: 999px; background: var(--mrd-sageLt); color: var(--mrd-sageDeep); font-size: 10.5px; white-space: nowrap; }
-/* « Deja pris par » : ce manquant part dans un repas plus tot dans la semaine */
-.mrd-taken-tag { flex: none; padding: 2px 7px; border-radius: 999px; background: var(--mrd-dangerLt); color: var(--mrd-dangerDeep); font-size: 10.5px; white-space: nowrap; }
 .mrd-week-shop.listed { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sageDeep); }
 .mrd-week-shop.listed .mrd-week-shop-dot { background: var(--mrd-sage); }
+
+/* Popup « ce qui manque » après avoir posé une recette (handoff 20a) —
+   `MealsView.renderMissingModal`. Feuille basse, pas une boîte centrée :
+   même grammaire que `.mrd-fillsheet-*` (voile propre, cartes à filets
+   internes, un bouton plein puis une sortie en texte nu). */
+/* Une seule longueur : voir la note sur `.mrd-modal-sheet` — une valeur à
+   quatre temps y est invalide et retombe à un rayon nul (bas déjà mis à 0
+   par Ionic). */
+.mrd-miss-modal { --border-radius: 30px; }
+.mrd-miss-modal::part(backdrop) { background: oklch(27% 0.05 48 / .38); }
+html[data-theme="dark"] .mrd-miss-modal::part(backdrop) { background: oklch(8% 0.012 60 / .38); }
+.mrd-shell .mrd-miss { display: flex; flex-direction: column; gap: 14px; padding: 12px 18px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--mrd-bg); min-height: 100%; }
+.mrd-shell .mrd-miss-head { display: flex; align-items: flex-start; gap: 12px; }
+.mrd-shell .mrd-miss-icon { flex: none; width: 46px; height: 46px; border-radius: 15px; background: var(--cat-bg, var(--mrd-surf2)); border: 1px solid var(--cat-line, var(--mrd-border)); display: grid; place-items: center; }
+.mrd-shell .mrd-miss-head-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mrd-shell .mrd-miss-kicker { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .mrd-miss-title { font-family: var(--mrd-serif); font-size: 25px; font-weight: 600; line-height: 1.12; color: var(--mrd-fg); }
+.mrd-shell .mrd-miss-close { flex: none; width: 32px; height: 32px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 13px; cursor: pointer; }
+
+.mrd-shell .mrd-miss-count { display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-radius: 14px; background: var(--mrd-amberLt); border: 1px solid var(--mrd-amberMd); }
+.mrd-shell .mrd-miss-count-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--mrd-amber); }
+.mrd-shell .mrd-miss-count-text { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--mrd-amberDeep); }
+.mrd-shell .mrd-miss-count--ok { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); }
+.mrd-shell .mrd-miss-count--ok .mrd-miss-count-dot { background: var(--mrd-sage); }
+.mrd-shell .mrd-miss-count--ok .mrd-miss-count-text { color: var(--mrd-sageDeep); }
+.mrd-shell .mrd-miss-count--neutral { background: var(--mrd-surf2); border-color: var(--mrd-border); }
+.mrd-shell .mrd-miss-count--neutral .mrd-miss-count-dot { background: var(--mrd-fg3); }
+.mrd-shell .mrd-miss-count--neutral .mrd-miss-count-text { color: var(--mrd-fg2); }
+
+.mrd-shell .mrd-miss-list { border-radius: 16px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); overflow: hidden auto; max-height: 300px; display: flex; flex-direction: column; }
+.mrd-shell .mrd-miss-row { min-height: 50px; flex: none; padding: 9px 13px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid var(--mrd-borderSoft); cursor: pointer; }
+.mrd-shell .mrd-miss-row:last-child { border-bottom: none; }
+/* Case cochée native, cachée visuellement mais accessible clavier/lecteur
+   d'écran — le carré personnalisé juste après porte le rendu. */
+.mrd-shell .mrd-miss-native-cb { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.mrd-shell .mrd-miss-check { flex: none; width: 21px; height: 21px; border-radius: 7px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); display: grid; place-items: center; font-size: 12px; color: var(--mrd-white); }
+.mrd-shell .mrd-miss-check.on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); }
+.mrd-shell .mrd-miss-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mrd-shell .mrd-miss-row-name { font-size: 13.5px; color: var(--mrd-fg); }
+.mrd-shell .mrd-miss-row-reason { font-size: 11px; }
+.mrd-shell .mrd-miss-row-reason--warn { color: var(--mrd-amber); }
+.mrd-shell .mrd-miss-row-reason--ok { color: var(--mrd-sageDeep); }
+.mrd-shell .mrd-miss-row-qty { flex: none; font-size: 12.5px; color: var(--mrd-fg3); }
+
+.mrd-shell .mrd-miss-condiments { display: flex; flex-direction: column; gap: 7px; }
+.mrd-shell .mrd-miss-pills { display: flex; flex-wrap: wrap; gap: 7px; }
+.mrd-shell .mrd-miss-pill { height: 34px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 12.5px; cursor: pointer; }
+.mrd-shell .mrd-miss-pill.on { border-color: var(--mrd-aBtn); background: var(--mrd-aBtn); color: var(--mrd-white); }
+
+.mrd-shell .mrd-miss-actions { display: flex; flex-direction: column; gap: 8px; }
+.mrd-shell .mrd-miss-submit { height: 50px; border-radius: 16px; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-family: var(--mrd-sans); font-size: 14.5px; font-weight: 700; cursor: pointer; }
+.mrd-shell .mrd-miss-submit:disabled { opacity: .45; cursor: default; }
+.mrd-shell .mrd-miss-later { height: 42px; border-radius: 14px; border: none; background: transparent; color: var(--mrd-fg2); font-family: var(--mrd-sans); font-size: 13px; cursor: pointer; }
+
+/* ── Inventaire — feuille « Ranger un produit » (tour 21a) ────────────
+   `InventoryView.renderRangerPicker`. Même grammaire que `.mrd-miss-*` :
+   feuille basse, en-tête vignette + titre, un bouton plein puis une sortie
+   en texte nu. La grille de tuiles est plafonnée (`max-height`) et défile
+   en interne — le nombre de rangements ne doit jamais faire grossir la
+   feuille au-delà de son plafond. */
+.mrd-ranger-modal { --border-radius: 30px; }
+.mrd-ranger-modal::part(backdrop) { background: oklch(27% 0.05 48 / .38); }
+html[data-theme="dark"] .mrd-ranger-modal::part(backdrop) { background: oklch(8% 0.012 60 / .38); }
+
+.mrd-shell .mrd-ranger { display: flex; flex-direction: column; gap: 14px; padding: 12px 18px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--mrd-bg); min-height: 100%; }
+
+.mrd-shell .mrd-ranger-head { display: flex; align-items: flex-start; gap: 12px; }
+.mrd-shell .mrd-ranger-thumb { flex: none; width: 46px; height: 46px; border-radius: 15px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); display: grid; place-items: center; font-size: 21px; }
+.mrd-shell .mrd-ranger-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mrd-shell .mrd-ranger-eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .mrd-ranger-title { font-family: var(--mrd-serif); font-size: 25px; font-weight: 600; line-height: 1.12; color: var(--mrd-fg); }
+.mrd-shell .mrd-ranger-close { flex: none; width: 32px; height: 32px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 13px; cursor: pointer; }
+
+/* Carte mémoire — le rangement où ce produit a déjà été rangé. Toujours
+   accentuée (bord + fond teintés) : c'est ce qui la distingue des tuiles en
+   dessous. Seule la coche reflète la sélection courante. */
+.mrd-shell .mrd-ranger-memory { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 16px; border: 1.5px solid var(--mrd-aBtn); background: var(--mrd-aTintCard); text-align: left; cursor: pointer; font-family: inherit; width: 100%; }
+.mrd-shell .mrd-ranger-memory-thumb { flex: none; width: 34px; height: 34px; border-radius: 11px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); display: grid; place-items: center; font-size: 17px; }
+.mrd-shell .mrd-ranger-memory-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mrd-shell .mrd-ranger-memory-name { font-size: 14.5px; font-weight: 700; color: var(--mrd-fg); }
+.mrd-shell .mrd-ranger-memory-sub { font-size: 11.5px; color: var(--mrd-aTintCardFg); }
+.mrd-shell .mrd-ranger-memory-check { flex: none; width: 22px; height: 22px; border-radius: 999px; background: var(--mrd-aBtn); display: grid; place-items: center; font-size: 12px; color: var(--mrd-white); }
+
+.mrd-shell .mrd-ranger-empty-state { display: flex; flex-direction: column; gap: 14px; }
+.mrd-shell .mrd-ranger-empty { font-size: 12px; color: var(--mrd-fg3); }
+
+.mrd-shell .mrd-ranger-locations { display: flex; flex-direction: column; gap: 14px; }
+.mrd-shell .mrd-ranger-locblock { padding: 10px; border-radius: 16px; background: var(--mrd-bgDeep); border: 1px solid var(--mrd-border); display: flex; flex-direction: column; gap: 8px; }
+.mrd-shell .mrd-ranger-search { height: 42px; padding: 0 13px; border-radius: 13px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); display: flex; align-items: center; gap: 9px; }
+.mrd-shell .mrd-ranger-search-icon { flex: none; font-size: 13px; color: var(--mrd-fg3); }
+.mrd-shell .mrd-ranger-search-input { flex: 1; min-width: 0; border: none; background: transparent; font-size: 13.5px; color: var(--mrd-fg); font-family: inherit; outline: none; }
+.mrd-shell .mrd-ranger-search-input::placeholder { color: var(--mrd-fg3); }
+
+/* Deux tuiles par rangée, plafonnée à ~3 rangées qui défilent. Bascule en
+   une colonne pleine largeur (voir #21b de la maquette) dès qu'un nom de
+   rangement dépasse ~16 caractères : une grille à deux colonnes casserait
+   sur « Placard au-dessus du frigo ». */
+.mrd-shell .mrd-ranger-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start; max-height: 168px; overflow-y: auto; padding-right: 2px; }
+.mrd-shell .mrd-ranger-grid--wide { grid-template-columns: 1fr; max-height: 340px; }
+.mrd-shell .mrd-ranger-tile { min-height: 52px; padding: 8px 12px; border-radius: 14px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; font-family: inherit; }
+.mrd-shell .mrd-ranger-tile--selected { border: 1.5px solid var(--mrd-aBtn); background: var(--mrd-aTintCard); }
+.mrd-shell .mrd-ranger-tile-emoji { flex: none; font-size: 17px; }
+.mrd-shell .mrd-ranger-tile-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mrd-shell .mrd-ranger-tile-name { font-size: 13.5px; color: var(--mrd-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrd-shell .mrd-ranger-tile-count { font-size: 11px; color: var(--mrd-fg3); }
+
+.mrd-shell .mrd-ranger-secrow { display: flex; gap: 8px; }
+.mrd-shell .mrd-ranger-newloc-btn { flex: 1; height: 44px; padding: 0 12px; border-radius: 14px; border: 1px dashed var(--mrd-border); background: var(--mrd-bgDeep); color: var(--mrd-fg2); font-family: inherit; font-size: 13px; cursor: pointer; }
+.mrd-shell .mrd-ranger-noloc-btn { flex: none; padding: 0 14px; height: 44px; border-radius: 14px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-family: inherit; font-size: 13px; cursor: pointer; }
+
+.mrd-shell .mrd-ranger-create { padding: 10px; border-radius: 14px; background: var(--mrd-surf2); border: 1px dashed var(--mrd-border); }
+.mrd-shell .mrd-ranger-create-row { display: flex; gap: 8px; align-items: center; }
+.mrd-shell .mrd-ranger-create-input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border-radius: 12px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-size: 13.5px; color: var(--mrd-fg); font-family: inherit; outline: none; }
+.mrd-shell .mrd-ranger-create-emoji { flex: none; width: 42px; height: 42px; border-radius: 12px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-size: 16px; display: grid; place-items: center; cursor: pointer; }
+.mrd-shell .mrd-ranger-create-ok { flex: none; height: 42px; padding: 0 14px; border-radius: 12px; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.mrd-shell .mrd-ranger-create-ok:disabled { background: var(--mrd-disabledBg); color: var(--mrd-disabledFg); cursor: default; }
+.mrd-shell .mrd-ranger-create-cancel { flex: none; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 13px; cursor: pointer; }
+
+.mrd-shell .mrd-ranger-footer { display: flex; flex-direction: column; gap: 8px; }
+.mrd-shell .mrd-ranger-submit { height: 50px; border-radius: 16px; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-family: inherit; font-size: 14.5px; font-weight: 700; cursor: pointer; }
+.mrd-shell .mrd-ranger-submit:disabled { background: var(--mrd-disabledBg); color: var(--mrd-disabledFg); cursor: default; }
+.mrd-shell .mrd-ranger-cancel { height: 42px; border-radius: 14px; border: none; background: transparent; color: var(--mrd-fg2); font-family: inherit; font-size: 13px; cursor: pointer; }
+
+/* ── 5b · Inventaire (option 19a « Une liste, une action ») ──────────────
+   Refonte complète de l'onglet Inventaire : une liste, un filtre péremption
+   (pas une seconde liste), une seule action visible par ligne (le compteur),
+   les produits finis dans un bloc replié. Voir InventoryView.js. */
+
+.mrd-shell .mrd-inv-screen { display: flex; flex-direction: column; gap: 0; background: var(--mrd-bg); }
+
+.mrd-shell .mrd-inv-header { flex: none; padding: 10px 4px 12px; border-bottom: 1px solid var(--mrd-borderSoft); display: flex; flex-direction: column; gap: 10px; }
+.mrd-shell .mrd-inv-title-row { display: flex; align-items: baseline; gap: 9px; }
+.mrd-shell .mrd-inv-title { font-family: var(--mrd-serif); font-size: 27px; font-weight: 600; line-height: 1.05; color: var(--mrd-fg); }
+.mrd-shell .mrd-inv-count { font-size: 11.5px; color: var(--mrd-fg3); }
+.mrd-shell .mrd-inv-select-btn { margin-left: auto; padding: 5px 11px; border-radius: 9px; font-size: 12px; font-weight: 500; font-family: inherit; cursor: pointer; background: none; color: var(--mrd-fg3); border: 1px solid var(--mrd-borderSoft); }
+.mrd-shell .mrd-inv-select-btn--cancel { background: var(--mrd-fg); color: var(--mrd-white); border: none; font-weight: 600; }
+
+.mrd-shell .mrd-inv-searchrow { display: flex; gap: 7px; }
+.mrd-shell .mrd-inv-search { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; }
+.mrd-shell .mrd-inv-search-icon { position: absolute; left: 11px; font-size: 12px; color: var(--mrd-fg3); pointer-events: none; }
+.mrd-shell .mrd-inv-search-input { width: 100%; box-sizing: border-box; height: 38px; padding: 0 12px 0 31px; border-radius: 12px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-size: 13px; color: var(--mrd-fg); font-family: inherit; outline: none; }
+.mrd-shell .mrd-inv-search-input::placeholder { color: var(--mrd-fg3); }
+.mrd-shell .mrd-inv-sort-btn { flex: none; height: 38px; padding: 0 12px; border-radius: 12px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-size: 11.5px; font-weight: 600; color: var(--mrd-fg2); font-family: inherit; cursor: pointer; white-space: nowrap; }
+
+.mrd-shell .mrd-inv-switch-row { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 12px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-family: inherit; cursor: pointer; text-align: left; }
+.mrd-shell .mrd-inv-switch-row--on { background: var(--mrd-aLt); border-color: var(--mrd-aMd); }
+.mrd-shell .mrd-inv-switch-track { flex: none; width: 38px; height: 22px; border-radius: 999px; background: var(--mrd-border); display: flex; align-items: center; padding: 3px; box-sizing: border-box; }
+.mrd-shell .mrd-inv-switch-row--on .mrd-inv-switch-track { background: var(--mrd-aBtn); justify-content: flex-end; }
+.mrd-shell .mrd-inv-switch-thumb { width: 16px; height: 16px; border-radius: 999px; background: var(--mrd-white); box-shadow: 0 1px 3px oklch(27% 0.05 48 / .28); }
+.mrd-shell .mrd-inv-switch-label { flex: 1; font-size: 12px; font-weight: 600; color: var(--mrd-fg2); }
+.mrd-shell .mrd-inv-switch-row--on .mrd-inv-switch-label { color: var(--mrd-a); }
+.mrd-shell .mrd-inv-switch-state { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .mrd-inv-switch-row--on .mrd-inv-switch-state { color: var(--mrd-a); }
+
+.mrd-shell .mrd-inv-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.mrd-shell .mrd-inv-chips::-webkit-scrollbar { display: none; }
+.mrd-shell .mrd-inv-chip-wrap { position: relative; flex: none; }
+.mrd-shell .mrd-inv-chip { flex: none; height: 29px; padding: 0 11px; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: 5px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); color: var(--mrd-fg2); white-space: nowrap; }
+.mrd-shell .mrd-inv-chip--on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-shell .mrd-inv-chip-count { opacity: .65; font-weight: 500; }
+.mrd-shell .mrd-inv-chip-add { flex: none; width: 29px; height: 29px; border-radius: 999px; border: 1px dashed var(--mrd-aMd); background: var(--mrd-aLt); color: var(--mrd-a); font-size: 15px; cursor: pointer; display: grid; place-items: center; }
+.mrd-shell .mrd-inv-chip-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; background: var(--mrd-surf); border: 1px solid var(--mrd-border); border-radius: 12px; padding: 4px; display: flex; flex-direction: column; min-width: 130px; box-shadow: var(--mrd-shadowSm); }
+.mrd-shell .mrd-inv-chip-menu button { text-align: left; padding: 8px 10px; border-radius: 8px; border: none; background: none; font-size: 12.5px; font-family: inherit; color: var(--mrd-fg); cursor: pointer; }
+.mrd-shell .mrd-inv-chip-menu-danger { color: oklch(48% 0.18 25); }
+.mrd-shell .mrd-inv-chip-create { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; display: flex; gap: 6px; align-items: center; background: var(--mrd-surf); border: 1px solid var(--mrd-border); border-radius: 12px; padding: 6px; box-shadow: var(--mrd-shadowSm); }
+.mrd-shell .mrd-inv-chips > .mrd-inv-chip-create { position: static; box-shadow: none; padding: 0; background: none; border: none; }
+.mrd-shell .mrd-inv-chip-create-emoji { flex: none; width: 29px; height: 29px; border-radius: 10px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); font-size: 14px; cursor: pointer; display: grid; place-items: center; }
+.mrd-shell .mrd-inv-chip-create-input { width: 110px; height: 29px; padding: 0 8px; border-radius: 10px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); font-size: 12px; color: var(--mrd-fg); font-family: inherit; outline: none; }
+.mrd-shell .mrd-inv-chip-create-ok { flex: none; height: 29px; padding: 0 9px; border-radius: 10px; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.mrd-shell .mrd-inv-chip-create-ok:disabled { background: var(--mrd-disabledBg); color: var(--mrd-disabledFg); }
+.mrd-shell .mrd-inv-chip-create-cancel { flex: none; width: 29px; height: 29px; border-radius: 10px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); color: var(--mrd-fg2); font-size: 12px; cursor: pointer; }
+
+.mrd-shell .mrd-inv-list { flex: 1; padding: 10px 4px 96px; display: flex; flex-direction: column; gap: 8px; }
+
+.mrd-shell .mrd-inv-expiry { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 14px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-family: inherit; cursor: pointer; text-align: left; }
+.mrd-shell .mrd-inv-expiry--on { background: var(--mrd-invAmberBg); border-color: var(--mrd-invAmberBorder); }
+.mrd-shell .mrd-inv-expiry-icon { flex: none; font-size: 15px; }
+.mrd-shell .mrd-inv-expiry-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mrd-shell .mrd-inv-expiry-title { font-size: 12.5px; font-weight: 700; color: var(--mrd-invAmberTitle); }
+.mrd-shell .mrd-inv-expiry-sub { font-size: 10.5px; color: var(--mrd-fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrd-shell .mrd-inv-expiry-action { flex: none; font-size: 11px; font-weight: 700; color: var(--mrd-a); }
+
+.mrd-shell .mrd-inv-row { border-radius: 16px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); }
+.mrd-shell .mrd-inv-row--open { border-color: oklch(80% 0.09 30); }
+.mrd-shell .mrd-inv-row--sel { background: var(--mrd-aLt); }
+.mrd-shell .mrd-inv-row-top { padding: 10px 11px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.mrd-shell .mrd-inv-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mrd-shell .mrd-inv-row-name { font-size: 13.5px; font-weight: 600; line-height: 1.25; color: var(--mrd-fg); }
+.mrd-shell .mrd-inv-row-meta { font-size: 10.5px; color: var(--mrd-fg3); }
+.mrd-shell .mrd-inv-row-pill { align-self: flex-start; padding: 2px 7px; border-radius: 999px; font-size: 9.5px; font-weight: 700; margin-top: 1px; }
+.mrd-shell .mrd-inv-counter { flex: none; height: 30px; border-radius: 11px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); overflow: hidden; display: flex; align-items: stretch; }
+.mrd-shell .mrd-inv-counter-btn { width: 28px; border: none; background: none; color: var(--mrd-fg2); font-size: 16px; cursor: pointer; font-family: inherit; }
+.mrd-shell .mrd-inv-counter-val { min-width: 46px; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; color: var(--mrd-fg); white-space: nowrap; }
+.mrd-shell .mrd-inv-row-expand { padding: 0 11px 10px; display: flex; gap: 8px; }
+.mrd-shell .mrd-inv-row-btn { flex: 1; height: 31px; padding: 0 10px; border-radius: 10px; font-size: 11px; font-family: inherit; cursor: pointer; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); color: var(--mrd-fg2); white-space: nowrap; }
+.mrd-shell .mrd-inv-row-btn--finish { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sageDeep); font-weight: 700; }
+.mrd-shell .mrd-inv-row-btn--kebab { flex: none; width: 31px; padding: 0; }
+
+.mrd-shell .mrd-inv-finished { margin-top: 4px; border-radius: 16px; background: transparent; border: 1px solid var(--mrd-borderSoft); }
+.mrd-shell .mrd-inv-finished-head { width: 100%; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; background: none; border: none; font-size: 12px; font-weight: 600; color: var(--mrd-fg2); font-family: inherit; cursor: pointer; }
+.mrd-shell .mrd-inv-finished-caret { font-size: 11px; color: var(--mrd-fg3); }
+.mrd-shell .mrd-inv-finished-clear { margin: 0 12px 8px; align-self: flex-start; font-size: 11px; font-weight: 600; color: var(--mrd-fg3); background: none; border: 1px solid var(--mrd-borderSoft); border-radius: 7px; padding: 3px 9px; cursor: pointer; font-family: inherit; }
+.mrd-shell .mrd-inv-finished-row { padding: 0 12px 10px; display: flex; align-items: center; gap: 8px; }
+.mrd-shell .mrd-inv-finished-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--mrd-fg3); text-decoration: line-through; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrd-shell .mrd-inv-finished-btn { flex: none; height: 27px; padding: 0 10px; border-radius: 9px; font-size: 10.5px; font-weight: 600; font-family: inherit; cursor: pointer; background: var(--mrd-surf); border: 1px solid var(--mrd-border); color: var(--mrd-fg2); }
+.mrd-shell .mrd-inv-finished-btn--restock { background: var(--mrd-sageLt); border-color: var(--mrd-sageMd); color: var(--mrd-sageDeep); font-weight: 700; }
+
+.mrd-shell .mrd-inv-empty { margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.mrd-shell .mrd-inv-empty-glyph { font-size: 26px; }
+.mrd-shell .mrd-inv-empty-title { font-size: 14px; font-weight: 600; color: var(--mrd-fg); }
+.mrd-shell .mrd-inv-empty-sub { font-size: 12px; color: var(--mrd-fg3); max-width: 240px; }
+.mrd-shell .mrd-inv-empty-btn { margin-top: 4px; height: 34px; padding: 0 16px; border-radius: 12px; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.mrd-shell .mrd-inv-clearall { font-size: 11px; color: var(--mrd-fg3); background: none; border: 1px solid var(--mrd-borderSoft); border-radius: 7px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-weight: 500; }
+
+/* ── Inventaire — feuille d'ajout (README §4) ────────────────────────── */
+.mrd-inv-add-modal { --border-radius: 26px; }
+.mrd-inv-add-modal::part(backdrop) { background: oklch(27% 0.05 48 / .38); }
+html[data-theme="dark"] .mrd-inv-add-modal::part(backdrop) { background: oklch(8% 0.012 60 / .38); }
+.mrd-shell .mrd-inv-add { display: flex; flex-direction: column; gap: 14px; padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--mrd-bg); max-height: 700px; overflow-y: auto; }
+.mrd-shell .mrd-inv-add-head { display: flex; align-items: center; gap: 8px; }
+.mrd-shell .mrd-inv-add-eyebrow { flex: 1; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mrd-fg3); }
+.mrd-shell .mrd-inv-add-close { flex: none; width: 30px; height: 30px; border-radius: 10px; border: 1px solid var(--mrd-border); background: var(--mrd-surf); color: var(--mrd-fg2); font-size: 13px; cursor: pointer; }
+.mrd-shell .mrd-inv-add-body { display: flex; flex-direction: column; gap: 14px; }
+.mrd-shell .mrd-inv-add-name { width: 100%; box-sizing: border-box; border: none; border-bottom: 1.5px solid var(--mrd-border); background: none; padding: 4px 0 8px; font-family: var(--mrd-serif); font-size: 27px; font-weight: 600; color: var(--mrd-fg); outline: none; }
+.mrd-shell .mrd-inv-add-name--dup { border-bottom-color: oklch(78% 0.10 78); }
+.mrd-shell .mrd-inv-add-dup { padding: 9px 12px; border-radius: 12px; background: var(--mrd-invAmberBg); border: 1px solid var(--mrd-invAmberBorder); font-size: 11.5px; color: var(--mrd-invAmberTitle); }
+.mrd-shell .mrd-inv-add-qtyrow { display: flex; flex-direction: column; gap: 8px; }
+.mrd-shell .mrd-inv-add-qty { align-self: flex-start; height: 40px; border-radius: 12px; border: 1px solid var(--mrd-border); background: var(--mrd-surf2); display: flex; align-items: stretch; overflow: hidden; }
+.mrd-shell .mrd-inv-add-qty-btn { width: 38px; border: none; background: none; color: var(--mrd-fg2); font-size: 16px; cursor: pointer; font-family: inherit; }
+.mrd-shell .mrd-inv-add-qty-val { min-width: 62px; display: grid; place-items: center; font-size: 14px; font-weight: 700; color: var(--mrd-fg); }
+.mrd-shell .mrd-inv-add-units { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.mrd-shell .mrd-inv-add-units::-webkit-scrollbar { display: none; }
+.mrd-shell .mrd-inv-add-unit { flex: none; height: 30px; min-width: 40px; padding: 0 10px; border-radius: 10px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); color: var(--mrd-fg2); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.mrd-shell .mrd-inv-add-unit--on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-shell .mrd-inv-add-locs { display: flex; gap: 6px; flex-wrap: wrap; }
+.mrd-shell .mrd-inv-add-locchip { height: 32px; padding: 0 13px; border-radius: 999px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); color: var(--mrd-fg2); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.mrd-shell .mrd-inv-add-locchip--on { background: var(--mrd-aBtn); border-color: var(--mrd-aBtn); color: var(--mrd-white); }
+.mrd-shell .mrd-inv-add-toggles { display: flex; gap: 8px; }
+.mrd-shell .mrd-inv-add-toggle { flex: 1; height: 34px; border-radius: 11px; background: var(--mrd-surf2); border: 1px solid var(--mrd-border); color: var(--mrd-fg2); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.mrd-shell .mrd-inv-add-toggle--on { background: var(--mrd-aLt); border-color: var(--mrd-aMd); color: var(--mrd-a); }
+.mrd-shell .mrd-inv-add-details { display: flex; flex-direction: column; gap: 9px; padding: 12px; border-radius: 16px; background: var(--mrd-bgDeep); border: 1px solid var(--mrd-borderSoft); }
+.mrd-shell .mrd-inv-add-details-input { box-sizing: border-box; height: 40px; padding: 0 11px; border-radius: 11px; background: var(--mrd-surf); border: 1px solid var(--mrd-border); font-size: 13.5px; color: var(--mrd-fg); font-family: inherit; outline: none; width: 100%; }
+.mrd-shell .mrd-inv-add-submit { height: 48px; border-radius: 15px; border: none; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.mrd-shell .mrd-inv-add-submit:disabled { background: var(--mrd-disabledBg); color: var(--mrd-disabledFg); cursor: default; }
 
 /* ── 6a · bibliothèque de recettes (onglet Recettes, vue liste) ──
    Même grammaire que le sélecteur des repas (.mpick-*) : rangée de
@@ -7866,7 +8260,6 @@ html[data-theme="dark"] .mpick-rail-item.on .mpick-rail-dot { background: var(--
 .mrd-shell .rlib-title { font-family: var(--mrd-serif); font-weight: 600; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; color: var(--mrd-fg); }
 .mrd-shell .rlib-subtitle { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mrd-fg3); }
 .mrd-shell .rlib-hdr-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.mrd-shell .rlib-add { width: 36px; height: 36px; flex-shrink: 0; border: none; border-radius: 13px; background: var(--mrd-aBtn); color: var(--mrd-white); font-size: 19px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 
 .mrd-shell .rlib-searchrow { display: flex; align-items: center; gap: 8px; padding: 0 4px 10px; }
 /* Ces quatre regles habillaient le `<span>` conteneur et son `<input>` nu.
@@ -8721,17 +9114,22 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
 /* ── 7b · D'où vient cette recette ? ────────────────────────────────── */
 
 /* La feuille se dimensionne sur son contenu : `sheetBreakpoint` côté JS,
-   les rayons ici — ceux de `.mrd-modal-sheet` visent le plein écran. */
+   le rayon ici — celui de `.mrd-modal-sheet` vise le plein écran.
+   Une seule longueur : voir la note sur `.mrd-modal-sheet`. */
 .rsrc-sheet {
-  --border-radius: 28px 28px 0 0;
+  --border-radius: 28px;
 }
 .mrd-shell .rsrc {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 4px 18px calc(26px + env(safe-area-inset-bottom, 0px));
+  padding: 16px 18px calc(26px + env(safe-area-inset-bottom, 0px));
   background: var(--mrd-bg);
-  height: 100%;
+  /* `min-height` et non `height` : le point d ouverture est calcule depuis
+     `SOURCE_SHEET_HEIGHT`, une estimation. Si le contenu depasse (traduction
+     plus longue, corps de texte agrandi), le panneau grandit et `::part(content)`
+     le fait defiler, au lieu de rogner « Annuler ». */
+  min-height: 100%;
 }
 .mrd-shell .rsrc-head {
   display: flex;
@@ -8825,8 +9223,9 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
 
 /* ── 7c · Importer, sans quitter la liste ───────────────────────────── */
 
+/* Une seule longueur : voir la note sur `.mrd-modal-sheet`. */
 .rimp-sheet {
-  --border-radius: 28px 28px 0 0;
+  --border-radius: 28px;
 }
 .mrd-shell .rimp {
   display: flex;
@@ -8840,7 +9239,7 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 4px 18px 10px;
+  padding: 16px 18px 10px;
 }
 .mrd-shell .rimp-head-copy {
   flex: 1;
@@ -8915,13 +9314,13 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
 }
 .mrd-shell .rimp-field-clear {
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   border: none;
   background: transparent;
   color: var(--mrd-fg3);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
@@ -9189,7 +9588,7 @@ html[data-theme="dark"] .mrd-shell .rlib-rail-item.on .rlib-rail-dot { backgroun
   color: var(--mrd-white);
   box-shadow: var(--mrd-glowA);
 }
-.mrd-shell .rimp-cta:disabled { cursor: default; }
+.mrd-shell .rimp-cta:disabled { cursor: default; opacity: 0.6; box-shadow: none; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    PENSE-BÊTE — handoff 9a « La liste datée »

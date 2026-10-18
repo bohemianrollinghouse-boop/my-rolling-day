@@ -1,4 +1,5 @@
 import { html, useState, useRef, useMemo, useEffect } from "../../lib.js";
+import { MrdModal } from "../../components/MrdModal.js";
 
 /* ── Persistent recent emojis ──────────────────────────────── */
 const RECENT_KEY = "mrd-recent-emojis";
@@ -823,17 +824,8 @@ export function EmojiPicker({ onSelect, onClose }) {
     : catTabs.find((c) => c.id === activeCat)?.label || "";
 
   return html`
-    <div
-      style=${{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "oklch(0% 0 0 / 0.45)" }}
-      onClick=${onClose}
-    >
-      <div
-        style=${{ background: "var(--mrd-surf)", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "72vh", display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-        onClick=${(e) => e.stopPropagation()}
-      >
-        <!-- Drag handle -->
-        <div style=${{ width: 36, height: 4, borderRadius: 2, background: "var(--mrd-border)", margin: "10px auto 6px", flexShrink: 0 }} />
-
+    <${MrdModal} isOpen=${true} onClose=${onClose} sheet=${true} sheetBreakpoint=${0.85} className="mrd-emoji-modal">
+      <div style=${{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         <!-- Search bar -->
         <div style=${{ padding: "0 14px 8px", flexShrink: 0 }}>
           <div style=${{ display: "flex", alignItems: "center", gap: 8, background: "var(--mrd-surf2)", border: "1.5px solid var(--mrd-border)", borderRadius: 12, padding: "0 12px" }}>
@@ -892,6 +884,6 @@ export function EmojiPicker({ onSelect, onClose }) {
           }
         </div>
       </div>
-    </div>
+    <//>
   `;
 }
